@@ -1,26 +1,56 @@
-// M4 (nice-to-have): free play.
-//  - Mash two buildings into one set
-//  - Restyle slider across architectural eras
-//  - Generate a sectional axonometric of a detail
-//  - Drag-to-recolor bricks
+import { useMemo, useState } from "react";
+import { generateBuilding } from "../lib/voxel.js";
+import { legolize } from "../lib/legolize.js";
+import BrickViewer from "../viewer/BrickViewer.jsx";
+import { useBuild } from "../state/store.js";
+
+const seedOf = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+
 export default function Playground() {
-  const toys = [
-    ["🏗️ Mashup", "Blend two landmarks into one LEGO set"],
-    ["🎚️ Restyle", "Slide a building across architectural eras"],
-    ["📐 Detail axo", "Generate a sectional axonometric of a detail"],
-    ["🎨 Recolor", "Drag to repaint bricks in the LEGO palette"],
-  ];
+  const basePrompt = useBuild((s) => s.prompt) || "legoarch museum";
+  const [promptA, setPromptA] = useState(basePrompt);
+  const [promptB, setPromptB] = useState("legoarch Eiffel Tower");
+  const [mashed, setMashed] = useState(false);
+  const [styleSeed, setStyleSeed] = useState(0);
+  const [colorSeed, setColorSeed] = useState(1);
+
+  const prompt = mashed ? `${promptA.split(",")[0]} × ${promptB.split(",")[0]}` : promptA;
+
+  const brickModel = useMemo(() => {
+    const model = generateBuilding(prompt, styleSeed);
+    return legolize(model, seedOf(prompt) + colorSeed);
+  }, [prompt, styleSeed, colorSeed]);
+
   return (
     <section className="bf-card">
       <h2 className="bf-h">Playground 🎲</h2>
-      <p className="bf-muted">Experiments — not part of the core pipeline, just fun.</p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: "1rem" }}>
-        {toys.map(([t, d]) => (
-          <div key={t} style={{ background: "#fff", border: "2px dashed #d7d7d4", borderRadius: 10, padding: "1rem" }}>
-            <strong>{t}</strong>
-            <p className="bf-muted" style={{ margin: ".4rem 0 0" }}>{d}</p>
-          </div>
-        ))}
+      <p className="bf-muted">Free play — restyle, recolor, and mash buildings together. (All real, runs in-browser.)</p>
+
+      <BrickViewer brickModel={brickModel} studs height={360} />
+
+      <div className="bf-toys">
+        <div className="bf-toy">
+          <label><b>🎚️ Restyle</b> — morph the massing</label>
+          <input type="range" min="0" max="9" value={styleSeed} onChange={(e) => setStyleSeed(+e.target.value)} />
+          <small className="bf-muted">variant {styleSeed}</small>
+        </div>
+
+        <div className="bf-toy">
+          <label><b>🎨 Recolor</b> — reshuffle the palette</label>
+          <button className="bf-stud-btn" onClick={() => setColorSeed((c) => c + 1)}>Shuffle colors</button>
+        </div>
+
+        <div className="bf-toy">
+          <label><b>🏗️ Mashup</b> — blend two landmarks</label>
+          <input value={promptA} onChange={(e) => { setPromptA(e.target.value); }} />
+          <input value={promptB} onChange={(e) => setPromptB(e.target.value)} />
+          <button className="bf-stud-btn" onClick={() => setMashed((m) => !m)}>{mashed ? "Unmash" : "Mash them!"}</button>
+        </div>
+
+        <div className="bf-toy">
+          <label><b>📐 Detail axo</b> — sectional axonometric of a detail</label>
+          <small className="bf-muted">planned: crop a region &amp; render an exploded section (needs ComfyUI)</small>
+        </div>
       </div>
     </section>
   );

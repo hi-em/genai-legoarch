@@ -1,8 +1,7 @@
 import { useCollection } from "../state/store.js";
 
-// M3 (must-have): the collection shelf — a gallery of the user's own creations.
 export default function Shelf() {
-  const items = useCollection((s) => s.items);
+  const { items, remove } = useCollection();
 
   return (
     <section className="bf-card">
@@ -13,11 +12,15 @@ export default function Shelf() {
           Empty shelf. Go generate your first build!
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: "1rem" }}>
+        <div className="bf-shelf">
           {items.map((it) => (
-            <figure key={it.id} style={{ margin: 0 }}>
-              <img src={it.thumb} alt={it.title} style={{ width: "100%", borderRadius: 8 }} />
-              <figcaption style={{ fontSize: ".85rem", marginTop: ".25rem" }}>{it.title}</figcaption>
+            <figure key={it.id} className="bf-shelfitem">
+              <img src={it.thumb} alt={it.title} />
+              <figcaption>
+                <strong>{it.title}</strong>
+                <small className="bf-muted">{it.nBricks} bricks</small>
+              </figcaption>
+              <button className="bf-x" title="Remove" onClick={() => remove(it.id)}>×</button>
             </figure>
           ))}
         </div>

@@ -1,0 +1,32 @@
+// LDraw (.ldr) export — mirrors backend/app/legolizer/ldraw.py.
+// Opens in BrickLink Studio / any LDraw viewer.
+const LDU_PER_STUD = 20;
+const LDU_PER_BRICK_H = 24;
+const ROT0 = "1 0 0 0 1 0 0 0 1";
+
+export function toLdraw(brickModel, title = "BrickForge model") {
+  const lines = [`0 ${title}`, "0 Name: model.ldr", "0 Author: BrickForge", ""];
+  for (const b of brickModel.bricks) {
+    const lx = b.x * LDU_PER_STUD;
+    const ly = -b.z * LDU_PER_BRICK_H; // LDraw Y is down
+    const lz = b.y * LDU_PER_STUD;
+    lines.push(`1 ${b.color} ${lx} ${ly} ${lz} ${ROT0} ${b.part}.dat`);
+  }
+  return lines.join("\n") + "\n";
+}
+
+export function download(filename, text, mime = "text/plain") {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function partsToCsv(parts) {
+  const rows = [["part", "color_code", "color_name", "qty"]];
+  for (const p of parts) rows.push([p.part, p.color, p.name, p.qty]);
+  return rows.map((r) => r.join(",")).join("\n") + "\n";
+}

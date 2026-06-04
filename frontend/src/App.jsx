@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useUI } from "./state/store.js";
 import Generate from "./screens/Generate.jsx";
 import Viewer3D from "./screens/Viewer3D.jsx";
 import BrickStudio from "./screens/BrickStudio.jsx";
 import Shelf from "./screens/Shelf.jsx";
 import Playground from "./screens/Playground.jsx";
+import { MOCK } from "./api.js";
 
 const TABS = [
   ["generate", "Generate", Generate],
@@ -14,7 +15,7 @@ const TABS = [
 ];
 
 export default function App() {
-  const [tab, setTab] = useState("generate");
+  const { tab, setTab } = useUI();
   const Active = TABS.find(([k]) => k === tab)[2];
 
   return (
@@ -32,6 +33,7 @@ export default function App() {
             </button>
           ))}
         </nav>
+        {MOCK && <span className="bf-badge" title="AI image + TRELLIS are mocked; geometry, bricks, exports & shelf are real.">MOCK MODE</span>}
       </header>
       <main className="bf-main bf-baseplate">
         <Active />

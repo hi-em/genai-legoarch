@@ -1,21 +1,34 @@
-// M1: TRELLIS 3D model in a three.js viewer. EXIT 1 = download STL → 3D print.
-// TODO: @react-three/fiber <Canvas> with the GLB/STL; "Download STL" button;
-//       "Continue → Brick Studio" button to start the legolizer (Exit 2).
+import { useBuild, useUI } from "../state/store.js";
+import BrickViewer from "../viewer/BrickViewer.jsx";
+import { brickModelToStl } from "../lib/stl.js";
+import { download } from "../lib/ldraw.js";
+import EmptyState from "../components/EmptyState.jsx";
+
 export default function Viewer3D() {
+  const { brickModel, prompt } = useBuild();
+  const setTab = useUI((s) => s.setTab);
+  if (!brickModel) return <EmptyState />;
+
+  function onDownloadStl() {
+    const stl = brickModelToStl(brickModel, true);
+    download(`${(prompt || "model").slice(0, 24).replace(/\W+/g, "_")}.stl`, stl, "model/stl");
+  }
+
   return (
     <section className="bf-card">
       <h2 className="bf-h">3D model · Print it (Exit 1)</h2>
       <p className="bf-muted">
-        Your render becomes a 3D model (TRELLIS). Stop here to <b>download the STL and 3D-print</b> a smooth souvenir,
-        or continue to <b>Brick Studio</b> to turn it into real, buildable bricks.
+        Your render is now a 3D model. <b>Stop here</b> to download the STL and 3D-print a smooth souvenir,
+        or <b>continue</b> to turn it into real, buildable bricks.
       </p>
-      <div style={{ height: 360, display: "grid", placeItems: "center", background: "#eef0ef", borderRadius: 8 }}>
-        <span className="bf-muted">[ three.js viewer — M1 ]</span>
+      <BrickViewer brickModel={brickModel} monochrome studs={false} height={400} />
+      <div style={{ marginTop: "1rem", display: "flex", gap: ".5rem", flexWrap: "wrap" }}>
+        <button className="bf-stud-btn" onClick={onDownloadStl}>⬇ Download STL</button>
+        <button className="bf-stud-btn" onClick={() => setTab("studio")}>Continue → Brick Studio ▶</button>
       </div>
-      <div style={{ marginTop: "1rem", display: "flex", gap: ".5rem" }}>
-        <button className="bf-stud-btn">⬇ Download STL</button>
-        <button className="bf-stud-btn">Continue → Brick Studio</button>
-      </div>
+      <p className="bf-muted" style={{ fontSize: ".8rem", marginTop: ".75rem" }}>
+        STL export is real (generated in-browser). The smooth geometry here will come from TRELLIS once ComfyUI is connected.
+      </p>
     </section>
   );
 }
