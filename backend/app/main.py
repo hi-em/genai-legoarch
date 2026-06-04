@@ -8,6 +8,7 @@ Run:  uvicorn app.main:app --reload --port 8000
 """
 from __future__ import annotations
 
+import base64
 import os
 from typing import Any, Optional
 
@@ -27,17 +28,32 @@ app.add_middleware(
 )
 
 COMFYUI_URL = os.environ.get("COMFYUI_URL", "http://127.0.0.1:8188")
+COMFYUI_3D_URL = os.environ.get("COMFYUI_3D_URL", "http://127.0.0.1:8189")
+
+
+def _data_url(data: bytes, mime: str) -> str:
+    return f"data:{mime};base64," + base64.b64encode(data).decode("ascii")
+
+
+def _decode_image(value: str) -> bytes:
+    """Accept raw base64 or a data: URL and return the bytes."""
+    if value.startswith("data:"):
+        value = value.split(",", 1)[1]
+    return base64.b64decode(value)
 
 
 # ---------- request models ----------
 class GenerateImageReq(BaseModel):
     prompt: str
     image_b64: Optional[str] = None        # for img2img
+    seed: Optional[int] = None
     lora_scale: float = 1.0
 
 
 class Generate3DReq(BaseModel):
-    image_url: str
+    image_b64: Optional[str] = None        # the generated LEGO render (b64 or data URL)
+    image_url: Optional[str] = None        # or a URL the backend can fetch
+    seed: Optional[int] = None
 
 
 class LegolizeReq(BaseModel):
@@ -51,21 +67,40 @@ class LegolizeReq(BaseModel):
 # ---------- routes ----------
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "comfyui_url": COMFYUI_URL}
+    return {"ok": True, "comfyui_url": COMFYUI_URL, "comfyui_3d_url": COMFYUI_3D_URL}
 
 
 @app.post("/generate-image")
 def generate_image(req: GenerateImageReq) -> dict[str, Any]:
-    """FLUX.2 + legoarch (txt2img / img2img) via ComfyUI. TODO: wire comfy_client."""
-    # from .comfy_client import run_legoarch
-    # return run_legoarch(req.prompt, req.image_b64, req.lora_scale)
-    raise NotImplementedError("M0: wire ComfyUI client")
+    """FLUX.2 + legoarch via ComfyUI (:8188). img2img when image_b64 is given."""
+    from . import comfy_client
+
+    if req.image_b64:
+        png = comfy_client.run_img2img(req.prompt, _decode_image(req.image_b64), seed=req.seed)
+    else:
+        png = comfy_client.run_txt2img(req.prompt, seed=req.seed)
+    return {"imageUrl": _data_url(png, "image/png")}
 
 
 @app.post("/generate-3d")
 def generate_3d(req: Generate3DReq) -> dict[str, Any]:
-    """TRELLIS image->3D via ComfyUI; returns STL + voxelgrid_npz. TODO (M1)."""
-    raise NotImplementedError("M1: wire TRELLIS workflow")
+    """TRELLIS-2 image->3D via ComfyUI (:8189). Returns a GLB as a data URL."""
+    from . import comfy_client
+
+    if req.image_b64:
+        img = _decode_image(req.image_b64)
+    elif req.image_url:
+        import httpx
+
+        img = httpx.get(req.image_url, timeout=30.0).content
+    else:
+        raise ValueError("generate-3d needs image_b64 or image_url")
+
+    result = comfy_client.run_trellis(img, seed=req.seed)
+    return {
+        "glbUrl": _data_url(result["glb"], "model/gltf-binary"),
+        "filename": result["filename"],
+    }
 
 
 @app.post("/legolize")

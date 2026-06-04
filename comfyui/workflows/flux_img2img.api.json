@@ -1,0 +1,472 @@
+{
+  "660": {
+    "inputs": {
+      "image": "beijing-daxing-international-airport_22_gettyimages-1024x683.jpg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "661": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "upscale_method": "nearest-exact",
+      "keep_proportion": "stretch",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu",
+      "image": [
+        "660",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "663": {
+    "inputs": {
+      "filename_prefix": "2026-06-04/20260604_165118_output",
+      "images": [
+        "662:344",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "690": {
+    "inputs": {
+      "value": "legoarch organic biomorphic blob complex, LEGO Architecture set, multiple interconnected rounded dome volumes with amorphous flowing plan, smooth pearl white and light grey plastic bricks, clustered bubble forms with interior courtyard voids, translucent yellow window tile accents, low-rise spreading footprint, pearl white, light grey, warm yellow window inserts, standalone model on dark display base, white background, elevated 3/4 angle, product photography, studio lighting, official LEGO set photography"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "String (Multiline)"
+    }
+  },
+  "728": {
+    "inputs": {
+      "value": "legoarch Beijing Daxing International Airport Zaha Hadid, LEGO Architecture set, six-armed starfish plan with radiating concourse arms flowing from central hub, smooth warm terracotta orange and copper tan plastic bricks, curved organic roof surface with radial rib pattern, elliptical skylight voids at each arm junction, central spiderweb oculus detail, flowing continuous canopy form, warm terracotta orange, copper tan, dark grey elliptical skylights, light grey base, standalone model on black display base, white background, elevated 3/4 angle, product photography, studio lighting, official LEGO set photography"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "String (Multiline)"
+    }
+  },
+  "730": {
+    "inputs": {
+      "value": "legoarch Fondation Louis Vuitton Paris Frank Gehry, LEGO Architecture set, multiple billowing curved glass sail forms arching over white concrete base, smooth translucent light grey and pearl white plastic bricks, overlapping curved canopy sails with ribbed surface pattern, angular deconstructivist white base volumes beneath, light grey translucent sail panels, bright white concrete base, silver grey structural ribs, standalone model on dark display base, white background, elevated 3/4 angle, product photography, studio lighting, official LEGO set photography"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "String (Multiline)"
+    }
+  },
+  "731": {
+    "inputs": {
+      "value": "legoarch KAPSARC Riyadh Saudi Arabia Zaha Hadid, LEGO Architecture set, interconnected hexagonal and pentagonal cellular roof forms, smooth pearl white and warm off-white plastic bricks, angular faceted roof panels with perforated honeycomb surface pattern, low-rise campus of tessellated geometric volumes with open courtyard voids, pearl white, warm sand beige, light grey, tan sandy base, standalone model on dark display base, white background, elevated 3/4 angle, product photography, studio lighting, official LEGO set photography"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "String (Multiline)"
+    }
+  },
+  "662:340": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "662:341": {
+    "inputs": {
+      "steps": [
+        "662:354",
+        0
+      ],
+      "width": [
+        "662:355",
+        0
+      ],
+      "height": [
+        "662:356",
+        0
+      ]
+    },
+    "class_type": "Flux2Scheduler",
+    "_meta": {
+      "title": "Flux2Scheduler"
+    }
+  },
+  "662:342": {
+    "inputs": {
+      "cfg": [
+        "662:553",
+        0
+      ],
+      "model": [
+        "662:689",
+        0
+      ],
+      "positive": [
+        "662:352:339",
+        0
+      ],
+      "negative": [
+        "662:352:337",
+        0
+      ]
+    },
+    "class_type": "CFGGuider",
+    "_meta": {
+      "title": "CFGGuider"
+    }
+  },
+  "662:343": {
+    "inputs": {
+      "noise": [
+        "662:345",
+        0
+      ],
+      "guider": [
+        "662:342",
+        0
+      ],
+      "sampler": [
+        "662:340",
+        0
+      ],
+      "sigmas": [
+        "662:341",
+        0
+      ],
+      "latent_image": [
+        "662:350",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "662:344": {
+    "inputs": {
+      "samples": [
+        "662:343",
+        0
+      ],
+      "vae": [
+        "662:349",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "662:348": {
+    "inputs": {
+      "text": [
+        "662:361",
+        0
+      ],
+      "clip": [
+        "662:689",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "662:349": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "662:350": {
+    "inputs": {
+      "width": [
+        "662:355",
+        0
+      ],
+      "height": [
+        "662:356",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Flux 2 Latent"
+    }
+  },
+  "662:351": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "megapixels": 1,
+      "resolution_steps": 1,
+      "image": [
+        "661",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "ImageScaleToTotalPixels"
+    }
+  },
+  "662:353": {
+    "inputs": {
+      "value": 431519556885486
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "seed"
+    }
+  },
+  "662:354": {
+    "inputs": {
+      "value": 20
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "steps"
+    }
+  },
+  "662:355": {
+    "inputs": {
+      "value": 1024
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "width"
+    }
+  },
+  "662:356": {
+    "inputs": {
+      "value": 1024
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "height"
+    }
+  },
+  "662:357": {
+    "inputs": {
+      "seed": [
+        "662:353",
+        0
+      ],
+      "steps": [
+        "662:354",
+        0
+      ],
+      "model": [
+        "662:359",
+        0
+      ],
+      "author": [
+        "662:358",
+        0
+      ],
+      "output_path": "[time(%Y-%m-%d)]",
+      "file_prefix": "[time(%Y%m%d_%H%M%S)]_param",
+      "wrap_width": 60,
+      "font_family": "Arial",
+      "font_size": 36,
+      "dark_mode": false,
+      "save_svg": true,
+      "save_yaml": false,
+      "prompt": [
+        "662:361",
+        0
+      ],
+      "negative_prompt": "",
+      "additional_text": "IAAC GenAI 2026"
+    },
+    "class_type": "SaveParamsSVG",
+    "_meta": {
+      "title": "Save Params as SVG"
+    }
+  },
+  "662:358": {
+    "inputs": {
+      "value": "Charles"
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "author"
+    }
+  },
+  "662:359": {
+    "inputs": {
+      "value": "FLUX.2 Image-to-Image"
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "model"
+    }
+  },
+  "662:361": {
+    "inputs": {
+      "prompt": [
+        "728",
+        0
+      ]
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "⚙️ CR Prompt Text"
+    }
+  },
+  "662:410": {
+    "inputs": {
+      "text": "prompt",
+      "clip": [
+        "662:689",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "662:553": {
+    "inputs": {
+      "value": 2.5
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "cfg"
+    }
+  },
+  "662:346": {
+    "inputs": {
+      "unet_name": "flux-2-klein-base-4b-fp8.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "662:347": {
+    "inputs": {
+      "clip_name": "qwen_3_4b_fp8_mixed.safetensors",
+      "type": "flux2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "662:689": {
+    "inputs": {
+      "lora_name": "legoarch.safetensors",
+      "strength_model": 0.75,
+      "strength_clip": 1,
+      "model": [
+        "662:346",
+        0
+      ],
+      "clip": [
+        "662:347",
+        0
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA (Model and CLIP)"
+    }
+  },
+  "662:345": {
+    "inputs": {
+      "noise_seed": [
+        "662:353",
+        0
+      ]
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "662:365": {
+    "inputs": {
+      "image": [
+        "662:351",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "662:352:337": {
+    "inputs": {
+      "conditioning": [
+        "662:410",
+        0
+      ],
+      "latent": [
+        "662:352:338",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "ReferenceLatent"
+    }
+  },
+  "662:352:338": {
+    "inputs": {
+      "pixels": [
+        "662:351",
+        0
+      ],
+      "vae": [
+        "662:349",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "662:352:339": {
+    "inputs": {
+      "conditioning": [
+        "662:348",
+        0
+      ],
+      "latent": [
+        "662:352:338",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "ReferenceLatent"
+    }
+  }
+}

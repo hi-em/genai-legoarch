@@ -13,7 +13,7 @@ const EXAMPLES = [
 ];
 
 export default function Generate() {
-  const { prompt, brickModel, busy, set } = useBuild();
+  const { prompt, imageUrl, brickModel, busy, set } = useBuild();
   const setTab = useUI((s) => s.setTab);
   const [text, setText] = useState(prompt || EXAMPLES[0]);
 
@@ -60,11 +60,19 @@ export default function Generate() {
           <div className="bf-row">
             <div style={{ flex: 1, minWidth: 240 }}>
               <h3 className="bf-h2" style={{ fontSize: "1rem" }}>AI render</h3>
-              <div className="bf-mockrender">
-                <Hammer />
-                <span>legoarch render</span>
-                <small className="bf-muted">mocked until ComfyUI is connected</small>
-              </div>
+              {imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt="legoarch render"
+                  style={{ width: "100%", borderRadius: "calc(var(--u) * 1.5)", display: "block" }}
+                />
+              ) : (
+                <div className="bf-mockrender">
+                  <Hammer />
+                  <span>legoarch render</span>
+                  <small className="bf-muted">connect ComfyUI to generate</small>
+                </div>
+              )}
             </div>
             <div style={{ flex: 1.3, minWidth: 280 }}>
               <h3 className="bf-h2" style={{ fontSize: "1rem" }}>Live 3D geometry</h3>
