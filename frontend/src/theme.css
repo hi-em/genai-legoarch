@@ -1,0 +1,57 @@
+:root {
+  --bf-red: #d01012;
+  --bf-yellow: #f6c700;
+  --bf-blue: #0057a8;
+  --bf-green: #237841;
+  --bf-stud: #ffd34e;
+  --bf-plate: #f4f4f2;
+  --bf-ink: #1b2a34;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Trebuchet MS", system-ui, sans-serif; color: var(--bf-ink); }
+
+.bf-app { min-height: 100vh; display: flex; flex-direction: column; }
+
+.bf-header {
+  display: flex; align-items: center; gap: 1.5rem;
+  padding: 0.75rem 1.25rem; background: var(--bf-red); color: #fff;
+  box-shadow: 0 4px 0 #9c0b0c;
+}
+.bf-logo { font-weight: 800; font-size: 1.4rem; letter-spacing: 0.5px; }
+.bf-nav { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+/* brick-shaped buttons with two "studs" on top */
+.bf-stud-btn {
+  position: relative; border: none; cursor: pointer;
+  background: var(--bf-yellow); color: var(--bf-ink);
+  font-weight: 700; padding: 0.55rem 0.9rem; border-radius: 5px;
+  box-shadow: 0 4px 0 #c39e00; transition: transform .05s ease;
+}
+.bf-stud-btn::before, .bf-stud-btn::after {
+  content: ""; position: absolute; top: -6px; width: 14px; height: 8px;
+  background: var(--bf-stud); border-radius: 7px 7px 3px 3px;
+}
+.bf-stud-btn::before { left: 22%; }
+.bf-stud-btn::after { right: 22%; }
+.bf-stud-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #c39e00; }
+.bf-stud-btn.is-active { background: #fff; box-shadow: 0 4px 0 #c9c9c9; }
+
+.bf-main { flex: 1; padding: 1.5rem; }
+
+/* baseplate: a grid of faint studs */
+.bf-baseplate {
+  background-color: var(--bf-plate);
+  background-image: radial-gradient(circle, #d9d9d6 3px, transparent 3.5px);
+  background-size: 28px 28px;
+  background-position: 8px 8px;
+}
+
+.bf-card {
+  background: #fff; border-radius: 10px; padding: 1.25rem;
+  box-shadow: 0 6px 0 #d7d7d4; max-width: 880px; margin: 0 auto 1.25rem;
+}
+.bf-h { margin-top: 0; }
+.bf-muted { color: #6b7a83; }
+
+.bf-footer { padding: 0.6rem 1rem; font-size: 0.8rem; color: #6b7a83; text-align: center; }

@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+*.local
+
+# Env / secrets
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Generated outputs (keep curated ones in samples/ explicitly)
+backend/outputs/
+*.ldr.bak
+
+# Large model weights are tracked via git-LFS (see .gitattributes).
+# If you prefer to keep them out of git entirely, uncomment:
+# references/*.safetensors
