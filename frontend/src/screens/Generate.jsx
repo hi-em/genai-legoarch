@@ -2,6 +2,7 @@ import { useState } from "react";
 import { generate } from "../api.js";
 import { useBuild, useUI } from "../state/store.js";
 import BrickViewer from "../viewer/BrickViewer.jsx";
+import { Sparkles, Hammer, Box, Blocks, Upload } from "lucide-react";
 
 const EXAMPLES = [
   "legoarch Fondation Louis Vuitton, Frank Gehry, LEGO Architecture set",
@@ -27,44 +28,50 @@ export default function Generate() {
   }
 
   return (
-    <section className="bf-card">
-      <h2 className="bf-h">Generate a LEGO building 🧱</h2>
+    <section className="bf-plate">
+      <h2 className="bf-h2">Generate a brick building</h2>
       <p className="bf-muted">
-        Type a building (or paste a famous one). The <code>legoarch</code> model renders it as a LEGO
-        Architecture set, then we build real 3D geometry from it.
+        Type a building (or paste a famous one). The <code>legoarch</code> model renders it as a set built of
+        LEGO bricks, then we build real 3D geometry from it.
       </p>
 
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} style={{ width: "100%" }} />
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} />
       <div className="bf-chips">
         {EXAMPLES.map((ex) => (
-          <button key={ex} className="bf-chip" onClick={() => setText(ex)}>{ex.split(",")[0].replace("legoarch ", "")}</button>
+          <button key={ex} className="bf-chip" onClick={() => setText(ex)}>
+            {ex.split(",")[0].replace("legoarch ", "")}
+          </button>
         ))}
       </div>
-      <div style={{ marginTop: ".75rem", display: "flex", gap: ".5rem", alignItems: "center" }}>
-        <button className="bf-stud-btn" onClick={onGenerate} disabled={busy}>
-          {busy ? "Building…" : "⚡ Generate"}
+
+      <div className="bf-toolbar">
+        <button className="bf-btn bf-btn--primary bf-btn--studded" onClick={onGenerate} disabled={busy}>
+          <Sparkles /> {busy ? "Building…" : "Generate"}
         </button>
-        <label className="bf-uploadhint bf-muted">＋ or upload a photo (wired with ComfyUI later)</label>
+        <span className="bf-muted" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: ".85rem" }}>
+          <Upload size={15} /> or upload a photo (wired with ComfyUI later)
+        </span>
       </div>
 
       {brickModel && (
-        <div style={{ marginTop: "1.25rem" }}>
+        <div style={{ marginTop: "calc(var(--u) * 3)" }}>
           <div className="bf-row">
-            <div style={{ flex: 1 }}>
-              <h3 className="bf-h" style={{ fontSize: "1rem" }}>AI render</h3>
+            <div style={{ flex: 1, minWidth: 240 }}>
+              <h3 className="bf-h2" style={{ fontSize: "1rem" }}>AI render</h3>
               <div className="bf-mockrender">
-                <span>🖼️ legoarch render</span>
+                <Hammer />
+                <span>legoarch render</span>
                 <small className="bf-muted">mocked until ComfyUI is connected</small>
               </div>
             </div>
-            <div style={{ flex: 1.3 }}>
-              <h3 className="bf-h" style={{ fontSize: "1rem" }}>Live 3D geometry</h3>
+            <div style={{ flex: 1.3, minWidth: 280 }}>
+              <h3 className="bf-h2" style={{ fontSize: "1rem" }}>Live 3D geometry</h3>
               <BrickViewer brickModel={brickModel} height={260} />
             </div>
           </div>
-          <div style={{ marginTop: ".75rem", display: "flex", gap: ".5rem" }}>
-            <button className="bf-stud-btn" onClick={() => setTab("viewer")}>Continue → 3D · Print ▶</button>
-            <button className="bf-stud-btn" onClick={() => setTab("studio")}>Skip to Brick Studio ▶</button>
+          <div className="bf-toolbar">
+            <button className="bf-btn" onClick={() => setTab("viewer")}><Box /> Continue → 3D · Print</button>
+            <button className="bf-btn" onClick={() => setTab("studio")}><Blocks /> Skip to Brick Studio</button>
           </div>
         </div>
       )}

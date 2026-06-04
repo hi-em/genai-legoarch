@@ -1,10 +1,11 @@
-# BrickForge 🧱
+# lEgoarCh
 
-**Generative-AI LEGO Architecture Studio** — turn a building into a LEGO-Architecture render, a 3D-printable model, *and* a genuinely buildable brick set.
+**Generative-AI brick-architecture studio** — turn a building into a render built of LEGO bricks, a 3D-printable model, *and* a genuinely buildable brick set. (The capital **E** and **C** in the name are for **E**milie and **C**harles.)
 
 > Academic project — MaCAD (Master in Advanced Computation for Architecture & Design), Generative AI seminar.
 > By **Emilie El Chidiac** & **Charles Abi Chahine**.
-> "LEGO" is a trademark of the LEGO Group; this project is non-commercial and uses neutral "brick/stud" terminology.
+>
+> LEGO® is a trademark of the LEGO Group of companies, which does not sponsor, authorize or endorse this project. This is a non-commercial, academic project; it avoids the LEGO logo, the minifigure, and the trademarked 2×4 brick silhouette, and uses "LEGO" only descriptively (e.g. "built of LEGO bricks"). The visual language is grounded in LEGO's real design system — see [`docs/design-system.md`](docs/design-system.md).
 
 ---
 
