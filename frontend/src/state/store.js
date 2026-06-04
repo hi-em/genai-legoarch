@@ -40,9 +40,11 @@ export const useCollection = create((set, get) => ({
 export const useBuild = create((set) => ({
   prompt: "",
   imageUrl: null,
+  glbUrl: null,       // TRELLIS smooth 3D mesh (data URL), generated on demand
   model: null,        // voxel grid
   brickModel: null,   // legolized bricks + stability + parts
   busy: false,
+  busy3d: false,
   set: (patch) => set(patch),
-  reset: () => set({ prompt: "", imageUrl: null, model: null, brickModel: null, busy: false }),
+  reset: () => set({ prompt: "", imageUrl: null, glbUrl: null, model: null, brickModel: null, busy: false, busy3d: false }),
 }));

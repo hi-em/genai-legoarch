@@ -26,6 +26,9 @@ import httpx
 COMFYUI_URL = os.environ.get("COMFYUI_URL", "http://127.0.0.1:8188").rstrip("/")
 COMFYUI_3D_URL = os.environ.get("COMFYUI_3D_URL", "http://127.0.0.1:8189").rstrip("/")
 WORKFLOWS_DIR = Path(__file__).resolve().parents[2] / "comfyui" / "workflows"
+# Trellis2ExportGLB writes the .glb here but doesn't report it in /history,
+# so we read it off disk. Override with COMFYUI_3D_OUTPUT if your output dir differs.
+OUTPUT_3D_DIR = Path(os.environ.get("COMFYUI_3D_OUTPUT", r"C:\ComfyUI_3D\output"))
 
 _TIMEOUT = httpx.Timeout(900.0, connect=10.0)
 _POLL_SECONDS = 1.0
@@ -146,17 +149,24 @@ def _first_file_ref(node_output: dict[str, Any], ext: Optional[str] = None) -> O
     return None
 
 
+def _newest_glb(after: float = 0.0) -> Optional[Path]:
+    """Newest .glb in the 3D output dir whose mtime is >= `after` (epoch secs)."""
+    if not OUTPUT_3D_DIR.exists():
+        return None
+    cands = [p for p in OUTPUT_3D_DIR.rglob("*.glb") if p.stat().st_mtime >= after - 2.0]
+    return max(cands, key=lambda p: p.stat().st_mtime) if cands else None
+
+
 # ---- high-level operations ----------------------------------------------------
 def run_txt2img(prompt: str, seed: Optional[int] = None) -> bytes:
     """FLUX.2 + legoarch text-to-image. Returns PNG bytes."""
+    from .prompt_enhance import enhance_prompt
+
     cfg = TXT2IMG
     graph = _prune_to(_load_workflow(cfg["file"]), cfg["output"])
-    # the graph prepends "legoarch " via a StringConcatenate node, so strip a
-    # leading trigger word from the user's prompt to avoid doubling it.
-    clean = prompt.strip()
-    if clean.lower().startswith("legoarch "):
-        clean = clean[len("legoarch "):]
-    _set_value(graph, cfg["prompt"], clean)
+    # enhance_prompt returns the rich body WITHOUT the trigger; the graph's
+    # StringConcatenate node prepends "legoarch " for us.
+    _set_value(graph, cfg["prompt"], enhance_prompt(prompt))
     _set_value(graph, cfg["seed"], seed if seed is not None else _rand_seed())
 
     entry = _submit_and_wait(COMFYUI_URL, graph)
@@ -169,15 +179,14 @@ def run_txt2img(prompt: str, seed: Optional[int] = None) -> bytes:
 
 def run_img2img(prompt: str, image: bytes, seed: Optional[int] = None) -> bytes:
     """FLUX.2 + legoarch image-to-image. Returns PNG bytes."""
+    from .prompt_enhance import enhance_prompt
+
     cfg = IMG2IMG
     name = _upload_image(COMFYUI_URL, image, "legoarch_input.png")
     graph = _prune_to(_load_workflow(cfg["file"]), cfg["output"])
     _set_value(graph, cfg["image"], name, key="image")
-    # this template has no concat node; include the trigger word ourselves.
-    clean = prompt.strip()
-    if not clean.lower().startswith("legoarch"):
-        clean = f"legoarch {clean}"
-    _set_value(graph, cfg["prompt"], clean)
+    # this template has no concat node; prepend the trigger word ourselves.
+    _set_value(graph, cfg["prompt"], f"legoarch {enhance_prompt(prompt)}")
     _set_value(graph, cfg["seed"], seed if seed is not None else _rand_seed())
 
     entry = _submit_and_wait(COMFYUI_URL, graph)
@@ -198,9 +207,21 @@ def run_trellis(image: bytes, seed: Optional[int] = None) -> dict[str, Any]:
         for nid in cfg["seeds"]:
             _set_value(graph, nid, seed, key="seed")
 
+    started = time.time()
     entry = _submit_and_wait(COMFYUI_3D_URL, graph)
-    out = entry["outputs"].get(cfg["output"], {})
-    ref = _first_file_ref(out, ext=".glb") or _first_file_ref(out)
-    if not ref:
-        raise RuntimeError(f"TRELLIS produced no file (node {cfg['output']} output: {json.dumps(out)[:500]})")
-    return {"glb": _fetch(_view_url(COMFYUI_3D_URL, ref)), "filename": ref["filename"]}
+
+    # Trellis2ExportGLB writes the .glb to disk but doesn't register it in
+    # /history, so grab the newest .glb that appeared since we submitted.
+    glb = _newest_glb(after=started)
+    if glb is not None:
+        return {"glb": glb.read_bytes(), "filename": glb.name}
+
+    # Fallback: in case a future node version DOES report it in /history.
+    out = entry.get("outputs", {}).get(cfg["output"], {})
+    ref = _first_file_ref(out, ext=".glb")
+    if ref:
+        return {"glb": _fetch(_view_url(COMFYUI_3D_URL, ref)), "filename": ref["filename"]}
+    raise RuntimeError(
+        f"TRELLIS finished but no .glb appeared in {OUTPUT_3D_DIR}. "
+        "Set COMFYUI_3D_OUTPUT to your ComfyUI-3D output directory."
+    )

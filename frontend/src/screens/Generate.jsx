@@ -1,28 +1,40 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { generate } from "../api.js";
 import { useBuild, useUI } from "../state/store.js";
 import { playSnap } from "../lib/sound.js";
 import BrickViewer from "../viewer/BrickViewer.jsx";
-import { Sparkles, Hammer, Box, Blocks, Upload } from "lucide-react";
+import { Sparkles, Hammer, Box, Blocks, Upload, X } from "lucide-react";
 
+// Just the building — the `legoarch` trigger + the rich LEGO-set styling are
+// added on the backend, so users describe the subject, nothing more.
 const EXAMPLES = [
-  "legoarch Fondation Louis Vuitton, Frank Gehry, LEGO Architecture set",
-  "legoarch KAPSARC Riyadh, Zaha Hadid, LEGO Architecture set",
-  "legoarch Beijing Daxing Airport, radiating concourse, LEGO set",
-  "legoarch brutalist concrete tower, stepped setbacks",
+  "Fondation Louis Vuitton, Frank Gehry",
+  "KAPSARC Riyadh, Zaha Hadid",
+  "Beijing Daxing Airport, radiating concourse",
+  "brutalist concrete tower, stepped setbacks",
 ];
 
 export default function Generate() {
   const { prompt, imageUrl, brickModel, busy, set } = useBuild();
   const setTab = useUI((s) => s.setTab);
   const [text, setText] = useState(prompt || EXAMPLES[0]);
+  const [photo, setPhoto] = useState(null); // data URL of an optional reference photo
+  const fileRef = useRef(null);
+
+  function onPhoto(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setPhoto(reader.result);
+    reader.readAsDataURL(file);
+  }
 
   async function onGenerate() {
     playSnap();
     set({ busy: true });
     try {
-      const r = await generate(text);
-      set({ prompt: r.prompt, imageUrl: r.imageUrl, model: r.model, brickModel: r.brickModel, busy: false });
+      const r = await generate(text, photo); // photo -> img2img, else txt2img
+      set({ prompt: r.prompt, imageUrl: r.imageUrl, glbUrl: null, model: r.model, brickModel: r.brickModel, busy: false });
     } catch (e) {
       set({ busy: false });
       alert(String(e));
@@ -33,15 +45,15 @@ export default function Generate() {
     <section className="bf-plate">
       <h2 className="bf-h2">Generate a brick building</h2>
       <p className="bf-muted">
-        Type a building (or paste a famous one). The <code>legoarch</code> model renders it as a set built of
-        LEGO bricks, then we build real 3D geometry from it.
+        Name a building (or paste a famous one). The <code>legoarch</code> model renders it as a set built of
+        LEGO bricks, then we build real 3D geometry from it. <em>No need to type “legoarch” — it’s added for you.</em>
       </p>
 
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} />
       <div className="bf-chips">
         {EXAMPLES.map((ex) => (
           <button key={ex} className="bf-chip" onClick={() => setText(ex)}>
-            {ex.split(",")[0].replace("legoarch ", "")}
+            {ex.split(",")[0]}
           </button>
         ))}
       </div>
@@ -50,9 +62,22 @@ export default function Generate() {
         <button className="bf-btn bf-btn--primary bf-btn--studded" onClick={onGenerate} disabled={busy}>
           {busy ? <span className="bf-building"><i /><i /><i /></span> : <Sparkles />} {busy ? "Building…" : "Generate"}
         </button>
-        <span className="bf-muted" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: ".85rem" }}>
-          <Upload size={15} /> or upload a photo (wired with ComfyUI later)
-        </span>
+
+        {/* Reference photo -> image-to-image */}
+        <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} style={{ display: "none" }} />
+        {photo ? (
+          <span className="bf-muted" style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: ".85rem" }}>
+            <img src={photo} alt="reference" style={{ height: 34, width: 34, objectFit: "cover", borderRadius: 6 }} />
+            photo attached (img2img)
+            <button className="bf-chip" onClick={() => { setPhoto(null); if (fileRef.current) fileRef.current.value = ""; }} title="Remove photo">
+              <X size={14} />
+            </button>
+          </span>
+        ) : (
+          <button className="bf-btn" onClick={() => fileRef.current?.click()}>
+            <Upload size={15} /> Upload a photo
+          </button>
+        )}
       </div>
 
       {brickModel && (

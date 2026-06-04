@@ -97,10 +97,18 @@ def generate_3d(req: Generate3DReq) -> dict[str, Any]:
         raise ValueError("generate-3d needs image_b64 or image_url")
 
     result = comfy_client.run_trellis(img, seed=req.seed)
-    return {
+    resp: dict[str, Any] = {
         "glbUrl": _data_url(result["glb"], "model/gltf-binary"),
         "filename": result["filename"],
     }
+    # Voxelize the mesh so the frontend can legolize the REAL geometry.
+    try:
+        from .mesh_voxelize import voxelize_glb
+
+        resp["voxel"] = voxelize_glb(result["glb"], target=26)
+    except Exception as e:  # keep the GLB usable even if voxelization fails
+        resp["voxelError"] = str(e)
+    return resp
 
 
 @app.post("/legolize")

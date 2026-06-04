@@ -8,4 +8,5 @@ scipy>=1.11
 trimesh>=4.3
 Pillow>=10.0
 python-multipart>=0.0.9
+anthropic>=0.40        # optional: rich prompt expansion (falls back to a template if absent)
 pytest>=8.0

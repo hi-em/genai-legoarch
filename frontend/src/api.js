@@ -28,26 +28,42 @@ async function postJSON(path, body) {
   return r.json();
 }
 
-// Step 1: prompt -> real LEGO render (FLUX.2 + legoarch) + brick geometry.
-export async function generate(prompt, styleSeed = 0) {
+// Step 1: prompt (+ optional reference photo) -> real LEGO render + brick geometry.
+// `image` is a data URL; when present the backend runs img2img instead of txt2img.
+// The `legoarch` trigger is added server-side — users never type it.
+export async function generate(prompt, image = null, styleSeed = 0) {
   if (MOCK) {
     await new Promise((r) => setTimeout(r, 650));
     const model = generateBuilding(prompt, styleSeed);
     return { prompt, imageUrl: null, mock: true, model, brickModel: legolize(model, seedOf(prompt) + styleSeed) };
   }
-  // Real AI image from the backend (FLUX on :8188).
-  const { imageUrl } = await postJSON("/api/generate-image", { prompt });
+  // Real AI image from the backend (FLUX on :8188). img2img if a photo is attached.
+  const body = image ? { prompt, image_b64: image } : { prompt };
+  const { imageUrl } = await postJSON("/api/generate-image", body);
   // Geometry is still procedural; the brick pipeline below is real.
   const model = generateBuilding(prompt, styleSeed);
   const brickModel = legolize(model, seedOf(prompt) + styleSeed);
   return { prompt, imageUrl, mock: false, model, brickModel };
 }
 
-// Step 2 (optional): a rendered LEGO image -> smooth 3D mesh (TRELLIS, :8189).
-// Returns { glbUrl } — a data: URL of the GLB for the 3D viewer / STL export.
+function b64ToBytes(b64) {
+  const bin = atob(b64);
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+
+// Step 2: a rendered LEGO image -> smooth 3D mesh (TRELLIS, :8189), then voxelize
+// + legolize the REAL geometry. Returns { glbUrl, model, brickModel, voxelError }.
 export async function generate3D(imageDataUrl) {
   if (MOCK) throw new Error("3D generation needs the backend (MOCK is on)");
-  return postJSON("/api/generate-3d", { image_b64: imageDataUrl });
+  const r = await postJSON("/api/generate-3d", { image_b64: imageDataUrl });
+  let model = null, brickModel = null;
+  if (r.voxel) {
+    model = { nx: r.voxel.nx, ny: r.voxel.ny, nz: r.voxel.nz, occ: b64ToBytes(r.voxel.occ_b64) };
+    brickModel = legolize(model, ((r.voxel.nx * 73856093) ^ (r.voxel.nz * 19349663)) >>> 0);
+  }
+  return { glbUrl: r.glbUrl, model, brickModel, voxelError: r.voxelError };
 }
 
 // Re-legolize an existing voxel model (e.g. after a recolor/restyle). Real, local.
