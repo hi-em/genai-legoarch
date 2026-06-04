@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>lEgoarCh — diagrams</title>
+    <style>
+      body { font-family: "DM Sans", system-ui, sans-serif; background: #dfe2dc; margin: 0; padding: 24px; }
+      h1 { font-family: Nunito, system-ui; }
+      .card { background: #f4f5f2; border-radius: 12px; padding: 20px; margin: 0 auto 28px; max-width: 1100px;
+        box-shadow: 0 6px 0 #cfd2cb, 0 16px 24px rgba(20,30,25,.13); }
+      .card h2 { font-family: Nunito, system-ui; margin-top: 0; }
+    </style>
+  </head>
+  <body>
+    <h1 style="text-align:center">lEgoarCh diagrams</h1>
+
+    <div class="card"><h2>1 · Concept &amp; data flow</h2>
+      <pre class="mermaid">
+flowchart TD
+    IN["Input: building photo or text prompt"]:::io
+    subgraph GEN["Generative AI — proposes the form"]
+      direction TB
+      LORA["FLUX.2 + legoarch LoRA"]:::gen
+      IMG["LEGO-Architecture render"]:::gen
+      TRELLIS["TRELLIS-2 — image to 3D"]:::gen
+      M3D["3D model: mesh + voxel grid"]:::gen
+      LORA --> IMG --> TRELLIS --> M3D
+    end
+    subgraph COMP["Deterministic computation — proves it is buildable"]
+      direction TB
+      LEGO["Custom legolizer"]:::comp
+      BM["Buildable brick model"]:::comp
+      CHK["Stability + connectivity check"]:::comp
+      EXP["Parts list + LDraw + instructions"]:::comp
+      LEGO --> BM --> CHK --> EXP
+    end
+    IN --> LORA
+    M3D --> CHOICE{"How far do you want to go?"}:::io
+    CHOICE -->|"Exit 1 — Print"| STL["Download STL → 3D print"]:::io
+    CHOICE -->|"Exit 2 — Build"| LEGO
+    EXP --> SET["Real, buildable LEGO set"]:::io
+    STL --> SHELF["My Shelf — collection"]:::fun
+    SET --> SHELF
+    classDef gen fill:#e3eefc,stroke:#1e5aa8,color:#16324f;
+    classDef comp fill:#e7f3ea,stroke:#237a3c,color:#143a22;
+    classDef io fill:#eef0ee,stroke:#6c6e68,color:#20262b;
+    classDef fun fill:#fdf3cf,stroke:#c39e00,color:#5a4a00;
+      </pre>
+    </div>
+
+    <div class="card"><h2>2 · System architecture</h2>
+      <pre class="mermaid">
+flowchart LR
+    subgraph FE["Frontend — React + three.js"]
+      direction TB
+      UI["Screens: Generate / 3D-Print / Brick Studio / Shelf / Playground"]
+      VIEW["three.js viewer (instanced bricks + studs)"]
+      CLIENT["Client engine (MOCK): building gen, legolizer, STL/LDraw"]
+      STORE["State + localStorage shelf"]
+      UI --> VIEW
+      UI --> CLIENT
+      UI --> STORE
+    end
+    subgraph API["Backend — FastAPI"]
+      direction TB
+      EP["/generate-image /generate-3d /legolize /export"]
+      CC["comfy_client (REST + websocket)"]
+      LEGOLIB["legolizer: voxelize, bricks, color, stability, ldraw"]
+      EP --> CC
+      EP --> LEGOLIB
+    end
+    subgraph CMF["ComfyUI — local GPU"]
+      direction TB
+      FLUX["FLUX.2 + legoarch LoRA"]
+      TREL["TRELLIS-2"]
+    end
+    UI -. "when wired (MOCK=false)" .-> EP
+    CC --> FLUX
+    CC --> TREL
+    classDef fe fill:#e3eefc,stroke:#1e5aa8,color:#16324f;
+    classDef be fill:#e7f3ea,stroke:#237a3c,color:#143a22;
+    classDef cf fill:#fdf3cf,stroke:#c39e00,color:#5a4a00;
+    class FE,UI,VIEW,CLIENT,STORE fe;
+    class API,EP,CC,LEGOLIB be;
+    class CMF,FLUX,TREL cf;
+      </pre>
+    </div>
+
+    <div class="card"><h2>3 · Custom legolizer (computational core)</h2>
+      <pre class="mermaid">
+flowchart LR
+    V["Voxel grid (TRELLIS voxelgrid_npz)"]:::c --> B["Split-and-merge into legal bricks (Luo 2015)"]:::c
+    B --> C["Per-brick color: CIEDE2000 → LEGO palette"]:::c
+    C --> S["Stability: connectivity + support (StableLego-style)"]:::c
+    S --> L["Export: LDraw .ldr + parts list + instructions"]:::c
+    classDef c fill:#e7f3ea,stroke:#237a3c,color:#143a22;
+      </pre>
+    </div>
+
+    <div class="card"><h2>4 · User journey &amp; features</h2>
+      <pre class="mermaid">
+stateDiagram-v2
+    [*] --> Generate
+    Generate --> Viewer3D: render + 3D ready
+    Generate --> BrickStudio: skip to bricks
+    Viewer3D --> Print: Exit 1 — STL
+    Viewer3D --> BrickStudio: Exit 2 — legolize
+    BrickStudio --> Shelf: add to collection
+    Print --> Shelf
+    Shelf --> Generate: make another
+    Generate --> Playground: experiment
+    Playground --> Generate: use an idea
+      </pre>
+    </div>
+
+    <!-- Mermaid is vendored locally (public/vendor) so this page renders OFFLINE
+         — handy for presenting without relying on conference wifi. -->
+    <script src="/vendor/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({ startOnLoad: true, theme: "base", themeVariables: { fontFamily: "DM Sans, sans-serif" } });
+    </script>
+  </body>
+</html>

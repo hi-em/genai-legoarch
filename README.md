@@ -37,7 +37,7 @@ A prior course project generated *images of LEGO sets and nothing else*. **Brick
 
 | Path | What's inside |
 |---|---|
-| `docs/` | Concept, research notes (cited), ADRs, roadmap |
+| `docs/` | [Concept](docs/concept.md), [architecture & flow diagrams](docs/architecture.md), [design system](docs/design-system.md), [research](docs/research.md), ADRs, [roadmap](docs/plan.md) |
 | `references/` | Trained `legoarch` LoRA + the original ComfyUI workflow JSONs |
 | `comfyui/` | Workflow notes / custom-node setup |
 | `backend/` | FastAPI service wrapping ComfyUI + the **custom legolizer** |
