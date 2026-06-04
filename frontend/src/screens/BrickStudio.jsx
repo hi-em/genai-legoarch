@@ -2,6 +2,7 @@ import { useBuild, useCollection, useUI } from "../state/store.js";
 import BrickViewer from "../viewer/BrickViewer.jsx";
 import { toLdraw, download, partsToCsv } from "../lib/ldraw.js";
 import { frontElevationThumb } from "../lib/thumb.js";
+import { playPop } from "../lib/sound.js";
 import EmptyState from "../components/EmptyState.jsx";
 import { Download, FileText, Star, Link2, LayoutGrid, Anchor, Grid3x3 } from "lucide-react";
 
@@ -24,6 +25,7 @@ export default function BrickStudio() {
     download(`${safeName}_instructions.txt`, txt, "text/plain");
   }
   function onAddToShelf() {
+    playPop();
     addToShelf({
       id: `${Date.now()}`,
       title: (prompt || "Untitled").split(",")[0].replace("legoarch ", ""),

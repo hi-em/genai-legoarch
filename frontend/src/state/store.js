@@ -1,9 +1,16 @@
 import { create } from "zustand";
 
-// Active tab / simple router.
+// Active tab / simple router + global sound mute.
+const initMuted = (() => { try { return localStorage.getItem("lEgoarCh.muted") === "1"; } catch { return false; } })();
 export const useUI = create((set) => ({
   tab: "generate",
   setTab: (tab) => set({ tab }),
+  muted: initMuted,
+  toggleMute: () => set((s) => {
+    const muted = !s.muted;
+    try { localStorage.setItem("lEgoarCh.muted", muted ? "1" : "0"); } catch {}
+    return { muted };
+  }),
 }));
 
 const SHELF_KEY = "brickforge.shelf.v1";

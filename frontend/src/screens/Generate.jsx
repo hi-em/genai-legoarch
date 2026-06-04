@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { generate } from "../api.js";
 import { useBuild, useUI } from "../state/store.js";
+import { playSnap } from "../lib/sound.js";
 import BrickViewer from "../viewer/BrickViewer.jsx";
 import { Sparkles, Hammer, Box, Blocks, Upload } from "lucide-react";
 
@@ -17,6 +18,7 @@ export default function Generate() {
   const [text, setText] = useState(prompt || EXAMPLES[0]);
 
   async function onGenerate() {
+    playSnap();
     set({ busy: true });
     try {
       const r = await generate(text);
@@ -46,7 +48,7 @@ export default function Generate() {
 
       <div className="bf-toolbar">
         <button className="bf-btn bf-btn--primary bf-btn--studded" onClick={onGenerate} disabled={busy}>
-          <Sparkles /> {busy ? "Building…" : "Generate"}
+          {busy ? <span className="bf-building"><i /><i /><i /></span> : <Sparkles />} {busy ? "Building…" : "Generate"}
         </button>
         <span className="bf-muted" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: ".85rem" }}>
           <Upload size={15} /> or upload a photo (wired with ComfyUI later)

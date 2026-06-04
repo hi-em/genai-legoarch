@@ -1,12 +1,13 @@
 import { useUI } from "./state/store.js";
 import { MOCK } from "./api.js";
 import Brand from "./components/Brand.jsx";
+import BrickBuddy from "./components/BrickBuddy.jsx";
 import Generate from "./screens/Generate.jsx";
 import Viewer3D from "./screens/Viewer3D.jsx";
 import BrickStudio from "./screens/BrickStudio.jsx";
 import Shelf from "./screens/Shelf.jsx";
 import Playground from "./screens/Playground.jsx";
-import { Sparkles, Box, Blocks, LibraryBig, Shapes } from "lucide-react";
+import { Sparkles, Box, Blocks, LibraryBig, Shapes, Volume2, VolumeX } from "lucide-react";
 
 const TABS = [
   ["generate", "Generate", Sparkles, Generate],
@@ -17,7 +18,7 @@ const TABS = [
 ];
 
 export default function App() {
-  const { tab, setTab } = useUI();
+  const { tab, setTab, muted, toggleMute } = useUI();
   const Active = TABS.find(([k]) => k === tab)[3];
 
   return (
@@ -31,7 +32,12 @@ export default function App() {
             </button>
           ))}
         </nav>
-        {MOCK && <span className="bf-badge" title="The AI image + TRELLIS steps are mocked; geometry, bricks, exports & shelf are real.">MOCK MODE</span>}
+        <div className="bf-header-right">
+          {MOCK && <span className="bf-badge" title="The AI image + TRELLIS steps are mocked; geometry, bricks, exports & shelf are real.">MOCK MODE</span>}
+          <button className="bf-icon-btn" aria-label={muted ? "Unmute" : "Mute"} title={muted ? "Unmute" : "Mute"} onClick={toggleMute}>
+            {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          </button>
+        </div>
       </header>
 
       <main className="bf-main bf-baseplate">
@@ -44,6 +50,8 @@ export default function App() {
           LEGO® is a trademark of the LEGO Group, which does not sponsor, authorize or endorse this academic, non-commercial project.
         </span>
       </footer>
+
+      <BrickBuddy />
     </div>
   );
 }

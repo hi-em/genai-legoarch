@@ -22,7 +22,7 @@ export default function Viewer3D() {
         Your render is now a 3D model. <b>Stop here</b> to download the STL and 3D-print a smooth souvenir,
         or <b>continue</b> to turn it into real, buildable bricks.
       </p>
-      <BrickViewer brickModel={brickModel} monochrome studs={false} height={400} />
+      <BrickViewer brickModel={brickModel} monochrome studs={false} stand={false} height={400} />
       <div className="bf-toolbar">
         <button className="bf-btn bf-btn--primary bf-btn--studded" onClick={onDownloadStl}><Download /> Download STL</button>
         <button className="bf-btn" onClick={() => setTab("studio")}><Blocks /> Continue → Brick Studio</button>
