@@ -1,14 +1,18 @@
+import { useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Center, Instances, Instance, ContactShadows } from "@react-three/drei";
+import { frontElevationThumb } from "../lib/thumb.js";
+import { useReducedMotion } from "../lib/useReducedMotion.js";
+import { VIEWER_BG, BASEPLATE, MONO_BRICK } from "../lib/tokens.js";
 
-// A green studded baseplate the model sits on — makes it read as a set on a
-// table. Muted/desaturated green so it stays premium, not "toy bin".
+// A green studded baseplate the model sits on — muted green so it reads as a
+// premium set on a table, not "toy bin".
 function Baseplate({ nx, ny, margin = 2 }) {
   const x0 = -margin, x1 = nx - 1 + margin;
   const y0 = -margin, y1 = ny - 1 + margin;
   const w = x1 - x0 + 1, d = y1 - y0 + 1;
   const cx = (x0 + x1) / 2, cz = (y0 + y1) / 2;
-  const topY = -0.5;          // bricks (z=0) bottom is ~-0.48, so they rest on top
+  const topY = -0.5;
   const thick = 0.5;
 
   const studs = [];
@@ -16,20 +20,17 @@ function Baseplate({ nx, ny, margin = 2 }) {
 
   return (
     <group>
-      {/* darker plate edge / skirt */}
       <mesh position={[cx, topY - thick - 0.12, cz]} receiveShadow>
         <boxGeometry args={[w + 0.25, 0.3, d + 0.25]} />
-        <meshStandardMaterial color="#4e6743" roughness={0.85} />
+        <meshStandardMaterial color={BASEPLATE.edge} roughness={0.85} />
       </mesh>
-      {/* plate top */}
       <mesh position={[cx, topY - thick / 2, cz]} receiveShadow castShadow>
         <boxGeometry args={[w, thick, d]} />
-        <meshStandardMaterial color="#6f8a5f" roughness={0.78} />
+        <meshStandardMaterial color={BASEPLATE.top} roughness={0.78} />
       </mesh>
-      {/* studs */}
       <Instances limit={studs.length}>
         <cylinderGeometry args={[0.28, 0.28, 0.2, 14]} />
-        <meshStandardMaterial color="#7c9669" roughness={0.65} />
+        <meshStandardMaterial color={BASEPLATE.stud} roughness={0.65} />
         {studs.map(([i, j], k) => (
           <Instance key={k} position={[i, topY + 0.08, j]} />
         ))}
@@ -40,7 +41,7 @@ function Baseplate({ nx, ny, margin = 2 }) {
 
 function Bricks({ brickModel, studs = true, monochrome = false }) {
   const bricks = brickModel.bricks;
-  const colorOf = (b) => (monochrome ? "#cfd2d1" : b.hex);
+  const colorOf = (b) => (monochrome ? MONO_BRICK : b.hex);
   return (
     <group>
       <Instances limit={Math.max(1, bricks.length)} castShadow receiveShadow>
@@ -63,11 +64,46 @@ function Bricks({ brickModel, studs = true, monochrome = false }) {
   );
 }
 
-export default function BrickViewer({ brickModel, studs = true, monochrome = false, stand = true, height = 380 }) {
+// Lightweight static poster shown when the zone is NOT focused — frees the
+// WebGL context and keeps the model crisp (no upscaled live canvas).
+function Poster({ brickModel, height, monochrome }) {
+  const src = useMemo(
+    () => (brickModel ? frontElevationThumb(brickModel, 360) : null),
+    [brickModel]
+  );
+  return (
+    <div
+      style={{ height, background: VIEWER_BG }}
+      className="grid place-items-center overflow-hidden rounded-lg"
+    >
+      {src && (
+        <img
+          src={src}
+          alt="brick model preview"
+          className={"max-h-[88%] max-w-[88%] object-contain " + (monochrome ? "grayscale" : "")}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function BrickViewer({
+  brickModel,
+  studs = true,
+  monochrome = false,
+  stand = true,
+  height = 380,
+  active = true,
+}) {
+  const reduced = useReducedMotion();
+  const [spin, setSpin] = useState(!reduced);
+
+  if (!active) return <Poster brickModel={brickModel} height={height} monochrome={monochrome} />;
+
   const span = brickModel ? Math.max(brickModel.grid[0], brickModel.grid[2]) : 12;
   const showStand = stand && brickModel;
   return (
-    <div style={{ height, borderRadius: 12, overflow: "hidden", background: "linear-gradient(#eef3f7,#d7dee5)" }}>
+    <div style={{ height, background: VIEWER_BG }} className="overflow-hidden rounded-lg">
       <Canvas shadows camera={{ position: [span * 1.5, span * 1.25, span * 1.7], fov: 40 }}>
         <ambientLight intensity={0.65} />
         <directionalLight position={[12, 20, 9]} intensity={1.5} castShadow shadow-mapSize={[1024, 1024]} />
@@ -77,7 +113,14 @@ export default function BrickViewer({ brickModel, studs = true, monochrome = fal
           {showStand && <Baseplate nx={brickModel.grid[0]} ny={brickModel.grid[1]} />}
         </Center>
         <ContactShadows position={[0, -0.75, 0]} opacity={0.4} scale={span * 4} blur={2.2} far={20} />
-        <OrbitControls enablePan={false} autoRotate autoRotateSpeed={0.8} minDistance={4} maxDistance={span * 5} />
+        <OrbitControls
+          enablePan={false}
+          autoRotate={spin}
+          autoRotateSpeed={0.8}
+          onStart={() => setSpin(false)}
+          minDistance={4}
+          maxDistance={span * 5}
+        />
       </Canvas>
     </div>
   );

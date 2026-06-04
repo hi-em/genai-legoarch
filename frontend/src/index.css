@@ -1,0 +1,62 @@
+@import "./styles/tokens.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    font-family: var(--font-body);
+    color: var(--ink);
+    background: var(--table);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+  }
+  /* keep the focus ring crisp + only for keyboard users */
+  :focus { outline: none; }
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus, 0 0 0 3px color-mix(in srgb, var(--brand-blue) 35%, transparent));
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  /* The felt "table" surface the world / stepper sits on — a faint stud grid,
+     far quieter than the old dotted baseplate so it never competes with content. */
+  .felt {
+    background-color: var(--table);
+    background-image:
+      radial-gradient(circle at 13px 13px, rgba(255, 255, 255, 0.025) 0 2px, transparent 3px),
+      radial-gradient(circle at 800px 600px, rgba(0, 0, 0, 0.35), transparent 75%);
+    background-size: 26px 26px, 100% 100%;
+  }
+  /* The one signature stud accent — a little row of brick studs. */
+  .stud-row {
+    position: relative;
+  }
+  .stud-row::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: -7px;
+    width: 34px;
+    height: 8px;
+    border-radius: 7px 7px 3px 3px;
+    background: currentColor;
+    filter: brightness(1.08);
+    box-shadow: 14px 0 0 currentColor;
+    opacity: 0.9;
+  }
+}

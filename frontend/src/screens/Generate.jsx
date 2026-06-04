@@ -1,12 +1,13 @@
 import { useState, useRef } from "react";
 import { generate } from "../api.js";
-import { useBuild, useUI } from "../state/store.js";
+import { useBuild, useCanvas } from "../state/store.js";
 import { playSnap } from "../lib/sound.js";
 import BrickViewer from "../viewer/BrickViewer.jsx";
 import { Sparkles, Hammer, Box, Blocks, Upload, X } from "lucide-react";
+import { Button, Chip, Textarea, Skeleton, Eyebrow, toast } from "../components/ui/index.js";
 
-// Just the building — the `legoarch` trigger + the rich LEGO-set styling are
-// added on the backend, so users describe the subject, nothing more.
+// Users describe the subject only — the `legoarch` trigger + the LEGO-set
+// styling are added on the backend.
 const EXAMPLES = [
   "Fondation Louis Vuitton, Frank Gehry",
   "KAPSARC Riyadh, Zaha Hadid",
@@ -14,11 +15,22 @@ const EXAMPLES = [
   "brutalist concrete tower, stepped setbacks",
 ];
 
-export default function Generate() {
+function MockRender() {
+  return (
+    <div className="flex h-[260px] flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border-strong bg-sunken font-bold text-muted">
+      <Hammer className="h-8 w-8 opacity-60" />
+      <span className="text-ink">legoarch render</span>
+      <small className="text-muted">connect ComfyUI to generate</small>
+    </div>
+  );
+}
+
+export default function Generate({ active = true }) {
   const { prompt, imageUrl, brickModel, busy, set } = useBuild();
-  const setTab = useUI((s) => s.setTab);
-  const [text, setText] = useState(prompt || EXAMPLES[0]);
-  const [photo, setPhoto] = useState(null); // data URL of an optional reference photo
+  const focus = useCanvas((s) => s.focus);
+  const next = useCanvas((s) => s.next);
+  const [text, setText] = useState(prompt || "");
+  const [photo, setPhoto] = useState(null);
   const fileRef = useRef(null);
 
   function onPhoto(e) {
@@ -30,86 +42,112 @@ export default function Generate() {
   }
 
   async function onGenerate() {
+    if (!text.trim()) {
+      toast.info("Add a prompt", "Name a building or pick an example first.");
+      return;
+    }
     playSnap();
     set({ busy: true });
     try {
       const r = await generate(text, photo); // photo -> img2img, else txt2img
       set({ prompt: r.prompt, imageUrl: r.imageUrl, glbUrl: null, model: r.model, brickModel: r.brickModel, busy: false });
+      toast.success("Build ready", r.imageUrl ? "AI render + 3D geometry generated." : "3D geometry generated.");
     } catch (e) {
       set({ busy: false });
-      alert(String(e));
+      toast.error("Generation failed", String(e?.message || e));
     }
   }
 
   return (
-    <section className="bf-plate">
-      <h2 className="bf-h2">Generate a brick building</h2>
-      <p className="bf-muted">
-        Name a building (or paste a famous one). The <code>legoarch</code> model renders it as a set built of
-        LEGO bricks, then we build real 3D geometry from it. <em>No need to type “legoarch” — it’s added for you.</em>
-      </p>
+    <div className="flex h-full flex-col">
+      <div className="nodrag nowheel flex-1 overflow-y-auto p-6 lg:p-7">
+        <Eyebrow step={1} label="Generate" />
+        <h2 className="text-h2 font-display font-extrabold">Generate a brick building</h2>
+        <p className="mt-1.5 text-muted">
+          Name a building (or paste a famous one). The{" "}
+          <code className="rounded-sm bg-sunken px-1.5 py-0.5 font-mono text-[.85em]">legoarch</code> model
+          renders it as a set built of LEGO bricks, then we build real 3D geometry from it.{" "}
+          <em>No need to type “legoarch” — it’s added for you.</em>
+        </p>
 
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} />
-      <div className="bf-chips">
-        {EXAMPLES.map((ex) => (
-          <button key={ex} className="bf-chip" onClick={() => setText(ex)}>
-            {ex.split(",")[0]}
-          </button>
-        ))}
-      </div>
+        <Textarea
+          className="mt-4"
+          rows={3}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="e.g. Fondation Louis Vuitton, Frank Gehry"
+        />
 
-      <div className="bf-toolbar">
-        <button className="bf-btn bf-btn--primary bf-btn--studded" onClick={onGenerate} disabled={busy}>
-          {busy ? <span className="bf-building"><i /><i /><i /></span> : <Sparkles />} {busy ? "Building…" : "Generate"}
-        </button>
+        <div className="mt-2.5 flex flex-wrap gap-2">
+          {EXAMPLES.map((ex) => (
+            <Chip key={ex} onClick={() => setText(ex)}>
+              {ex.split(",")[0]}
+            </Chip>
+          ))}
+        </div>
 
-        {/* Reference photo -> image-to-image */}
-        <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} style={{ display: "none" }} />
-        {photo ? (
-          <span className="bf-muted" style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: ".85rem" }}>
-            <img src={photo} alt="reference" style={{ height: 34, width: 34, objectFit: "cover", borderRadius: 6 }} />
-            photo attached (img2img)
-            <button className="bf-chip" onClick={() => { setPhoto(null); if (fileRef.current) fileRef.current.value = ""; }} title="Remove photo">
-              <X size={14} />
-            </button>
-          </span>
-        ) : (
-          <button className="bf-btn" onClick={() => fileRef.current?.click()}>
-            <Upload size={15} /> Upload a photo
-          </button>
+        <div className="mt-4 flex flex-wrap items-center gap-2.5">
+          <Button variant="primary" loading={busy} onClick={onGenerate}>
+            {!busy && <Sparkles />}
+            {busy ? "Building…" : "Generate"}
+          </Button>
+
+          <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} className="hidden" />
+          {photo ? (
+            <span className="inline-flex items-center gap-2 text-sm text-muted">
+              <img src={photo} alt="reference" className="h-9 w-9 rounded object-cover" />
+              photo attached (img2img)
+              <Chip
+                variant="removable"
+                title="Remove photo"
+                onClick={() => { setPhoto(null); if (fileRef.current) fileRef.current.value = ""; }}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Chip>
+            </span>
+          ) : (
+            <Button variant="secondary" onClick={() => fileRef.current?.click()}>
+              <Upload size={15} /> Upload a photo
+            </Button>
+          )}
+        </div>
+
+        {(busy || brickModel) && (
+          <div className="mt-6">
+            <div className="flex flex-wrap gap-5">
+              <div className="min-w-[240px] flex-1">
+                <h3 className="mb-2 text-h3 font-display font-bold">AI render</h3>
+                {busy ? (
+                  <Skeleton className="h-[260px] w-full" />
+                ) : imageUrl ? (
+                  <img src={imageUrl} alt="legoarch render" className="block w-full rounded-lg" />
+                ) : (
+                  <MockRender />
+                )}
+              </div>
+              <div className="min-w-[280px] flex-[1.3]">
+                <h3 className="mb-2 text-h3 font-display font-bold">Live 3D geometry</h3>
+                {busy ? (
+                  <Skeleton className="h-[260px] w-full" />
+                ) : (
+                  <BrickViewer brickModel={brickModel} height={260} active={active} />
+                )}
+              </div>
+            </div>
+
+            {brickModel && (
+              <div className="mt-4 flex flex-wrap gap-2.5">
+                <Button variant="primary" onClick={() => next()}>
+                  <Box /> Continue → 3D · Print
+                </Button>
+                <Button variant="secondary" onClick={() => focus("studio")}>
+                  <Blocks /> Skip to Brick Studio
+                </Button>
+              </div>
+            )}
+          </div>
         )}
       </div>
-
-      {brickModel && (
-        <div style={{ marginTop: "calc(var(--u) * 3)" }}>
-          <div className="bf-row">
-            <div style={{ flex: 1, minWidth: 240 }}>
-              <h3 className="bf-h2" style={{ fontSize: "1rem" }}>AI render</h3>
-              {imageUrl ? (
-                <img
-                  src={imageUrl}
-                  alt="legoarch render"
-                  style={{ width: "100%", borderRadius: "calc(var(--u) * 1.5)", display: "block" }}
-                />
-              ) : (
-                <div className="bf-mockrender">
-                  <Hammer />
-                  <span>legoarch render</span>
-                  <small className="bf-muted">connect ComfyUI to generate</small>
-                </div>
-              )}
-            </div>
-            <div style={{ flex: 1.3, minWidth: 280 }}>
-              <h3 className="bf-h2" style={{ fontSize: "1rem" }}>Live 3D geometry</h3>
-              <BrickViewer brickModel={brickModel} height={260} />
-            </div>
-          </div>
-          <div className="bf-toolbar">
-            <button className="bf-btn" onClick={() => setTab("viewer")}><Box /> Continue → 3D · Print</button>
-            <button className="bf-btn" onClick={() => setTab("studio")}><Blocks /> Skip to Brick Studio</button>
-          </div>
-        </div>
-      )}
-    </section>
+    </div>
   );
 }

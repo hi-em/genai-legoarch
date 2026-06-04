@@ -15,4 +15,7 @@ npm run dev          # http://localhost:5173  (proxies /api -> http://127.0.0.1:
 - `Shelf` — collection of your creations (M3)
 - `Playground` — mashup / restyle / detail-axo / recolor (M4)
 
-State in `src/state/store.js` (zustand). Theme/LEGO skin in `src/theme.css`.
+State in `src/state/store.js` (zustand). Design system (Tailwind + Radix + Framer Motion):
+tokens in `src/styles/tokens.css` + `tailwind.config.js`, primitives in `src/components/ui/`.
+The screens live inside an infinite-canvas "play-table" world in `src/canvas/` (with a
+mobile `StepperFlow` fallback under 900px).

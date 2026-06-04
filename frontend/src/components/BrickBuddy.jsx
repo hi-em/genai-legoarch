@@ -1,52 +1,67 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-import { useUI } from "../state/store.js";
+import { useCanvas } from "../state/store.js";
+import { useReducedMotion } from "../lib/useReducedMotion.js";
+import { cn } from "../lib/cn.js";
 
-// Abstract "brick buddy" — a friendly brick with a face. Deliberately NOT a
-// minifigure (trademark-protected): no head/limbs, just a 2x2 brick mascot.
+// Abstract "brick buddy" — a friendly 2x2 brick with a face. Deliberately NOT a
+// minifigure (trademark-protected).
 const TIPS = {
-  generate: "Type a building or pick an example, then hit Generate. I'll build real 3D from it!",
-  viewer: "Print it as-is (Exit 1), or continue to turn it into real, buildable bricks.",
-  studio: "Green badges mean it'll stand up. Grab the parts list, or add it to your shelf!",
+  overview: "This is your build table. Click the Generate box to start — or zoom into any piece.",
+  generate: "Name a building or pick an example, then hit Generate. I'll build real 3D from it!",
+  viewer: "Print it as-is, or generate a smooth mesh and continue to real, buildable bricks.",
+  studio: "Green tiles mean it'll stand up. Grab the parts list, or add it to your shelf!",
   shelf: "Your collection lives here — it sticks around between visits. Go make more!",
-  playground: "Mash two landmarks together, shuffle the colors, or restyle the massing. Go wild.",
+  playground: "Mash two landmarks, shuffle the colors, or restyle the massing. Go wild.",
 };
 
 function BuddyFace({ size = 52 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 56 64" aria-hidden="true">
-      {/* studs */}
       <ellipse cx="20" cy="16" rx="7" ry="4" fill="#ffe45e" />
       <ellipse cx="36" cy="16" rx="7" ry="4" fill="#ffe45e" />
       <rect x="13" y="12" width="14" height="6" rx="3" fill="#f6c700" />
       <rect x="29" y="12" width="14" height="6" rx="3" fill="#f6c700" />
-      {/* body */}
       <rect x="8" y="16" width="40" height="40" rx="6" fill="#f6c700" />
       <rect x="8" y="16" width="40" height="8" rx="6" fill="#ffd84a" />
-      {/* eyes */}
       <circle cx="21" cy="34" r="6" fill="#fff" />
       <circle cx="35" cy="34" r="6" fill="#fff" />
       <circle cx="22" cy="35" r="2.6" fill="#20262b" />
       <circle cx="36" cy="35" r="2.6" fill="#20262b" />
-      {/* smile */}
       <path d="M20 44 q8 7 16 0" stroke="#20262b" strokeWidth="2.4" fill="none" strokeLinecap="round" />
     </svg>
   );
 }
 
 export default function BrickBuddy() {
-  const tab = useUI((s) => s.tab);
+  const focusedZone = useCanvas((s) => s.focusedZone);
   const [open, setOpen] = useState(true);
+  const reduced = useReducedMotion();
+  const tip = TIPS[focusedZone || "overview"];
 
   return (
-    <div className="bf-buddy">
+    <div className="fixed bottom-[18px] right-[18px] z-50 hidden items-end gap-2.5 md:flex">
       {open && (
-        <div className="bf-bubble" role="status">
-          <span>{TIPS[tab]}</span>
-          <button className="bf-bubble-x" aria-label="Dismiss tip" onClick={() => setOpen(false)}><X size={14} /></button>
+        <div className="relative max-w-[250px] rounded-[14px] bg-elevated px-3.5 py-3 pr-8 text-sm leading-snug text-ink shadow-pop" role="status">
+          <span>{tip}</span>
+          <button
+            className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-sunken text-muted hover:text-ink"
+            aria-label="Dismiss tip"
+            onClick={() => setOpen(false)}
+          >
+            <X size={14} />
+          </button>
+          <span className="absolute -right-2 bottom-4 h-0 w-0 border-y-8 border-l-[9px] border-y-transparent border-l-elevated" />
         </div>
       )}
-      <button className="bf-buddy-fig" aria-label={open ? "Hide tips" : "Show tips"} onClick={() => setOpen((o) => !o)}>
+      <button
+        className={cn(
+          "cursor-pointer border-0 bg-transparent p-0 leading-[0] drop-shadow-[0_4px_3px_rgba(20,30,25,.3)]",
+          !reduced && "animate-bob"
+        )}
+        aria-label={open ? "Hide tips" : "Show tips"}
+        onClick={() => setOpen((o) => !o)}
+      >
         <BuddyFace />
       </button>
     </div>

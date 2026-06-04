@@ -1,57 +1,41 @@
-import { useUI } from "./state/store.js";
-import { MOCK } from "./api.js";
-import Brand from "./components/Brand.jsx";
+import { useEffect, useState } from "react";
+import { MotionConfig } from "framer-motion";
+import World from "./canvas/World.jsx";
+import StepperFlow from "./canvas/StepperFlow.jsx";
 import BrickBuddy from "./components/BrickBuddy.jsx";
-import Generate from "./screens/Generate.jsx";
-import Viewer3D from "./screens/Viewer3D.jsx";
-import BrickStudio from "./screens/BrickStudio.jsx";
-import Shelf from "./screens/Shelf.jsx";
-import Playground from "./screens/Playground.jsx";
-import { Sparkles, Box, Blocks, LibraryBig, Shapes, Volume2, VolumeX } from "lucide-react";
+import { Toaster, TooltipProvider } from "./components/ui/index.js";
 
-const TABS = [
-  ["generate", "Generate", Sparkles, Generate],
-  ["viewer", "3D · Print", Box, Viewer3D],
-  ["studio", "Brick Studio", Blocks, BrickStudio],
-  ["shelf", "My Shelf", LibraryBig, Shelf],
-  ["playground", "Playground", Shapes, Playground],
-];
+// The infinite canvas is the wrong interaction on small/touch screens, so we
+// swap to a vertical guided stepper below 900px. State lives in stores, so
+// crossing the breakpoint never loses the in-progress build.
+function useIsDesktop() {
+  const [desktop, setDesktop] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 900px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 900px)");
+    const onChange = () => setDesktop(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return desktop;
+}
 
 export default function App() {
-  const { tab, setTab, muted, toggleMute } = useUI();
-  const Active = TABS.find(([k]) => k === tab)[3];
-
+  const desktop = useIsDesktop();
   return (
-    <div className="bf-app">
-      <header className="bf-header">
-        <Brand />
-        <nav className="bf-nav">
-          {TABS.map(([key, label, Icon]) => (
-            <button key={key} className={"bf-btn" + (tab === key ? " is-active" : "")} onClick={() => setTab(key)}>
-              <Icon /> {label}
-            </button>
-          ))}
-        </nav>
-        <div className="bf-header-right">
-          {MOCK && <span className="bf-badge" title="The AI image + TRELLIS steps are mocked; geometry, bricks, exports & shelf are real.">MOCK MODE</span>}
-          <button className="bf-icon-btn" aria-label={muted ? "Unmute" : "Mute"} title={muted ? "Unmute" : "Mute"} onClick={toggleMute}>
-            {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-          </button>
-        </div>
-      </header>
+    <TooltipProvider>
+      <MotionConfig reducedMotion="user">
+        <div className="h-full w-full">{desktop ? <World /> : <StepperFlow />}</div>
 
-      <main className="bf-main bf-baseplate">
-        <Active />
-      </main>
+        <footer className="pointer-events-none fixed inset-x-0 bottom-1 z-20 mx-auto hidden max-w-[64ch] px-4 text-center text-[11px] leading-tight text-on-dark-muted md:block">
+          lEgoarCh · Emilie El Chidiac &amp; Charles Abi Chahine · MaCAD Generative AI — LEGO® is a
+          trademark of the LEGO Group, which does not sponsor or endorse this academic, non-commercial project.
+        </footer>
 
-      <footer className="bf-footer">
-        <span>lEgoarCh · Emilie El Chidiac &amp; Charles Abi Chahine · MaCAD Generative AI</span>
-        <span className="bf-disclaimer">
-          LEGO® is a trademark of the LEGO Group, which does not sponsor, authorize or endorse this academic, non-commercial project.
-        </span>
-      </footer>
-
-      <BrickBuddy />
-    </div>
+        <BrickBuddy />
+        <Toaster />
+      </MotionConfig>
+    </TooltipProvider>
   );
 }

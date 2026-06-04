@@ -1,0 +1,73 @@
+/* ============================================================
+   lEgoarCh design tokens — canonical source of truth.
+   Consumed by tailwind.config.js (semantic names -> these vars)
+   and mirrored in src/lib/tokens.js for Three.js / palette.
+   Refined "design-tool" surface; LEGO DNA kept as a deliberate
+   accent (real LDraw palette, tactile press, one stud moment).
+   ============================================================ */
+:root {
+  /* surfaces — light "plates" that float on a dark felt table */
+  --surface: #f4f5f2;          /* zone / plate base (was --c-white) */
+  --elevated: #ffffff;         /* inner cards / inputs */
+  --sunken: #e7e9e4;           /* stat tiles, inset, code (was --c-pearl) */
+
+  /* the dark WORLD (table / felt) the plates sit on */
+  --table: #2b2f2c;
+  --table-deep: #20241f;       /* vignette edge */
+  --table-line: #3a3f39;       /* faint grid line on the felt */
+
+  /* ink + text */
+  --ink: #20262b;              /* primary text (was --c-ink) */
+  --ink-soft: #3a4248;
+  --muted: #5a6168;            /* body-muted — DARKENED from #6a7178 for AA */
+  --muted-faint: #8a9098;      /* decorative only — never body text */
+  --on-dark: #e9ebe6;          /* text on the table / dark chrome */
+  --on-dark-muted: #aab0aa;
+
+  /* borders */
+  --border: #d8dbd3;
+  --border-strong: #c4c8cb;    /* (was --c-lbg-soft) */
+  --border-dark: #3a3f39;      /* on felt */
+  --plate-edge: #cfd2cb;
+
+  /* brand accents — LDraw-accurate, used sparingly */
+  --brand-red: #c91a09;        /* LDraw 4 (unifies old #b40000 + palette red) */
+  --brand-red-dark: #9e1408;
+  --brand-yellow: #f6c700;
+  --brand-yellow-dark: #c39e00;
+  --brand-blue: #1e5aa8;
+  --brand-blue-dark: #16447e;
+  --brand-tan: #e4cd9e;
+
+  /* geometry */
+  --u: 8px;                    /* stud module */
+  --r: 6px;                    /* brick fillet */
+  --r-lg: 12px;
+  --stud: 15px;                /* decorative stud Ø — the signature accent only */
+
+  /* matte-ABS elevation */
+  --shadow-plate: inset 0 2px 0 rgba(255,255,255,.85), 0 6px 0 var(--plate-edge), 0 16px 24px rgba(20,30,25,.13);
+  --shadow-plate-flat: 0 1px 2px rgba(20,30,25,.06), 0 8px 24px rgba(20,30,25,.10);
+  --shadow-brick: inset 0 2px 0 rgba(255,255,255,.45), 0 4px 0 rgba(0,0,0,.22);
+  --shadow-brick-press: inset 0 2px 0 rgba(255,255,255,.4), 0 1px 0 rgba(0,0,0,.22);
+  --shadow-pop: 0 8px 30px rgba(20,30,25,.20);
+
+  /* motion */
+  --dur-fast: 100ms; --dur: 180ms; --dur-mod: 240ms; --dur-slow: 360ms;
+  --ease-standard: cubic-bezier(.2,0,0,1);
+  --ease-snap: cubic-bezier(.34,1.56,.64,1);
+
+  /* type */
+  --font-display: "Nunito", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+}
+
+/* Honor the OS reduced-motion preference for any non-Framer CSS animation. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
