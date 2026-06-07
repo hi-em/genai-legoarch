@@ -688,7 +688,7 @@
   },
   "678:682": {
     "inputs": {
-      "lora_name": "legoarch.safetensors",
+      "lora_name": "FLUX.2\\legoarch.safetensors",
       "strength_model": 1,
       "strength_clip": 1,
       "model": [
