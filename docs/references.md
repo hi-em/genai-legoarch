@@ -56,4 +56,4 @@ Candidate **bases** for lEgoarCh — the open-source projects, tools, and papers
 
 ---
 
-> **Our contribution vs. these bases:** none of them generate *architecture* from a real building, none combine the generative front end with an interactive, buildable, exportable studio, and none ship the two-exit (print **or** build) UX. We integrate, apply to architecture, and wrap it in a usable interface. See [`architecture.md`](architecture.md) and [`concept.md`](concept.md).
+> **Our contribution vs. these bases:** none of them generate *architecture* from a real building, none combine the generative front end with an interactive, buildable, exportable studio, and none colour-match the bricks to the generated render or package the result as a collector product (box art, instruction booklet, priced set, share card). We integrate published algorithms, apply them to architecture, and wrap them in a usable interface. See [`architecture.md`](architecture.md) and [`concept.md`](concept.md).

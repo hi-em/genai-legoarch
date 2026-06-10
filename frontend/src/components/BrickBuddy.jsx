@@ -1,14 +1,12 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-import { useCanvas } from "../state/store.js";
 import { useReducedMotion } from "../lib/useReducedMotion.js";
 import { cn } from "../lib/cn.js";
 
 // Abstract "brick buddy" — a friendly 2x2 brick with a face. Deliberately NOT a
 // minifigure (trademark-protected).
-const TIPS = {
-  overview: "Name a building, hit Forge, and watch it click together — course by course — into a set you could actually build.",
-};
+const TIP =
+  "Name a building, hit Forge, and watch it click together — course by course — into a set you could actually build.";
 
 function BuddyFace({ size = 52 }) {
   return (
@@ -29,16 +27,14 @@ function BuddyFace({ size = 52 }) {
 }
 
 export default function BrickBuddy() {
-  const focusedZone = useCanvas((s) => s.focusedZone);
   const [open, setOpen] = useState(true);
   const reduced = useReducedMotion();
-  const tip = TIPS[focusedZone || "overview"];
 
   return (
     <div className="fixed bottom-[18px] right-[18px] z-50 hidden items-end gap-2.5 md:flex">
       {open && (
         <div className="relative max-w-[250px] rounded-[14px] bg-elevated px-3.5 py-3 pr-8 text-sm leading-snug text-ink shadow-pop" role="status">
-          <span>{tip}</span>
+          <span>{TIP}</span>
           <button
             className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-sunken text-muted hover:text-ink"
             aria-label="Dismiss tip"

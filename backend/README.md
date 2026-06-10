@@ -19,12 +19,13 @@ pytest -q                         # legolizer tests run without ComfyUI
 ```
 
 ## Layout
-- `app/main.py` — routes (`/health`, `/generate-image`, `/generate-3d`, `/legolize`)
-- `app/comfy_client.py` — ComfyUI client: load API workflow → prune → override prompt/seed/image → submit → poll → fetch
-- `app/prompt_enhance.py` — expands a building name into the rich legoarch prompt (Claude if `ANTHROPIC_API_KEY`, else template)
-- `app/mesh_voxelize.py` — TRELLIS GLB → occupancy grid for the frontend legolizer
-- `app/legolizer/` — the computational core:
-  - `voxelize.py` · `bricks.py` · `color.py` (CIEDE2000) · `stability.py` · `ldraw.py`
+- `app/main.py` — routes (`/health`, `/generate-image`, `/generate-3d`, `/legolize`, `/set-copy`)
+- `app/comfy_client.py` — ComfyUI client: load API workflow → prune → override prompt/seed/steps/image → submit → poll → fetch. Tuned defaults (FLUX 28 steps, TRELLIS steps/decimation/texture) are env-overridable.
+- `app/prompt_enhance.py` — expands a building name into the rich legoarch prompt; passes already-rich prompts through verbatim (Claude if `ANTHROPIC_API_KEY`, else template)
+- `app/set_designer.py` — the "set designer" persona: names the set + writes box copy (Claude if keyed, else templates)
+- `app/mesh_voxelize.py` — TRELLIS GLB → occupancy grid **+ per-voxel colour sampled from the mesh, exposure-matched to the render**
+- `app/legolizer/` — the computational core (single source of truth for the brick layout):
+  - `bricks.py` (real Luo split-and-merge, legal footprints, seam-staggered) · `color.py` (CIEDE2000 colour match) · `stability.py` (connectivity + support) · `ldraw.py` (centered-origin export) · `voxelize.py`
 
 ## Status
-ComfyUI is **wired**: `/generate-image` (txt2img + img2img) and `/generate-3d` (TRELLIS mesh + voxelization) are live. The frontend legolizes the voxelized mesh in-browser. Next: upgrade `bricks.split_and_merge` toward Luo 2015. See `../docs/plan.md`.
+ComfyUI is **wired** and the pipeline is live end-to-end: `/generate-image` (txt2img + img2img) and `/generate-3d` (TRELLIS mesh → voxelize + colour → **backend legolize**) return the real, buildable `brickModel`. The frontend renders it directly (no client-side layout). Next: Luo's stability-driven refinement loop. See `../docs/plan.md`.

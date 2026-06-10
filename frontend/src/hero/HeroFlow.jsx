@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Upload, X, Box, FileText, Receipt, Share2, Star, RotateCcw } from "lucide-react";
+import { Sparkles, Upload, X, Box, FileText, Receipt, Share2, Star, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { generate, generate3D, getSetCopy } from "../api.js";
-import { useBuild, useCollection, useView } from "../state/store.js";
+import { useBuild, useCollection, useView, useUI } from "../state/store.js";
 import { adaptBrickModel, totalParts, totalColors } from "../lib/brickModel.js";
 import { frontElevationThumb } from "../lib/thumb.js";
 import { downscaleDataUrl } from "../lib/image.js";
@@ -23,6 +23,8 @@ export default function HeroFlow() {
   const addToShelf = useCollection((s) => s.add);
   const collectionCount = useCollection((s) => s.items.length);
   const showView = useView((s) => s.show);
+  const muted = useUI((s) => s.muted);
+  const toggleMute = useUI((s) => s.toggleMute);
   const [phase, setPhase] = useState("intro");
   const [text, setText] = useState(prompt || "");
   const [photo, setPhoto] = useState(null);
@@ -44,7 +46,7 @@ export default function HeroFlow() {
       return;
     }
     playSnap();
-    set({ prompt: text, imageUrl: null, glbUrl: null, brickModel: null });
+    set({ prompt: text, imageUrl: null, brickModel: null });
     setPhase("rendering");
     try {
       setStatus("Photographing the set…");
@@ -53,7 +55,7 @@ export default function HeroFlow() {
       setStatus("Reconstructing in 3D and solving the brick layout…");
       const r2 = await generate3D(r1.imageUrl);
       if (!r2.brickModel) throw new Error(r2.voxelError || "No brick layout returned.");
-      set({ glbUrl: r2.glbUrl, brickModel: r2.brickModel });
+      set({ brickModel: r2.brickModel });
       // fetch the box copy in parallel with the assembly animation
       getSetCopy(text, r2.brickModel).then((c) => set({ setCopy: c })).catch(() => {});
       setPhase("assembling");
@@ -108,12 +110,21 @@ export default function HeroFlow() {
         <div className="font-display text-lg font-extrabold tracking-tight text-on-dark">
           l<span className="text-brand-yellow">E</span>go<span className="text-brand-red">a</span>r<span className="text-brand-blue">C</span>h
         </div>
-        <button
-          onClick={() => showView("collection")}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-on-dark hover:bg-white/20"
-        >
-          <Star size={13} /> Collection{collectionCount ? ` (${collectionCount})` : ""}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleMute}
+            aria-label={muted ? "Unmute" : "Mute"}
+            className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-on-dark hover:bg-white/20"
+          >
+            {muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+          </button>
+          <button
+            onClick={() => showView("collection")}
+            className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-on-dark hover:bg-white/20"
+          >
+            <Star size={13} /> Collection{collectionCount ? ` (${collectionCount})` : ""}
+          </button>
+        </div>
       </header>
 
       <main className="flex w-full flex-1 items-center justify-center px-5 pb-16">

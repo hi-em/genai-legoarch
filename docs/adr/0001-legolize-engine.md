@@ -23,4 +23,7 @@ Build the **custom legolizer** as the core, integrated, novel contribution. Keep
 - Studio remains the validation oracle: a generated `.ldr` that opens + passes Studio's Connectivity Check is our buildability proof.
 
 ## Revisit if
-- Custom legolizer quality blocks M2 → fall back to Studio Sculpture for the demo while keeping the custom path as the research contribution, clearly labeled.
+- Custom legolizer quality blocks the demo → fall back to Studio Sculpture while keeping the custom path as the research contribution, clearly labeled.
+
+## Outcome (2026-06) — implemented
+- The custom legolizer shipped and is the **single source of truth** for the brick layout (`backend/app/legolizer/`): real Luo-2015 greedy split-and-merge into legal footprints (1×1…2×4) with running-bond seam staggering, per-brick colour matched to the generated render (CIEDE2000 + exposure-match), connectivity/support stability, and LDraw/CSV export. A solid box correctly collapses to a few large bricks (≈80% fewer parts than a 1×1 baseline). Studio Sculpture was **not** used. Remaining upgrade: Luo's stability-driven refinement loop.

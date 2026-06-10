@@ -1,27 +1,31 @@
-# Concept — BrickForge
+# Concept — lEgoarCh
 
 ## The problem we started from
-We trained `legoarch`, a FLUX.2 LoRA that renders famous buildings as LEGO-Architecture sets, and built a TRELLIS-2 image→3D ComfyUI workflow. The obvious idea — *photo → LEGO render → 3D → 3D-print* — has a real flaw: a printed TRELLIS mesh is a **smooth blob**. It has no studs, no discrete bricks, and isn't buildable. It loses the LEGO feel.
+We trained `legoarch`, a FLUX.2 LoRA that renders famous buildings as LEGO-Architecture sets, and built a TRELLIS-2 image→3D ComfyUI workflow. The obvious idea — *photo → LEGO render → 3D → 3D-print* — has a real flaw: a printed TRELLIS mesh is a **smooth blob**. No studs, no discrete bricks, not buildable. It loses the LEGO feel.
 
 ## The reframe
-Instead of treating the smooth mesh as the only output, we make it **one of two exits**, and let the user decide how far to go:
+We stopped treating the smooth mesh as the output and made it an **internal step**. The center of gravity moves to the part nobody has done well: turning a generated building into something genuinely **buildable**.
 
-- **Exit 1 — Print it.** Download the STL and 3D-print a smooth display souvenir. Fast, fun, low-commitment.
-- **Exit 2 — Build it.** Run our **custom legolizer** to convert the model into legal, discrete, buildable bricks: an LDraw file, a real parts list, and step-by-step instructions. This is the genuine "LEGO Architecture" experience.
+- The generative model invents the **form** (FLUX render → TRELLIS 3D).
+- A deterministic, verifiable **legolizer** turns that form into legal, discrete bricks: real footprints, colours matched to the render, a connectivity/support check, and an LDraw file you could open in BrickLink Studio.
 
-The original weakness becomes a **feature/UX choice**, and the project's center of gravity moves to the part nobody has done well: turning a generated building into something *buildable*.
+*"AI proposes, a solver disposes."* That answers the critique that generative AI is "just imitation" — the buildable structure is new and checkable.
 
 ## Why this is novel (and defensible to faculty)
 - A prior MaCAD project ("LEGO Set: A Generative AI Approach", 2023-24) produced **images + marketing text only** — no 3D, no parts, nothing buildable. We start exactly where they stopped.
-- "AI proposes, a solver disposes": the generative model invents the form; a **deterministic, verifiable legolizer** turns it into legal bricks. That answers the critique that generative AI is "just imitation" — the buildable structure is new and checkable.
-- We deliberately do **not** just wrap BrickLink Studio's off-the-shelf "Sculpture" mesh→bricks button; our own legolizer (voxel grid → legal brick layout → color → connectivity/stability → LDraw) is the computational contribution.
+- We deliberately do **not** wrap BrickLink Studio's off-the-shelf "Sculpture" mesh→bricks button. Our own legolizer (voxel grid → legal split-and-merge layout → colour → connectivity/stability → LDraw) is the computational contribution. See [`adr/0001-legolize-engine.md`](adr/0001-legolize-engine.md).
+- Evaluated with **buildability metrics** (% supported, single connected component, piece count), not FID/CLIP.
 
-## The fun layer (this is a studio project, not just a tool)
-- **LEGO skin**: baseplate canvas, brick-shaped buttons, snap sounds, a minifig mascot guide.
-- **Collection shelf**: every building you make lands on your own display shelf — a growing gallery of your creations (we're collectors; this is the heart of the "fun").
-- **Playground** (nice-to-have): mash two buildings together, a restyle slider across architectural eras, **generate a sectional axonometric of a detail**, drag-to-recolor bricks.
-- **Make-it-stand mini-game** (stretch): tilt the model, watch unstable bricks glow red and wobble.
+## The collector payoff (this is a studio project, not just a tool)
+We're LEGO collectors, so the reward is the *product*, not a file dump. After a set is solved you watch it **assemble course-by-course** (with snap sounds), then get:
+- **The Box** — official-style black Architecture box art (your render as cover, piece count, set number, designer quote).
+- **Instruction booklet** — a step-by-step PDF, one course per step, in the real-manual aesthetic.
+- **Priced set** — the parts list with a believable build-cost estimate, plus a link out to BrickLink for live pricing.
+- **Share card** — a social card.
+- **Collection shelf** — every set you make lands on a persistent shelf, reopenable with its 3D model and trophies.
+
+A **"set designer" persona** names each set and writes the back-of-box copy in a dry catalogue voice (playful but credible — it never undercuts the engineering).
 
 ## Inputs & outputs (plain)
-- **Input:** a building photo (upload) or just its name (text prompt).
-- **Output:** a LEGO-style image → a 3D model (STL, Exit 1) → a buildable brick set (LDraw + parts list + instructions, Exit 2), saved to your shelf.
+- **Input:** a building name, a full rich prompt, or a reference photo (→ img2img). The `legoarch` LoRA trigger is added for you.
+- **Output:** a LEGO render → a colour-matched, buildable brick set → box art, an instruction PDF, a priced parts list, a share card, and an LDraw/CSV export — saved to your shelf.

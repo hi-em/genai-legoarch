@@ -1,32 +1,32 @@
-# Roadmap & milestones
+# Roadmap & status
 
-Milestones with a **ruthless cut order** so a polished demo always exists.
+The spine is built end-to-end; what remains is rigor and polish.
 
 | # | Milestone | Deliverable | Status |
 |---|---|---|---|
-| **M0** | Scaffold & week-1 insurance | Repo + folders; ComfyUI reachable from FastAPI; React shell with LEGO skin; end-to-end **photo+prompt → legoarch image** in the app | 🚧 in progress |
-| **M1** | Flow 1 (3D + Exit 1) | Wire TRELLIS; three.js viewer; **download STL** | ⬜ |
-| **M2** | Custom legolizer (Exit 2) — **THE CORE** | voxelize → split-and-merge bricks → CIEDE2000 color → connectivity/stability → **LDraw + parts list + instructions**; brick model in viewer | ⬜ |
-| **M3** | Fun layer (must-have) | LEGO skin polish; **Collection Shelf** persistence | ⬜ |
-| **M4** | Playground (nice-to-have) | Mashup / restyle / sectional-axo detail / recolor | ⬜ |
-| **M5** | Stretch (decide later) | Make-it-stand mini-game · physical build validation · neuro tab | ⬜ |
-| **M6** | Deliverables | `research.md` writeup · README + demo GIF · crit deck | ⬜ |
+| **M0** | Scaffold | Repo; ComfyUI reachable from FastAPI; React shell; **photo/prompt → legoarch render** in the app | ✅ done |
+| **M1** | Generative 3D | FLUX render → **TRELLIS textured mesh** → voxelize | ✅ done |
+| **M2** | Custom legolizer — **THE CORE** | real split-and-merge into legal bricks → **colour matched to the render** (CIEDE2000) → connectivity/stability → LDraw/CSV | ✅ done |
+| **M3** | Experience | cinematic hero flow + **course-by-course assembly**; set-designer persona; **collection shelf** | ✅ done |
+| **M4** | Trophies | **The Box** · **instruction booklet PDF** · **priced set** · **share card** | ✅ done |
+| **M5** | Workflow tuning | FLUX 50→28 steps; TRELLIS steps/decimation/texture; colour exposure-match | ✅ done |
+| **M6** | Rigor upgrades (next) | stability-driven **refinement loop** (re-merge weakest region); wider footprint/plate catalog; real BrickLink price proxy | ⬜ next |
 
-**Cut order if time runs short:** drop M5 → M4 first. **Never** cut M0–M2 (spine) or M3 (skin + shelf).
-
-## API contract (lock early — biggest scope-saver)
+## API contract (live)
 
 | Endpoint | In | Out |
 |---|---|---|
-| `POST /generate-image` | `{prompt, image?, lora_scale?}` | `{image_url}` |
-| `POST /generate-3d` | `{image_url}` | `{stl_url, voxelgrid_npz_url, glb_url}` |
-| `POST /legolize` | `{voxelgrid_npz_url \| stl_url, options}` | `{brick_model, stability, parts_list}` |
-| `POST /export` | `{brick_model}` | `{ldr_url, instructions_url, parts_csv_url}` |
-| `GET/POST /shelf` | creation CRUD | shelf items |
+| `POST /generate-image` | `{prompt, image_b64?, seed?}` | `{imageUrl}` |
+| `POST /generate-3d` | `{image_b64? \| image_url?, seed?}` | `{glbUrl, filename, voxel, brickModel}` |
+| `POST /legolize` | `{voxelgrid_npz_url? \| stl_url?, image_url?, unit_mm, options}` | `brickModel` |
+| `POST /set-copy` | `{subject, n_bricks, n_parts, n_colors, grid, support_ratio, connected}` | `{set_name, set_number, series, box_blurb, designer_quote, value_verdict, share_tagline}` |
+| `GET /health` | — | `{ok, comfyui_url, comfyui_3d_url}` |
 
-`brick_model` schema (draft): `{ bricks: [{ part, x, y, z, color, rot }], grid: {nx,ny,nz}, unit_mm }`.
+`brickModel` schema: `{ bricks: [{ part, x, y, z, color, rot, w, d }], grid: [nx, ny, nz], unit_mm, stability: { connected, n_components, support_ratio, n_bricks, unsupported_layers }, parts_list }`.
+
+The backend is the single source of truth for `brickModel`; the frontend renders it directly (it attaches display hex + a colour-aware parts list, but does no layout).
 
 ## Open items
-- GitHub username + final repo name (for the public repo).
-- Keep make-it-stand mini-game in M5 or promote it.
-- Physical build vs Studio-simulated validation.
+- Stability **refinement loop** (Luo's re-merge-weakest-region) to lift the support ratio on organic forms — currently a single greedy pass.
+- Real BrickLink pricing via a backend OAuth proxy (today's "Priced set" is an honest estimate + a BrickLink search link).
+- Optional: surface the smooth GLB again as a downloadable "souvenir" export if wanted.
