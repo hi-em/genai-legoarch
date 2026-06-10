@@ -56,6 +56,16 @@ class Generate3DReq(BaseModel):
     seed: Optional[int] = None
 
 
+class SetCopyReq(BaseModel):
+    subject: str
+    n_bricks: int = 0
+    n_parts: int = 0
+    n_colors: int = 0
+    grid: list[int] = []
+    support_ratio: float = 1.0
+    connected: bool = True
+
+
 class LegolizeReq(BaseModel):
     voxelgrid_npz_url: Optional[str] = None
     stl_url: Optional[str] = None
@@ -101,14 +111,48 @@ def generate_3d(req: Generate3DReq) -> dict[str, Any]:
         "glbUrl": _data_url(result["glb"], "model/gltf-binary"),
         "filename": result["filename"],
     }
-    # Voxelize the mesh so the frontend can legolize the REAL geometry.
+    # Voxelize the mesh and legolize the REAL geometry on the backend — the
+    # backend is the single source of truth for the brick layout (the frontend
+    # only renders what comes back, no client-side merge).
     try:
+        import numpy as np
+
         from .mesh_voxelize import voxelize_glb
 
-        resp["voxel"] = voxelize_glb(result["glb"], target=26)
+        voxel = voxelize_glb(result["glb"], target=26)
+        resp["voxel"] = voxel
+        nx, ny, nz = voxel["nx"], voxel["ny"], voxel["nz"]
+        occ = (
+            np.frombuffer(base64.b64decode(voxel["occ_b64"]), dtype=np.uint8)
+            .reshape((nx, ny, nz), order="F")
+            .astype(bool)
+        )
+        # real colour from the generated model, matched to LEGO colours downstream
+        voxel_rgb = None
+        if voxel.get("rgb_b64"):
+            from .mesh_voxelize import match_exposure
+
+            voxel_rgb = (
+                np.frombuffer(base64.b64decode(voxel["rgb_b64"]), dtype=np.uint8)
+                .reshape((nz, ny, nx, 3))
+                .transpose(2, 1, 0, 3)
+            )
+            voxel_rgb = match_exposure(voxel_rgb, img)  # tie colours to the render
+        model = legolize_voxelgrid(
+            _occupancy=occ, options={"seed": req.seed or 1}, voxel_rgb=voxel_rgb
+        )
+        resp["brickModel"] = model.to_dict()
     except Exception as e:  # keep the GLB usable even if voxelization fails
         resp["voxelError"] = str(e)
     return resp
+
+
+@app.post("/set-copy")
+def set_copy(req: SetCopyReq) -> dict[str, Any]:
+    """Name the set + write the box/share copy (Claude if keyed, else template)."""
+    from .set_designer import generate_set_copy
+
+    return generate_set_copy(req.model_dump())
 
 
 @app.post("/legolize")

@@ -3,14 +3,18 @@
 const LDU_PER_STUD = 20;
 const LDU_PER_BRICK_H = 24;
 const ROT0 = "1 0 0 0 1 0 0 0 1";
+const ROT90 = "0 0 1 0 1 0 -1 0 0";
 
-export function toLdraw(brickModel, title = "BrickForge model") {
-  const lines = [`0 ${title}`, "0 Name: model.ldr", "0 Author: BrickForge", ""];
+export function toLdraw(brickModel, title = "lEgoarCh model") {
+  const lines = [`0 ${title}`, "0 Name: model.ldr", "0 Author: lEgoarCh", ""];
   for (const b of brickModel.bricks) {
-    const lx = b.x * LDU_PER_STUD;
+    const w = b.w || 1, d = b.d || 1;
+    // LDraw parts are centered on their footprint, so place at the footprint center
+    const lx = Math.round((b.x + (w - 1) / 2) * LDU_PER_STUD);
     const ly = -b.z * LDU_PER_BRICK_H; // LDraw Y is down
-    const lz = b.y * LDU_PER_STUD;
-    lines.push(`1 ${b.color} ${lx} ${ly} ${lz} ${ROT0} ${b.part}.dat`);
+    const lz = Math.round((b.y + (d - 1) / 2) * LDU_PER_STUD);
+    const m = b.rot === 90 ? ROT90 : ROT0;
+    lines.push(`1 ${b.color} ${lx} ${ly} ${lz} ${m} ${b.part}.dat`);
   }
   return lines.join("\n") + "\n";
 }

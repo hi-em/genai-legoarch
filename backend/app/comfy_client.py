@@ -34,6 +34,19 @@ _TIMEOUT = httpx.Timeout(900.0, connect=10.0)
 _POLL_SECONDS = 1.0
 _MAX_WAIT = 900.0  # 15 min ceiling per job
 
+# ---- tuned defaults (env-overridable) -----------------------------------------
+# FLUX.2 Klein is guidance-distilled; 28 steps is visually on par with the stock
+# 50 at ~half the time (verified on the legoarch LoRA). See docs/research.md.
+FLUX_STEPS = int(os.environ.get("FLUX_STEPS", "28"))
+# TRELLIS: we voxelize at ~26^3 and SAMPLE the texture for LEGO colour matching,
+# so a 200k-face / 1024px texture mesh is wasted detail. We cut steps + face
+# budget hard but KEEP the texture (it's what the colour match reads from).
+TRELLIS_SS_STEPS = int(os.environ.get("TRELLIS_SS_STEPS", "20"))      # node 94
+TRELLIS_SHAPE_STEPS = int(os.environ.get("TRELLIS_SHAPE_STEPS", "25"))  # node 94
+TRELLIS_TEX_STEPS = int(os.environ.get("TRELLIS_TEX_STEPS", "18"))     # node 95
+TRELLIS_DECIMATION = int(os.environ.get("TRELLIS_DECIMATION", "40000"))  # node 96
+TRELLIS_TEXTURE_SIZE = int(os.environ.get("TRELLIS_TEXTURE_SIZE", "512"))  # node 96
+
 # ---- which node in each template carries which parameter ----------------------
 # (derived from the exported *.api.json graphs)
 TXT2IMG = {
@@ -41,6 +54,8 @@ TXT2IMG = {
     "output": "676",        # SaveImage on the legoarch-LoRA branch (678:*)
     "prompt": "734",        # PrimitiveStringMultiline -> concat "legoarch " + this
     "seed": "685",          # PrimitiveInt seed
+    "steps": "678:668",     # PrimitiveInt -> Flux2Scheduler.steps
+    "cfg": "678:674",       # PrimitiveFloat -> CFGGuider.cfg
 }
 IMG2IMG = {
     "file": "flux_img2img.api.json",
@@ -158,7 +173,7 @@ def _newest_glb(after: float = 0.0) -> Optional[Path]:
 
 
 # ---- high-level operations ----------------------------------------------------
-def run_txt2img(prompt: str, seed: Optional[int] = None) -> bytes:
+def run_txt2img(prompt: str, seed: Optional[int] = None, steps: Optional[int] = None) -> bytes:
     """FLUX.2 + legoarch text-to-image. Returns PNG bytes."""
     from .prompt_enhance import enhance_prompt
 
@@ -168,6 +183,7 @@ def run_txt2img(prompt: str, seed: Optional[int] = None) -> bytes:
     # StringConcatenate node prepends "legoarch " for us.
     _set_value(graph, cfg["prompt"], enhance_prompt(prompt))
     _set_value(graph, cfg["seed"], seed if seed is not None else _rand_seed())
+    _set_value(graph, cfg["steps"], steps if steps is not None else FLUX_STEPS)
 
     entry = _submit_and_wait(COMFYUI_URL, graph)
     out = entry["outputs"].get(cfg["output"], {})
@@ -206,13 +222,26 @@ def run_trellis(image: bytes, seed: Optional[int] = None) -> dict[str, Any]:
     if seed is not None:
         for nid in cfg["seeds"]:
             _set_value(graph, nid, seed, key="seed")
+    # faster preset — fewer diffusion steps + a far smaller face/texture budget
+    # (we only need a clean shell + sampleable colour, not a 200k-face render)
+    _set_value(graph, "94", TRELLIS_SS_STEPS, key="ss_sampling_steps")
+    _set_value(graph, "94", TRELLIS_SHAPE_STEPS, key="shape_sampling_steps")
+    _set_value(graph, "95", TRELLIS_TEX_STEPS, key="tex_sampling_steps")
+    _set_value(graph, "96", TRELLIS_DECIMATION, key="decimation_target")
+    _set_value(graph, "96", TRELLIS_TEXTURE_SIZE, key="texture_size")
 
     started = time.time()
     entry = _submit_and_wait(COMFYUI_3D_URL, graph)
 
     # Trellis2ExportGLB writes the .glb to disk but doesn't register it in
-    # /history, so grab the newest .glb that appeared since we submitted.
+    # /history, and the file can land a beat AFTER the job reports complete, so
+    # poll briefly for the newest .glb that appeared since we submitted.
     glb = _newest_glb(after=started)
+    for _ in range(30):
+        if glb is not None:
+            break
+        time.sleep(1.0)
+        glb = _newest_glb(after=started)
     if glb is not None:
         return {"glb": glb.read_bytes(), "filename": glb.name}
 

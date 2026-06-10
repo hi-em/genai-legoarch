@@ -7,12 +7,7 @@ import { cn } from "../lib/cn.js";
 // Abstract "brick buddy" — a friendly 2x2 brick with a face. Deliberately NOT a
 // minifigure (trademark-protected).
 const TIPS = {
-  overview: "This is your build table. Click the Generate box to start — or zoom into any piece.",
-  generate: "Name a building or pick an example, then hit Generate. I'll build real 3D from it!",
-  viewer: "Print it as-is, or generate a smooth mesh and continue to real, buildable bricks.",
-  studio: "Green tiles mean it'll stand up. Grab the parts list, or add it to your shelf!",
-  shelf: "Your collection lives here — it sticks around between visits. Go make more!",
-  playground: "Mash two landmarks, shuffle the colors, or restyle the massing. Go wild.",
+  overview: "Name a building, hit Forge, and watch it click together — course by course — into a set you could actually build.",
 };
 
 function BuddyFace({ size = 52 }) {

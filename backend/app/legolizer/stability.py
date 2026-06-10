@@ -20,7 +20,9 @@ def _occupancy_from_model(model) -> np.ndarray:
     nx, ny, nz = model.grid
     occ = np.zeros((nx, ny, nz), dtype=bool)
     for b in model.bricks:
-        occ[b.x, b.y, b.z] = True
+        w = getattr(b, "w", 1)
+        d = getattr(b, "d", 1)
+        occ[b.x:b.x + w, b.y:b.y + d, b.z] = True
     return occ
 
 

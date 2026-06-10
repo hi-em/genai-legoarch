@@ -20,11 +20,15 @@ _ROT0 = (1, 0, 0, 0, 1, 0, 0, 0, 1)
 _ROT90 = (0, 0, 1, 0, 1, 0, -1, 0, 0)
 
 
-def brick_to_ldraw_line(part: str, x: int, y: int, z: int, color: int, rot: int) -> str:
-    # grid (x,y,z) with z up  ->  LDraw (X, Y-down, Z)
-    lx = x * LDU_PER_STUD
+def brick_to_ldraw_line(
+    part: str, x: int, y: int, z: int, color: int, rot: int, w: int = 1, d: int = 1
+) -> str:
+    # grid (x,y,z) with z up -> LDraw (X, Y-down, Z). LDraw parts are centered on
+    # their footprint, so a w*d brick anchored at corner (x,y) is positioned at
+    # the footprint center, not the corner.
+    lx = int(round((x + (w - 1) / 2.0) * LDU_PER_STUD))
     ly = -z * LDU_PER_BRICK_H
-    lz = y * LDU_PER_STUD
+    lz = int(round((y + (d - 1) / 2.0) * LDU_PER_STUD))
     m = _ROT90 if rot == 90 else _ROT0
     coords = f"{lx} {ly} {lz}"
     matrix = " ".join(str(v) for v in m)
@@ -40,7 +44,9 @@ def write_ldr(bricks: Iterable, path: str, title: str = "BrickForge model") -> s
         z = b.z if hasattr(b, "z") else b[3]
         color = getattr(b, "color", 15)
         rot = getattr(b, "rot", 0)
-        lines.append(brick_to_ldraw_line(part, x, y, z, color, rot))
+        w = getattr(b, "w", 1)
+        d = getattr(b, "d", 1)
+        lines.append(brick_to_ldraw_line(part, x, y, z, color, rot, w, d))
     text = "\n".join(lines) + "\n"
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(text)

@@ -9,6 +9,7 @@ A small starter palette is included; expand with the full BrickLink/LDraw palett
 """
 from __future__ import annotations
 
+import random
 from typing import Optional
 
 import numpy as np
@@ -92,10 +93,66 @@ def nearest_lego_color(rgb: tuple[int, int, int]) -> int:
     return LEGO_PALETTE[int(np.argmin(d))][0]
 
 
-def assign_colors(bricks, occ, image_url: Optional[str]) -> list[int]:
+# --- signature legoarch palette (LDraw codes) -------------------------------
+_PODIUM = 151   # Light Bluish Gray
+_CROWN = 72     # Dark Bluish Gray
+_WINDOW = 46    # Trans Yellow
+_BODY = 15      # White
+_ACCENT = 71    # Light Gray
+
+
+def _on_edge(x: int, y: int, z: int, w: int, d: int, occ: np.ndarray) -> bool:
+    """True if the footprint touches the silhouette boundary at this layer."""
+    nx, ny, _ = occ.shape
+    if x == 0 or y == 0 or x + w >= nx or y + d >= ny:
+        return True
+    return (
+        not occ[x - 1, y:y + d, z].all()
+        or not occ[x + w, y:y + d, z].all()
+        or not occ[x:x + w, y - 1, z].all()
+        or not occ[x:x + w, y + d, z].all()
+    )
+
+
+def _colors_from_rgb(bricks, voxel_rgb: np.ndarray) -> list[int]:
+    """Match each brick to the real LEGO colour nearest the generated model's
+    colour over its footprint (CIEDE2000)."""
+    out: list[int] = []
+    for (part, x, y, z, rot, w, d) in bricks:
+        patch = voxel_rgb[x:x + w, y:y + d, z].reshape(-1, 3).astype(float)
+        lit = patch[patch.sum(axis=1) > 0]      # ignore unsampled (black) voxels
+        if len(lit) == 0:
+            out.append(15)                      # default White
+            continue
+        mean = lit.mean(axis=0)
+        out.append(nearest_lego_color((int(mean[0]), int(mean[1]), int(mean[2]))))
+    return out
+
+
+def assign_colors(
+    bricks, occ, image_url: Optional[str] = None, seed: int = 7,
+    voxel_rgb: Optional[np.ndarray] = None,
+) -> list[int]:
     """Assign an LDraw color per brick.
 
-    Baseline: all White (15). TODO (M2): sample the legoarch image per brick
-    footprint (project grid xy -> image uv) and pick nearest_lego_color().
+    Preferred: match the generated model's real colour per footprint to the
+    nearest real LEGO colour (CIEDE2000) when `voxel_rgb` is available. Fallback
+    (untextured mesh): the signature legoarch heuristic — light-grey podium,
+    dark-grey crown, the odd translucent-yellow window, pearl-white body.
     """
-    return [15 for _ in bricks]
+    if voxel_rgb is not None:
+        return _colors_from_rgb(bricks, voxel_rgb)
+
+    nz = occ.shape[2]
+    rng = random.Random(int(seed) & 0xFFFFFFFF)
+    out: list[int] = []
+    for (part, x, y, z, rot, w, d) in bricks:
+        if z < 2:
+            out.append(_PODIUM)
+        elif z >= nz - 2:
+            out.append(_CROWN)
+        elif _on_edge(x, y, z, w, d, occ) and rng.random() < 0.16:
+            out.append(_WINDOW)
+        else:
+            out.append(_ACCENT if rng.random() < 0.12 else _BODY)
+    return out

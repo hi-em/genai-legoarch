@@ -12,17 +12,33 @@ export const useUI = create((set) => ({
 }));
 
 // ---------- collection shelf — persisted to localStorage (survives reloads) ----------
-const SHELF_KEY = "brickforge.shelf.v1";
+// Each saved set carries its full brickModel + setCopy + a render thumbnail so it
+// can be reopened (3D viewer + trophies) offline. Capped + quota-safe so a long
+// collection of large sets can't exceed the ~5MB localStorage budget.
+const SHELF_KEY = "lEgoarCh.shelf.v2";
+const SHELF_CAP = 20;
 function loadShelf() {
   try { return JSON.parse(localStorage.getItem(SHELF_KEY)) || []; } catch { return []; }
 }
 function saveShelf(items) {
-  try { localStorage.setItem(SHELF_KEY, JSON.stringify(items)); } catch {}
+  let list = items.slice(0, SHELF_CAP);
+  while (list.length) {
+    try { localStorage.setItem(SHELF_KEY, JSON.stringify(list)); return list; }
+    catch { list = list.slice(0, list.length - 1); }   // drop oldest on quota error
+  }
+  try { localStorage.setItem(SHELF_KEY, "[]"); } catch {}
+  return [];
 }
 export const useCollection = create((set, get) => ({
   items: loadShelf(),
-  add: (item) => { const items = [item, ...get().items]; saveShelf(items); set({ items }); },
-  remove: (id) => { const items = get().items.filter((i) => i.id !== id); saveShelf(items); set({ items }); },
+  add: (item) => { const items = saveShelf([item, ...get().items]); set({ items }); },
+  remove: (id) => { const items = saveShelf(get().items.filter((i) => i.id !== id)); set({ items }); },
+}));
+
+// ---------- top-level view switch (hero create flow <-> collection) ----------
+export const useView = create((set) => ({
+  view: "hero",
+  show: (view) => set({ view }),
 }));
 
 // ---------- current build flowing through the pipeline ----------
@@ -32,10 +48,11 @@ export const useBuild = create((set) => ({
   glbUrl: null,       // TRELLIS smooth 3D mesh (data URL), generated on demand
   model: null,        // voxel grid
   brickModel: null,   // legolized bricks + stability + parts
+  setCopy: null,      // set-designer persona copy (name, blurb, quote, ...)
   busy: false,
   busy3d: false,
   set: (patch) => set(patch),
-  reset: () => set({ prompt: "", imageUrl: null, glbUrl: null, model: null, brickModel: null, busy: false, busy3d: false }),
+  reset: () => set({ prompt: "", imageUrl: null, glbUrl: null, model: null, brickModel: null, setCopy: null, busy: false, busy3d: false }),
 }));
 
 // ---------- canvas navigation (the "play-table" world) ----------

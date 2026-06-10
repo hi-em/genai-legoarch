@@ -50,9 +50,27 @@ def _template(subject: str) -> str:
     return f"{subject}, LEGO Architecture set, smooth plastic bricks, {STYLE_SUFFIX}"
 
 
+def _ensure_suffix(text: str) -> str:
+    """Make sure the studio product-photo tail is present (don't double it)."""
+    if "official LEGO set photography" in text:
+        return text
+    return f"{text.rstrip(', ')}, {STYLE_SUFFIX}"
+
+
+def _is_rich(subject: str) -> bool:
+    """A prompt that already follows the full LEGO-Architecture structure — pass
+    it through verbatim rather than re-wrapping (e.g. the example prompts)."""
+    return "lego architecture set" in subject.lower() or len(subject) > 140
+
+
 def enhance_prompt(subject: str) -> str:
     """Return a rich legoarch-style prompt body (no trigger word)."""
     subject = _strip_trigger(subject) or "modern architecture building"
+
+    # already-detailed prompts (the example chips, or anything a user writes in
+    # full) are used as-is — just guarantee the studio tail.
+    if _is_rich(subject):
+        return _ensure_suffix(subject)
 
     key = os.environ.get("ANTHROPIC_API_KEY")
     if key:

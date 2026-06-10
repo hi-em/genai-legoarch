@@ -26,11 +26,13 @@ from . import stability as _stability
 @dataclass
 class Brick:
     part: str          # e.g. "3005" (1x1), "3004" (1x2) — BrickLink part IDs
-    x: int             # grid coords (studs / plates)
+    x: int             # grid coords (studs / plates); (x,y) = footprint min-corner
     y: int
     z: int
     color: int = 15    # LDraw color code (15 = white)
     rot: int = 0       # 0/90 footprint rotation
+    w: int = 1         # footprint extent along grid-x (studs), as placed
+    d: int = 1         # footprint extent along grid-y (studs), as placed
 
 
 @dataclass
@@ -53,10 +55,12 @@ def legolize_voxelgrid(
     unit_mm: float = 8.0,
     options: Optional[dict[str, Any]] = None,
     _occupancy: Optional[np.ndarray] = None,
+    voxel_rgb: Optional[np.ndarray] = None,
 ) -> BrickModel:
     """Convert a voxel occupancy grid into a buildable BrickModel.
 
     Pass `_occupancy` directly (a 3D bool ndarray) to bypass IO in tests.
+    `voxel_rgb` (nx,ny,nz,3 uint8) enables real colour matching to the model.
     """
     options = options or {}
 
@@ -67,12 +71,13 @@ def legolize_voxelgrid(
     else:
         raise ValueError("Provide voxelgrid_npz_url or _occupancy")
 
-    raw_bricks = _bricks.split_and_merge(occ)           # [(part,x,y,z,rot), ...]
-    colors = _color.assign_colors(raw_bricks, occ, image_url)
+    seed = int(options.get("seed", 1))
+    raw_bricks = _bricks.split_and_merge(occ, seed=seed, options=options)  # (part,x,y,z,rot,w,d)
+    colors = _color.assign_colors(raw_bricks, occ, image_url, seed=seed, voxel_rgb=voxel_rgb)
 
     model = BrickModel(
-        bricks=[Brick(part=p, x=x, y=y, z=z, color=c, rot=r)
-                for (p, x, y, z, r), c in zip(raw_bricks, colors)],
+        bricks=[Brick(part=p, x=x, y=y, z=z, color=c, rot=r, w=w, d=d)
+                for (p, x, y, z, r, w, d), c in zip(raw_bricks, colors)],
         grid=tuple(int(s) for s in occ.shape),
         unit_mm=unit_mm,
     )
