@@ -1,74 +1,71 @@
-// Example chips — full rich prompts following the house structure:
-//   {subject}, LEGO Architecture set, {massing/form}, {brick materials + named
-//   colours}, {surface pattern}, {base description}, {structural detail}, {studio tail}
-// Using the full prompt (rather than just a name) gives FLUX maximum input even
-// with no Claude key. The backend prepends the `legoarch` LoRA trigger.
-//
-// Curated for the PIPELINE, not just the render: prismatic / stacked /
-// terraced massing survives TRELLIS reconstruction and ~32-stud voxelization;
-// curved or translucent icons (Fondation Louis Vuitton, Daxing) render
-// gorgeously but shred downstream — they live on in docs/benchmarks.md as
-// documented stress cases instead.
+// The four example chips — research-grounded prompts (docs sources: LEGO 21065
+// press/product pages, sydneyoperahouse.com spherical-solution archive, Arup
+// 1973 engineering paper, villa-savoye.fr monument site; see the deep-research
+// session 2026-06-12). Each follows the 8-slot grammar the benchmark validated:
+//   [identity] [LEGO Architecture set] [massing, FUSED verbs + counts]
+//   [smooth X+Y plastic bricks] [signature pattern] [base volume]
+//   [named LEGO palette WITH placement] [studio tail]
+// Massing language keeps volumes fused and grounded (matching LEGO's own
+// design choices in 21065/21012/21014) so the TRELLIS mesh voxelizes into a
+// single connected build. Habitat 67 remains the internal enhancement
+// reference in backend/app/prompt_enhance.py — it is not a chip.
 const TAIL =
   "standalone model on dark display base, white background, elevated 3/4 angle, " +
   "product photography, studio lighting, official LEGO set photography";
 
 export const EXAMPLES = [
   {
-    label: "Habitat 67",
+    // LEGO's own 21065 (12,060 pcs, the largest set ever) is the fun benchmark:
+    // completed basilica, all 18 towers, deliberately unified tan stone.
+    label: "Sagrada Família",
     prompt:
-      "Habitat 67 Montreal Moshe Safdie, LEGO Architecture set, stacked offset " +
-      "concrete cube modules forming a terraced pyramidal hill, smooth light bluish " +
-      "grey and tan plastic bricks, repeating modular box pattern with recessed " +
-      "terrace openings, cantilevered cubic clusters over a solid podium, light " +
-      "bluish grey volumes, tan terrace insets, dark grey shadow gaps, " + TAIL,
+      "Sagrada Família Barcelona Antoni Gaudí, LEGO Architecture set, " +
+      "longitudinal basilica with eighteen clustered tapering openwork towers " +
+      "fused into the nave body, four-tower clusters over three sculpted " +
+      "facades and a taller central tower group, smooth tan and dark tan " +
+      "plastic bricks, intricate carved-stone filigree texture with deep " +
+      "portal recesses, stepped apse and solid podium base, tan stone " +
+      "throughout, dark tan shadow details, translucent crystal pinnacle " +
+      "tips, stained-glass color accents, " + TAIL,
   },
   {
+    // The organic-form showcase. Shells are segments of ONE 75.2 m sphere in
+    // mirrored pairs — never "sails" — and two-tone white/cream chevron tile.
+    label: "Sydney Opera House",
+    prompt:
+      "Sydney Opera House Jørn Utzon, LEGO Architecture set, mirrored pairs " +
+      "of spherical-segment shell roofs rising in three fused groups from a " +
+      "massive solid podium, each shell a curved triangular section of one " +
+      "common sphere, smooth white and tan plastic bricks, subtle two-tone " +
+      "chevron tile pattern across the shells, broad terraced podium with " +
+      "monumental steps, glossy white shells, matte cream chevron bands, " +
+      "warm tan podium, dark glazing beneath the shells, " + TAIL,
+  },
+  {
+    // "A box in the air" (villa-savoye.fr): white prism over a recessed
+    // English-green ground floor — the legolizer's easiest A+.
+    label: "Villa Savoye",
+    prompt:
+      "Villa Savoye Poissy Le Corbusier, LEGO Architecture set, crisp white " +
+      "rectangular prism floating above a recessed dark green ground floor " +
+      "with slender white pilotis, continuous horizontal ribbon windows " +
+      "wrapping all four elevations, curved white rooftop solarium " +
+      "windbreak, smooth white and sand green plastic bricks, clean " +
+      "modernist planes with precise window-strip reveals, white box volume, " +
+      "sand green recessed base, trans-clear ribbon glazing, light bluish " +
+      "grey terrace details, " + TAIL,
+  },
+  {
+    // The color story — interlocking prismatic massing, proven live in-app.
     label: "La Muralla Roja",
     prompt:
-      "La Muralla Roja Calpe Ricardo Bofill, LEGO Architecture set, interlocking " +
-      "geometric courtyard fortress of stacked stair towers and crossing walls, " +
-      "smooth dark red and coral plastic bricks, repeating vertical slot openings " +
-      "and rooftop terraces with external stairs, monolithic interlocked massing on " +
-      "a solid plinth, dark red walls, coral pink courtyards, medium lavender and " +
-      "sand blue accents, " + TAIL,
-  },
-  {
-    label: "Salk Institute",
-    prompt:
-      "Salk Institute La Jolla Louis Kahn, LEGO Architecture set, twin mirrored " +
-      "terraced concrete laboratory blocks flanking a central travertine plaza " +
-      "channel, smooth tan and light bluish grey plastic bricks, rhythmic angled " +
-      "study towers with deep window recesses, long symmetric low massing on a " +
-      "solid plinth, tan plaza spine, light bluish grey concrete volumes, dark grey " +
-      "shadow slots, " + TAIL,
-  },
-  {
-    label: "MAS Antwerp",
-    prompt:
-      "MAS Museum Antwerp Neutelings Riedijk, LEGO Architecture set, ten stacked " +
-      "sandstone box volumes spiraling upward into a single bold tower, smooth dark " +
-      "red and reddish brown plastic bricks, alternating rotated storey blocks with " +
-      "tall corner window slots, massive monolithic stacked massing on a solid " +
-      "plinth, dark red stone volumes, reddish brown bands, light bluish grey " +
-      "plinth, " + TAIL,
-  },
-  {
-    label: "El Castillo",
-    prompt:
-      "El Castillo pyramid Chichen Itza, LEGO Architecture set, nine-tiered stepped " +
-      "stone pyramid with grand axial staircases on all four sides and a crowning " +
-      "temple block, smooth tan and dark tan plastic bricks, crisp receding terrace " +
-      "tiers with bold stair ramps, perfectly symmetric monolithic massing, tan " +
-      "stone tiers, dark tan shadow lines, light bluish grey temple crown, " + TAIL,
-  },
-  {
-    label: "Brutalist tower",
-    prompt:
-      "Brutalist concrete tower with stepped setbacks, LEGO Architecture set, " +
-      "monolithic stacked rectilinear massing rising in receding tiers, smooth dark " +
-      "bluish grey and light grey plastic bricks, board-formed concrete texture " +
-      "with deep window recesses, cantilevered terrace slabs, heavy podium base, " +
-      "exposed structural grid, " + TAIL,
+      "La Muralla Roja Calpe Ricardo Bofill, LEGO Architecture set, " +
+      "interlocking Greek-cross towers forming a stepped casbah-like " +
+      "fortress around inner courtyards, rooftop terraces with external " +
+      "staircases descending between volumes, smooth dark red and coral " +
+      "plastic bricks, repeating vertical slot openings and crisp parapet " +
+      "edges, monolithic interlocked massing on a solid plinth, dark red " +
+      "outer walls, coral pink courtyards, medium lavender and sand blue " +
+      "stairwells, " + TAIL,
   },
 ];
