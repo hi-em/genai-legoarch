@@ -29,7 +29,7 @@ export const PARAMS = [
   },
   {
     key: "shape_steps", group: "shape", label: "3D quality steps",
-    min: 15, max: 40, step: 1, def: 25,
+    min: 15, max: 40, step: 1, def: 35,
     blurb: "Diffusion steps for the 3D geometry. More = cleaner surfaces, noticeably longer wait.",
   },
   // ---- group "bricks" (voxelizer + legolizer) -> /api/generate-3d
@@ -59,20 +59,20 @@ export const PRESETS = [
   {
     id: "draft",
     label: "Quick draft",
-    hint: "~2 min · smaller set",
-    params: { ...DEFAULTS, steps: 16, shape_steps: 18, voxel_target: 24 },
+    hint: "~2–3 min · smaller set",
+    params: { ...DEFAULTS, steps: 16, shape_steps: 20, voxel_target: 24 },
   },
   {
     id: "balanced",
     label: "Tuned default",
-    hint: "~3–4 min · benchmark winners",
+    hint: "~5 min · the optimized workflow",
     params: { ...DEFAULTS },
   },
   {
     id: "max",
     label: "Max detail",
-    hint: "~5 min · big set",
-    params: { ...DEFAULTS, steps: 36, shape_steps: 32, voxel_target: 44 },
+    hint: "~6–7 min · big set",
+    params: { ...DEFAULTS, steps: 36, shape_steps: 40, voxel_target: 44 },
   },
 ];
 

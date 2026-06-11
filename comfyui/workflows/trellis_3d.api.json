@@ -1,4 +1,37 @@
 {
+  "1": {
+    "inputs": {
+      "image": "cannon.webp"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "10": {
+    "inputs": {
+      "mask": [
+        "1",
+        1
+      ]
+    },
+    "class_type": "MaskPreview",
+    "_meta": {
+      "title": "Preview Mask"
+    }
+  },
+  "11": {
+    "inputs": {
+      "mask": [
+        "85",
+        1
+      ]
+    },
+    "class_type": "InvertMask",
+    "_meta": {
+      "title": "Invert Mask"
+    }
+  },
   "64": {
     "inputs": {
       "model_file": [
@@ -16,7 +49,7 @@
     "inputs": {
       "resolution": "512",
       "precision": "auto",
-      "attn_backend": "sdpa"
+      "attn_backend": "auto"
     },
     "class_type": "LoadTrellis2Models",
     "_meta": {
@@ -76,6 +109,23 @@
     "class_type": "MaskPreview",
     "_meta": {
       "title": "Preview Mask"
+    }
+  },
+  "93": {
+    "inputs": {
+      "resize_type": "scale dimensions",
+      "resize_type.width": 5000,
+      "resize_type.height": 5000,
+      "resize_type.crop": "center",
+      "scale_method": "area",
+      "input": [
+        "85",
+        0
+      ]
+    },
+    "class_type": "ResizeImageMaskNode",
+    "_meta": {
+      "title": "Resize Image/Mask"
     }
   },
   "94": {

@@ -31,19 +31,19 @@ export const STAGE_TRACKS = {
     ],
   },
   mesh: {
-    totalHint: "two to three minutes — the deep magic",
+    totalHint: "four to five minutes — the deep magic",
     steps: [
       {
         id: "shape",
         headline: "Imagining the 3D shape…",
         sub: "TRELLIS sees one photo and infers the geometry — including the sides it has never seen.",
-        estMs: 90000,
+        estMs: 150000,
       },
       {
         id: "texture",
         headline: "Painting the surfaces…",
         sub: "A second diffusion pass wraps the mesh in color — we sample these very pixels for the brick palette.",
-        estMs: 70000,
+        estMs: 120000,
       },
     ],
   },

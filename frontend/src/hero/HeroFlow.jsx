@@ -27,13 +27,22 @@ import { generateBooklet } from "../lib/booklet.js";
 //         -> meshing  -> mesh   (mesh stop: brick dials, re-mesh; CPU-cheap re-legolize)
 //         -> legolizing -> assembling -> reveal
 export default function HeroFlow() {
-  const { prompt, imageUrl, glbUrl, brickModel, setCopy, params, seed, runRecord, set, reset } = useBuild();
+  const { prompt, imageUrl, glbUrl, glbName, brickModel, setCopy, params, seed, runRecord, set, reset } = useBuild();
   const addToShelf = useCollection((s) => s.add);
   const collectionCount = useCollection((s) => s.items.length);
   const showView = useView((s) => s.show);
   const muted = useUI((s) => s.muted);
   const toggleMute = useUI((s) => s.toggleMute);
-  const [phase, setPhase] = useState("intro");
+  // Resume at the furthest completed stop if the store already has results —
+  // a dev-server HMR remount (or a crash) shouldn't throw away a finished
+  // render or a 5-minute mesh.
+  const [phase, setPhase] = useState(() => {
+    const s = useBuild.getState();
+    if (s.brickModel) return "reveal";
+    if (s.glbUrl) return "mesh";
+    if (s.imageUrl) return "render";
+    return "intro";
+  });
   const [text, setText] = useState(prompt || "");
   const [photo, setPhoto] = useState(null);
   const [trophy, setTrophy] = useState(null); // "box" | "share" | "priced" | null
@@ -97,6 +106,7 @@ export default function HeroFlow() {
       });
       set({
         glbUrl: r.glbUrl,
+        glbName: r.glbName,
         brickModel: null,                       // a new mesh invalidates old bricks
         runRecord: {
           ...rec,
@@ -123,7 +133,7 @@ export default function HeroFlow() {
       // the render feeds colour exposure matching — only send real data URLs
       // (the dev sample's imageUrl is a static asset path)
       const renderForColors = imageUrl?.startsWith("data:") ? imageUrl : null;
-      const r = await legolizeMesh(glbUrl, renderForColors, {
+      const r = await legolizeMesh(glbName, renderForColors, {
         seed: seed ?? rec.seed,
         voxel_target,
         legolize_options: { randomness, seam_weight },

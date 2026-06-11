@@ -17,7 +17,6 @@ from typing import Any, Optional
 
 import numpy as np
 
-from . import voxelize as _voxelize
 from . import bricks as _bricks
 from . import color as _color
 from . import stability as _stability
@@ -53,7 +52,6 @@ class BrickModel:
 
 
 def legolize_voxelgrid(
-    voxelgrid_npz_url: Optional[str] = None,
     image_url: Optional[str] = None,
     unit_mm: float = 8.0,
     options: Optional[dict[str, Any]] = None,
@@ -63,18 +61,15 @@ def legolize_voxelgrid(
     """Convert a voxel occupancy grid into a buildable BrickModel.
 
     The grid's z axis is in PLATE units (3 plates = 1 brick course); the packer
-    mixes full bricks, plates and studless top tiles. Pass `_occupancy`
-    directly (a 3D bool ndarray) to bypass IO in tests. `voxel_rgb`
-    (nx,ny,nz,3 uint8) enables real colour matching to the generated model.
+    mixes full bricks, plates and studless top tiles. `_occupancy` is a 3D
+    bool ndarray; `voxel_rgb` (nx,ny,nz,3 uint8) enables real colour matching
+    to the generated model.
     """
     options = options or {}
 
-    if _occupancy is not None:
-        occ = _occupancy.astype(bool)
-    elif voxelgrid_npz_url is not None:
-        occ = _voxelize.load_voxelgrid(voxelgrid_npz_url)
-    else:
-        raise ValueError("Provide voxelgrid_npz_url or _occupancy")
+    if _occupancy is None:
+        raise ValueError("Provide _occupancy")
+    occ = _occupancy.astype(bool)
 
     seed = int(options.get("seed", 1))
     # Quantize colours BEFORE packing so pieces respect colour boundaries

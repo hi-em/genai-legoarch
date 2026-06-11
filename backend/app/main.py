@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .legolizer import legolize_voxelgrid, BrickModel
+from .legolizer import legolize_voxelgrid
 
 app = FastAPI(title="BrickForge API", version="0.0.1")
 
@@ -68,9 +68,12 @@ class LegolizeMeshReq(BaseModel):
     """The CPU-only back half of the pipeline: GLB -> voxels -> bricks.
 
     Powers the staged flow's "mesh stop": the user can re-legolize the SAME
-    mesh with different brick settings in seconds, no GPU involved.
+    mesh with different brick settings in seconds, no GPU involved. Pass
+    `glb_name` (the filename /generate-mesh returned — read straight from the
+    ComfyUI output dir) or fall back to inline `glb_b64`.
     """
-    glb_b64: str                           # the TRELLIS mesh (b64 or data URL)
+    glb_name: Optional[str] = None         # filename in the 3D output dir (preferred)
+    glb_b64: Optional[str] = None          # or the mesh inline (b64 / data URL)
     image_b64: Optional[str] = None        # the render, for colour exposure matching
     seed: Optional[int] = None
     voxel_target: int = 32
@@ -85,14 +88,6 @@ class SetCopyReq(BaseModel):
     grid: list[int] = []
     support_ratio: float = 1.0
     connected: bool = True
-
-
-class LegolizeReq(BaseModel):
-    voxelgrid_npz_url: Optional[str] = None
-    stl_url: Optional[str] = None
-    image_url: Optional[str] = None        # for color assignment
-    unit_mm: float = 8.0                   # one LEGO module (stud pitch)
-    options: dict[str, Any] = {}
 
 
 # ---------- routes ----------
@@ -163,9 +158,38 @@ def _voxelize_and_legolize(
     return {"voxel": voxel, "brickModel": model.to_dict()}
 
 
+def _mesh_path(name: str):
+    """Resolve a GLB filename inside the ComfyUI 3D output dir (no traversal)."""
+    from pathlib import Path
+
+    from . import comfy_client
+
+    safe = Path(name).name                     # strip any directory components
+    if not safe.lower().endswith(".glb"):
+        raise ValueError("not a .glb")
+    p = comfy_client.OUTPUT_3D_DIR / safe
+    if not p.exists():
+        raise FileNotFoundError(safe)
+    return p
+
+
+@app.get("/mesh/{name}")
+def get_mesh(name: str):
+    """Serve a generated GLB as a real binary file.
+
+    Quality exports are >10 MB — inlining them as base64 data URLs froze the
+    browser's JSON parse, so meshes travel by URL: tiny JSON responses, native
+    binary streaming, and re-legolize requests reference the file by name
+    instead of re-uploading 16 MB.
+    """
+    from fastapi.responses import FileResponse
+
+    return FileResponse(_mesh_path(name), media_type="model/gltf-binary")
+
+
 @app.post("/generate-mesh")
 def generate_mesh(req: Generate3DReq) -> dict[str, Any]:
-    """The GPU half only: render -> TRELLIS-2 mesh. Returns the GLB data URL.
+    """The GPU half only: render -> TRELLIS-2 mesh. Returns a mesh file URL.
 
     The staged flow's "mesh stop" pairs this with /legolize-mesh so brick
     settings can be re-tried in seconds without re-running TRELLIS.
@@ -189,8 +213,8 @@ def generate_mesh(req: Generate3DReq) -> dict[str, Any]:
         shape_guidance=req.shape_guidance,
     )
     return {
-        "glbUrl": _data_url(result["glb"], "model/gltf-binary"),
-        "filename": result["filename"],
+        "glbName": result["filename"],
+        "glbUrl": f"/api/mesh/{result['filename']}",
         "params": result.get("params", {}),
     }
 
@@ -199,7 +223,12 @@ def generate_mesh(req: Generate3DReq) -> dict[str, Any]:
 def legolize_mesh(req: LegolizeMeshReq) -> dict[str, Any]:
     """The CPU half only: GLB -> voxels -> bricks. Seconds, no ComfyUI."""
     voxel_target = max(16, min(64, req.voxel_target))
-    glb = _decode_image(req.glb_b64)           # same b64/data-URL decoding rules
+    if req.glb_name:
+        glb = _mesh_path(req.glb_name).read_bytes()
+    elif req.glb_b64:
+        glb = _decode_image(req.glb_b64)       # same b64/data-URL decoding rules
+    else:
+        raise ValueError("legolize-mesh needs glb_name or glb_b64")
     # the render is only used for colour exposure matching — never fatal
     try:
         png = _decode_image(req.image_b64) if req.image_b64 else None
@@ -252,15 +281,3 @@ def set_copy(req: SetCopyReq) -> dict[str, Any]:
     from .set_designer import generate_set_copy
 
     return generate_set_copy(req.model_dump())
-
-
-@app.post("/legolize")
-def legolize(req: LegolizeReq) -> dict[str, Any]:
-    """Custom legolizer (M2): voxel grid -> legal bricks -> color -> checks."""
-    model: BrickModel = legolize_voxelgrid(
-        voxelgrid_npz_url=req.voxelgrid_npz_url,
-        image_url=req.image_url,
-        unit_mm=req.unit_mm,
-        options=req.options,
-    )
-    return model.to_dict()

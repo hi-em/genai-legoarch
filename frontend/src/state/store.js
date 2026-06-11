@@ -46,8 +46,8 @@ export const useView = create((set) => ({
 export const useBuild = create((set) => ({
   prompt: "",
   imageUrl: null,     // FLUX render (data URL)
-  glbUrl: null,       // raw TRELLIS mesh (data URL) — powers the compare slider;
-                      // NEVER persisted (a ~3MB GLB would blow the shelf quota)
+  glbUrl: null,       // raw TRELLIS mesh URL (/api/mesh/<name>) — compare slider
+  glbName: null,      // mesh filename on the backend — re-legolize references it
   brickModel: null,   // backend-legolized bricks + stability + parts
   setCopy: null,      // set-designer persona copy (name, blurb, quote, ...)
   params: { ...DEFAULTS },  // Tinker slider values (survive "Forge another")
@@ -58,5 +58,5 @@ export const useBuild = create((set) => ({
   setParams: (patch) => set((s) => ({ params: { ...s.params, ...patch } })),
   resetParams: () => set({ params: { ...DEFAULTS }, seed: null }),
   // keep params + seed across resets — a tuned dial should survive the next forge
-  reset: () => set({ prompt: "", imageUrl: null, glbUrl: null, brickModel: null, setCopy: null, runRecord: null }),
+  reset: () => set({ prompt: "", imageUrl: null, glbUrl: null, glbName: null, brickModel: null, setCopy: null, runRecord: null }),
 }));

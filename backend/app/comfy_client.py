@@ -56,19 +56,24 @@ FLUX_NEGATIVE = os.environ.get(
 # TRELLIS: we voxelize at ~26^3 and SAMPLE the texture for LEGO colour matching,
 # so a 200k-face / 1024px texture mesh is wasted detail. We cut steps + face
 # budget hard but KEEP the texture (it's what the colour match reads from).
-TRELLIS_SS_STEPS = int(os.environ.get("TRELLIS_SS_STEPS", "20"))      # node 94
-TRELLIS_SHAPE_STEPS = int(os.environ.get("TRELLIS_SHAPE_STEPS", "25"))  # node 94
+# TRELLIS defaults follow the owner-optimized 2026-06-11 workflow export
+# (quality-leaning: more steps + full mesh/texture budget). Buildability no
+# longer depends on these — the solid voxel fill guarantees connectivity at
+# any preset (docs/benchmarks.md §4) — so they purely trade time for fidelity.
+TRELLIS_SS_STEPS = int(os.environ.get("TRELLIS_SS_STEPS", "25"))      # node 94
+TRELLIS_SHAPE_STEPS = int(os.environ.get("TRELLIS_SHAPE_STEPS", "35"))  # node 94
 TRELLIS_SHAPE_GUIDANCE = float(os.environ.get("TRELLIS_SHAPE_GUIDANCE", "7.5"))  # node 94
 TRELLIS_MAX_TOKENS = int(os.environ.get("TRELLIS_MAX_TOKENS", "49152"))  # node 94
-TRELLIS_TEX_STEPS = int(os.environ.get("TRELLIS_TEX_STEPS", "18"))     # node 95
-TRELLIS_DECIMATION = int(os.environ.get("TRELLIS_DECIMATION", "40000"))  # node 96
-TRELLIS_TEXTURE_SIZE = int(os.environ.get("TRELLIS_TEXTURE_SIZE", "512"))  # node 96
+TRELLIS_TEX_STEPS = int(os.environ.get("TRELLIS_TEX_STEPS", "25"))     # node 95
+TRELLIS_DECIMATION = int(os.environ.get("TRELLIS_DECIMATION", "200000"))  # node 96
+TRELLIS_TEXTURE_SIZE = int(os.environ.get("TRELLIS_TEXTURE_SIZE", "1024"))  # node 96
 
 # ---- which node in each template carries which parameter ----------------------
 # (derived from the exported *.api.json graphs)
 TXT2IMG = {
     "file": "flux_txt2img.api.json",
     "output": "676",        # SaveImage on the legoarch-LoRA branch (678:*)
+    "extra_outputs": ["678:675"],  # SaveParamsSVG — per-run params sidecar (faculty docs)
     "prompt": "734",        # PrimitiveStringMultiline -> concat "legoarch " + this
     "negative": "678:661",  # CLIPTextEncode .text (empty in the export; CFG>1 so it works)
     "seed": "685",          # PrimitiveInt seed
@@ -79,6 +84,7 @@ TXT2IMG = {
 IMG2IMG = {
     "file": "flux_img2img.api.json",
     "output": "663",        # SaveImage
+    "extra_outputs": ["662:357"],  # SaveParamsSVG — per-run params sidecar
     "prompt": "728",        # PrimitiveStringMultiline (we prepend "legoarch ")
     "negative": "662:410",  # CLIPTextEncode .text feeding the negative ReferenceLatent
     "seed": "662:353",      # PrimitiveInt seed
@@ -103,10 +109,10 @@ def _load_workflow(name: str) -> dict[str, Any]:
     return json.loads((WORKFLOWS_DIR / name).read_text(encoding="utf-8"))
 
 
-def _prune_to(graph: dict[str, Any], output_id: str) -> dict[str, Any]:
-    """Keep only nodes reachable (via input links) from `output_id`."""
+def _prune_to(graph: dict[str, Any], output_id: str, extra: list[str] | None = None) -> dict[str, Any]:
+    """Keep only nodes reachable (via input links) from the output node(s)."""
     keep: set[str] = set()
-    stack = [output_id]
+    stack = [output_id, *(extra or [])]
     while stack:
         nid = stack.pop()
         if nid in keep or nid not in graph:
@@ -216,7 +222,7 @@ def run_txt2img(
     from .prompt_enhance import enhance_prompt
 
     cfg = TXT2IMG
-    graph = _prune_to(_load_workflow(cfg["file"]), cfg["output"])
+    graph = _prune_to(_load_workflow(cfg["file"]), cfg["output"], cfg.get("extra_outputs"))
     resolved = {
         "seed": seed if seed is not None else _rand_seed(),
         "steps": steps if steps is not None else FLUX_STEPS,
@@ -262,7 +268,7 @@ def run_img2img(
 
     cfg = IMG2IMG
     name = _upload_image(COMFYUI_URL, image, "legoarch_input.png")
-    graph = _prune_to(_load_workflow(cfg["file"]), cfg["output"])
+    graph = _prune_to(_load_workflow(cfg["file"]), cfg["output"], cfg.get("extra_outputs"))
     _set_value(graph, cfg["image"], name, key="image")
     # this template has no concat node; prepend the trigger word ourselves.
     enhanced = enhance_prompt(prompt)

@@ -30,7 +30,7 @@
   },
   "663": {
     "inputs": {
-      "filename_prefix": "2026-06-04/20260604_165118_output",
+      "filename_prefix": "2026-06-11/20260611_225745_output",
       "images": [
         "662:344",
         0
@@ -233,7 +233,7 @@
   },
   "662:353": {
     "inputs": {
-      "value": 431519556885486
+      "value": -769354828670608
     },
     "class_type": "PrimitiveInt",
     "_meta": {
@@ -381,7 +381,7 @@
   "662:689": {
     "inputs": {
       "lora_name": "FLUX.2\\legoarch.safetensors",
-      "strength_model": 0.75,
+      "strength_model": 1,
       "strength_clip": 1,
       "model": [
         "662:346",
