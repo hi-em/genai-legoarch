@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Download } from "lucide-react";
 import { Button, toast } from "../../components/ui/index.js";
-import { totalParts } from "../../lib/brickModel.js";
+import { totalParts, courseCount } from "../../lib/brickModel.js";
 import { exportNodePng } from "./downloadImage.js";
 
 // The iconic black LEGO-Architecture box, recomposed for lEgoarCh.
@@ -11,7 +11,7 @@ export default function TheBox({ imageUrl, brickModel, setCopy }) {
   const name = setCopy?.set_name || "Untitled Set";
   const number = setCopy?.set_number || "";
   const pieces = totalParts(brickModel);
-  const [w, , h] = brickModel?.grid || [0, 0, 0];
+  const h = courseCount(brickModel);             // grid z is plate layers
   const cmW = ((brickModel?.grid?.[0] || 0) * 8) / 10;
   const cmD = ((brickModel?.grid?.[1] || 0) * 8) / 10;
 

@@ -17,23 +17,52 @@ async function postJSON(path, body) {
   return r.json();
 }
 
+// drop null/undefined fields so the backend's tuned defaults apply
+const compact = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([, v]) => v != null));
+
 // Step 1 — a subject (+ optional reference photo) -> a real FLUX LEGO render.
 // The `legoarch` trigger and the LEGO-set styling are added server-side.
-export async function generate(prompt, image = null) {
-  const body = image ? { prompt, image_b64: image } : { prompt };
-  const { imageUrl } = await postJSON("/api/generate-image", body);
-  return { prompt, imageUrl };
+// opts: { seed, steps, guidance, lora_scale } from the Tinker panel.
+export async function generate(prompt, image = null, opts = {}) {
+  const body = compact({ prompt, image_b64: image, ...opts });
+  const { imageUrl, params } = await postJSON("/api/generate-image", body);
+  // `params` echoes the RESOLVED values (incl. the actual random seed) so the
+  // run is reproducible — surfaced on the reveal page + saved with the set.
+  return { prompt, imageUrl, params: params || {} };
 }
 
-// Step 2 — the render -> TRELLIS smooth mesh -> voxelize -> legolize (all on the
-// backend). Returns the GLB plus the REAL buildable brick model.
-export async function generate3D(imageDataUrl, seed = null) {
-  const r = await postJSON("/api/generate-3d", { image_b64: imageDataUrl, seed });
+// Step 2 — the render -> TRELLIS smooth mesh (GPU, ~2-3 min). Mesh only;
+// pair with legolizeMesh() so brick settings can be retried in seconds.
+// opts: { seed, shape_guidance, shape_steps }.
+export async function generateMesh(imageDataUrl, opts = {}) {
+  const r = await postJSON("/api/generate-mesh", compact({ image_b64: imageDataUrl, ...opts }));
+  return { glbUrl: r.glbUrl || null, params: r.params || {} };
+}
+
+// Step 3 — the mesh -> plate voxels -> brick layout (CPU only, seconds).
+// opts: { seed, voxel_target, legolize_options }.
+export async function legolizeMesh(glbDataUrl, imageDataUrl, opts = {}) {
+  const r = await postJSON("/api/legolize-mesh", compact({
+    glb_b64: glbDataUrl, image_b64: imageDataUrl, ...opts,
+  }));
+  return {
+    voxel: r.voxel || null,
+    brickModel: adaptBrickModel(r.brickModel),
+    params: r.params || {},
+  };
+}
+
+// One-shot variant (mesh + voxelize + legolize) — kept for the benchmark
+// harness; the app itself uses the staged endpoints above.
+export async function generate3D(imageDataUrl, opts = {}) {
+  const r = await postJSON("/api/generate-3d", compact({ image_b64: imageDataUrl, ...opts }));
   return {
     glbUrl: r.glbUrl || null,
     voxel: r.voxel || null,
     brickModel: adaptBrickModel(r.brickModel),
     voxelError: r.voxelError || null,
+    params: r.params || {},
   };
 }
 

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, ContactShadows } from "@react-three/drei";
-import { BrickInstances, Baseplate, modelOffset } from "./bricks3d.jsx";
+import { BrickInstances, Baseplate, modelOffset, worldHeight } from "./bricks3d.jsx";
 import { frontElevationThumb } from "../lib/thumb.js";
 import { useReducedMotion } from "../lib/useReducedMotion.js";
 import { VIEWER_BG } from "../lib/tokens.js";
@@ -40,8 +40,8 @@ export default function BrickViewer({
   if (!active) return <Poster brickModel={brickModel} height={height} monochrome={monochrome} />;
   if (!brickModel) return <div style={{ height, background: VIEWER_BG }} className="rounded-lg" />;
 
-  const [nx, , nz] = brickModel.grid;
-  const span = Math.max(...brickModel.grid);
+  const [nx, ny, nz] = brickModel.grid;            // nz is in PLATE layers
+  const span = Math.max(nx, ny, worldHeight(nz));  // world-space extent for framing
   const offset = modelOffset(brickModel.grid);
 
   return (
@@ -54,7 +54,7 @@ export default function BrickViewer({
           <BrickInstances bricks={brickModel.bricks} studs={studs} monochrome={monochrome} />
           {stand && <Baseplate nx={brickModel.grid[0]} ny={brickModel.grid[1]} />}
         </group>
-        <ContactShadows position={[0, -nz / 2 - 0.4, 0]} opacity={0.4} scale={span * 4} blur={2.2} far={24} />
+        <ContactShadows position={[0, -worldHeight(nz) / 2 - 0.4, 0]} opacity={0.4} scale={span * 4} blur={2.2} far={24} />
         <OrbitControls
           enablePan={false}
           autoRotate={spin}

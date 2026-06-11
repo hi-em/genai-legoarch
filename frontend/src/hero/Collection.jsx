@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Trash2, Box, FileText, Receipt, Share2, Download, Sparkles } from "lucide-react";
 import { useCollection, useView } from "../state/store.js";
-import { totalParts, totalColors } from "../lib/brickModel.js";
+import { totalParts, totalColors, normalizeAdapted, courseCount } from "../lib/brickModel.js";
 import { toLdraw, download, partsToCsv } from "../lib/ldraw.js";
 import { generateBooklet } from "../lib/booklet.js";
 import { Button, StatTile, toast } from "../components/ui/index.js";
@@ -29,7 +29,7 @@ function Header({ children }) {
 
 function SetDetail({ set, onBack }) {
   const [trophy, setTrophy] = useState(null);
-  const bm = set.brickModel;
+  const bm = normalizeAdapted(set.brickModel);  // pre-plate saved sets upgrade in place
   const copy = set.setCopy || {};
   const img = set.renderThumb || null;
 
@@ -54,7 +54,7 @@ function SetDetail({ set, onBack }) {
 
           <div className="mt-4 grid grid-cols-2 gap-2.5">
             <StatTile value={totalParts(bm)} label="pieces" />
-            <StatTile value={bm.grid.join("×")} label="studs" />
+            <StatTile value={`${bm.grid[0]}×${bm.grid[1]}×${courseCount(bm)}`} label="studs × studs × courses" />
             <StatTile value={totalColors(bm)} label="colors" />
             <StatTile value={bm.stability.connected ? "Stable" : "Check"} label={`${Math.round(bm.stability.supportRatio * 100)}% supported`} variant={bm.stability.connected ? "ok" : "warn"} />
           </div>

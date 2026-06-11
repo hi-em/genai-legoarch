@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, ContactShadows } from "@react-three/drei";
-import { BrickInstances, Baseplate, modelOffset } from "./bricks3d.jsx";
+import { BrickInstances, Baseplate, modelOffset, worldHeight } from "./bricks3d.jsx";
 import { VIEWER_BG } from "../lib/tokens.js";
+import { courseOf, courseCount } from "../lib/brickModel.js";
 import { useReducedMotion } from "../lib/useReducedMotion.js";
 import { playSnap, playPop } from "../lib/sound.js";
 
@@ -15,11 +16,13 @@ function easeOutBack(t) {
 }
 
 function Assembly({ brickModel, reduced, skipRef, onDone }) {
+  // Group pieces by COURSE (3 plate layers): real manuals add a full course per
+  // step, and it keeps the ~5.5s pacing budget despite 3x more plate layers.
   const layers = useMemo(() => {
-    const nz = brickModel.grid[2];
-    const byZ = Array.from({ length: nz }, () => []);
-    for (const b of brickModel.bricks) byZ[b.z].push(b);
-    return byZ;
+    const nCourses = courseCount(brickModel);
+    const byCourse = Array.from({ length: nCourses }, () => []);
+    for (const b of brickModel.bricks) byCourse[courseOf(b)].push(b);
+    return byCourse;
   }, [brickModel]);
   const nz = layers.length;
   const offset = useMemo(() => modelOffset(brickModel.grid), [brickModel]);
@@ -80,8 +83,8 @@ export default function AssemblyViewer({ brickModel, onComplete, height = 460 })
   const skipRef = useRef(false);
   if (!brickModel) return null;
 
-  const span = Math.max(...brickModel.grid);
-  const nz = brickModel.grid[2];
+  const [nx, ny, nz] = brickModel.grid;            // nz is in PLATE layers
+  const span = Math.max(nx, ny, worldHeight(nz));
 
   return (
     <div style={{ height, background: VIEWER_BG }} className="relative overflow-hidden rounded-xl">
@@ -90,7 +93,7 @@ export default function AssemblyViewer({ brickModel, onComplete, height = 460 })
         <directionalLight position={[12, 22, 9]} intensity={1.5} castShadow shadow-mapSize={[1024, 1024]} />
         <directionalLight position={[-8, 6, -6]} intensity={0.35} />
         <Assembly brickModel={brickModel} reduced={reduced} skipRef={skipRef} onDone={onComplete} />
-        <ContactShadows position={[0, -nz / 2 - 0.4, 0]} opacity={0.35} scale={span * 4} blur={2.4} far={30} />
+        <ContactShadows position={[0, -worldHeight(nz) / 2 - 0.4, 0]} opacity={0.35} scale={span * 4} blur={2.4} far={30} />
         <OrbitControls enablePan={false} autoRotate autoRotateSpeed={0.9} minDistance={4} maxDistance={span * 6} />
       </Canvas>
       <button

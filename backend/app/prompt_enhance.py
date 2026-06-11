@@ -18,12 +18,17 @@ STYLE_SUFFIX = (
     "product photography, studio lighting, official LEGO set photography"
 )
 
+# The reference exemplar the Claude enhancer imitates. Deliberately PRISMATIC
+# (stacked/terraced massing, opaque named LEGO colours): translucent or
+# hair-thin forms render beautifully but shred in the TRELLIS reconstruction
+# and the ~32-stud voxelization downstream. (The old Fondation Louis Vuitton
+# reference lives on in docs/benchmarks.md as the documented stress case.)
 _REFERENCE = (
-    "Fondation Louis Vuitton Paris Frank Gehry, LEGO Architecture set, multiple billowing "
-    "curved glass sail forms arching over white concrete base, smooth translucent light grey "
-    "and pearl white plastic bricks, overlapping curved canopy sails with ribbed surface "
-    "pattern, angular deconstructivist white base volumes beneath, light grey translucent "
-    "sail panels, bright white concrete base, silver grey structural ribs, " + STYLE_SUFFIX
+    "Habitat 67 Montreal Moshe Safdie, LEGO Architecture set, stacked offset concrete "
+    "cube modules forming a terraced pyramidal hill, smooth light bluish grey and tan "
+    "plastic bricks, repeating modular box pattern with recessed terrace openings, "
+    "cantilevered cubic clusters over a solid podium, light bluish grey volumes, tan "
+    "terrace insets, dark grey shadow gaps, " + STYLE_SUFFIX
 )
 
 _SYSTEM = (
@@ -33,6 +38,12 @@ _SYSTEM = (
     "materials and surface patterns, a specific named colour palette, and finishing with "
     "studio product-photography descriptors. Match the structure and tone of this reference "
     "exactly:\n\n" + _REFERENCE + "\n\n"
+    "Constraints (the image feeds a 3D-reconstruction + voxelization pipeline): favor "
+    "monolithic, stacked, or terraced massing described as a single connected volume; use "
+    "real LEGO colour names (light bluish grey, dark bluish grey, tan, sand green, dark "
+    "red, bright white, reddish brown); never include people, vehicles, trees, water, "
+    "landscape context, flags, antennas, or thin spires; avoid translucent or glass-heavy "
+    "descriptions.\n\n"
     "Output ONLY the prompt text: one line, no quotes, no leading 'legoarch', no preamble."
 )
 

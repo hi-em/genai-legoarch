@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Iterable
 
 LDU_PER_STUD = 20      # horizontal stud pitch
-LDU_PER_BRICK_H = 24   # one brick height
+LDU_PER_PLATE = 8      # one plate height (a brick = 3 plates = 24 LDU)
 
 # identity (rot 0) and 90-degree footprint rotation matrices, row-major
 _ROT0 = (1, 0, 0, 0, 1, 0, 0, 0, 1)
@@ -21,13 +21,16 @@ _ROT90 = (0, 0, 1, 0, 1, 0, -1, 0, 0)
 
 
 def brick_to_ldraw_line(
-    part: str, x: int, y: int, z: int, color: int, rot: int, w: int = 1, d: int = 1
+    part: str, x: int, y: int, z: int, color: int, rot: int,
+    w: int = 1, d: int = 1, h: int = 3,
 ) -> str:
-    # grid (x,y,z) with z up -> LDraw (X, Y-down, Z). LDraw parts are centered on
-    # their footprint, so a w*d brick anchored at corner (x,y) is positioned at
-    # the footprint center, not the corner.
+    # grid (x,y,z) with z up, z in PLATE layers -> LDraw (X, Y-down, Z). LDraw
+    # parts are centered on their footprint with the origin at the part TOP, so
+    # a piece whose bottom sits on plate-layer z has its origin at the top of
+    # its own height: y = -(z + h - 3) * 8 LDU (the -3 keeps full-brick models
+    # byte-identical with the pre-plate exporter, where course k sat at -24k).
     lx = int(round((x + (w - 1) / 2.0) * LDU_PER_STUD))
-    ly = -z * LDU_PER_BRICK_H
+    ly = -(z + h - 3) * LDU_PER_PLATE
     lz = int(round((y + (d - 1) / 2.0) * LDU_PER_STUD))
     m = _ROT90 if rot == 90 else _ROT0
     coords = f"{lx} {ly} {lz}"
@@ -46,7 +49,8 @@ def write_ldr(bricks: Iterable, path: str, title: str = "BrickForge model") -> s
         rot = getattr(b, "rot", 0)
         w = getattr(b, "w", 1)
         d = getattr(b, "d", 1)
-        lines.append(brick_to_ldraw_line(part, x, y, z, color, rot, w, d))
+        h = getattr(b, "h", 3)
+        lines.append(brick_to_ldraw_line(part, x, y, z, color, rot, w, d, h))
     text = "\n".join(lines) + "\n"
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(text)

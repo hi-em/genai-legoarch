@@ -22,7 +22,8 @@ def _occupancy_from_model(model) -> np.ndarray:
     for b in model.bricks:
         w = getattr(b, "w", 1)
         d = getattr(b, "d", 1)
-        occ[b.x:b.x + w, b.y:b.y + d, b.z] = True
+        h = getattr(b, "h", 1)          # height in plate layers
+        occ[b.x:b.x + w, b.y:b.y + d, b.z:b.z + h] = True
     return occ
 
 

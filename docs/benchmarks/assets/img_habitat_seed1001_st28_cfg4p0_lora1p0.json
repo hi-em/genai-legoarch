@@ -1,0 +1,16 @@
+{
+  "kind": "image",
+  "model": "flux-2-klein-base-4b-fp8 + FLUX.2/legoarch.safetensors LoRA",
+  "text_encoder": "qwen_3_4b_fp8_mixed",
+  "vae": "flux2-vae",
+  "sampler": "euler + Flux2Scheduler",
+  "resolution": "1024x1024",
+  "prompt_key": "habitat",
+  "time_s": 34.3,
+  "seed": 1001,
+  "steps": 28,
+  "guidance": 4.0,
+  "lora_strength": 1.0,
+  "negative": "",
+  "prompt": "Habitat 67 Montreal Moshe Safdie, LEGO Architecture set, stacked offset concrete cube modules forming a terraced pyramidal hill, smooth light bluish grey and tan plastic bricks, repeating modular box pattern with recessed terrace openings, cantilevered cubic clusters over a solid podium, light bluish grey volumes, tan terrace insets, dark grey shadow gaps, standalone model on dark display base, white background, elevated 3/4 angle, product photography, studio lighting, official LEGO set photography"
+}

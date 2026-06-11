@@ -5,14 +5,15 @@
 import { jsPDF } from "jspdf";
 import { isoStepThumb } from "./isoThumb.js";
 import { byCode } from "./palette.js";
+import { courseOf, courseCount } from "./brickModel.js";
 
 const INK = [32, 38, 43];
 const MUTED = [110, 118, 112];
 
-function partsAddedAt(bm, z) {
+function partsAddedAt(bm, course) {
   const acc = {};
   for (const b of bm.bricks) {
-    if (b.z !== z) continue;
+    if (courseOf(b) !== course) continue;
     const k = `${b.part}|${b.color}`;
     acc[k] = (acc[k] || 0) + 1;
   }
@@ -27,7 +28,7 @@ export function generateBooklet(bm, setCopy = {}) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
-  const nz = bm.grid[2];
+  const nCourses = courseCount(bm);              // build steps = brick courses
   const nBricks = bm.bricks.length;
   const name = setCopy.set_name || "Untitled Set";
   const number = setCopy.set_number || "";
@@ -45,9 +46,9 @@ export function generateBooklet(bm, setCopy = {}) {
   doc.setFontSize(13);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(200, 205, 200);
-  doc.text(`${nBricks.toLocaleString()} pieces · ${bm.grid.join(" × ")} studs${number ? ` · Set ${number}` : ""}`, 48, 172);
+  doc.text(`${nBricks.toLocaleString()} pieces · ${bm.grid[0]} × ${bm.grid[1]} studs · ${nCourses} courses${number ? ` · Set ${number}` : ""}`, 48, 172);
   // a big iso of the finished model
-  const finished = isoStepThumb(bm, nz - 1, 560, "#1b1f1b");
+  const finished = isoStepThumb(bm, nCourses - 1, 560, "#1b1f1b");
   doc.addImage(finished, "PNG", (W - 360) / 2, 230, 360, 360);
   doc.setFontSize(15);
   doc.setTextColor(255, 255, 255);
@@ -64,7 +65,7 @@ export function generateBooklet(bm, setCopy = {}) {
   const cellH = (H - 150) / 2;
   const thumbPx = 300;
 
-  for (let z = 0; z < nz; z++) {
+  for (let z = 0; z < nCourses; z++) {
     const slot = z % perPage;
     if (slot === 0) {
       doc.addPage();
@@ -72,7 +73,7 @@ export function generateBooklet(bm, setCopy = {}) {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.text(name, 48, 40);
-      doc.text(`${z + 1}–${Math.min(nz, z + perPage)} / ${nz}`, W - 48, 40, { align: "right" });
+      doc.text(`${z + 1}–${Math.min(nCourses, z + perPage)} / ${nCourses}`, W - 48, 40, { align: "right" });
     }
     const col = slot % cols, row = Math.floor(slot / cols);
     const cx = 48 + col * cellW;

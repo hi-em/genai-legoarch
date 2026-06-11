@@ -1,9 +1,11 @@
 // Isometric step renderer for the instruction booklet. Draws the build up to a
-// given layer, with the newly-added course highlighted and prior courses muted —
-// the classic LEGO-manual convention. Pure 2D canvas, no WebGL.
+// given COURSE (3 plate layers), with the newly-added course highlighted and
+// prior courses muted — the classic LEGO-manual convention. Pure 2D canvas.
+import { courseOf } from "./brickModel.js";
 
 const COS30 = Math.cos(Math.PI / 6);
 const SIN30 = Math.sin(Math.PI / 6);
+const PLATE_RATIO = 0.4;   // one plate layer = 0.4 stud units of height
 
 // shade a hex by a factor (top brightest, sides darker) for fake lighting
 function shade(hex, f) {
@@ -20,8 +22,9 @@ function project(x, y, z, s) {
 }
 
 function drawBrick(ctx, b, s, ox, oy, muted) {
-  const w = b.w || 1, d = b.d || 1;
-  const x0 = b.x, x1 = b.x + w, y0 = b.y, y1 = b.y + d, z0 = b.z, z1 = b.z + 1;
+  const w = b.w || 1, d = b.d || 1, h = b.h || 3;
+  const x0 = b.x, x1 = b.x + w, y0 = b.y, y1 = b.y + d;
+  const z0 = b.z * PLATE_RATIO, z1 = (b.z + h) * PLATE_RATIO;
   const P = (x, y, z) => {
     const [px, py] = project(x, y, z, s);
     return [px + ox, py + oy];
@@ -63,9 +66,9 @@ function drawBrick(ctx, b, s, ox, oy, muted) {
   ctx.globalAlpha = 1;
 }
 
-// Render the build up to and including layer `uptoZ`. Returns a PNG data URL.
-export function isoStepThumb(bm, uptoZ, size = 360, bg = "#f4f6f4") {
-  const [nx, ny, nz] = bm.grid;
+// Render the build up to and including COURSE `uptoCourse`. Returns a PNG data URL.
+export function isoStepThumb(bm, uptoCourse, size = 360, bg = "#f4f6f4") {
+  const [nx, ny, nz] = bm.grid;                  // nz in plate layers
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
@@ -74,16 +77,17 @@ export function isoStepThumb(bm, uptoZ, size = 360, bg = "#f4f6f4") {
   ctx.fillRect(0, 0, size, size);
 
   // scale so the model fits
+  const hWorld = nz * PLATE_RATIO;
   const spanX = (nx + ny) * COS30;
-  const spanY = (nx + ny) * SIN30 + nz;
+  const spanY = (nx + ny) * SIN30 + hWorld;
   const s = (size * 0.82) / Math.max(spanX, spanY);
   const ox = size / 2;
-  const oy = size * 0.62 + (nz * s) / 2;
+  const oy = size * 0.62 + (hWorld * s) / 2;
 
   // painter's order: back-to-front, bottom-to-top
   const visible = bm.bricks
-    .filter((b) => b.z <= uptoZ)
-    .sort((a, b) => (a.x + a.y + a.z) - (b.x + b.y + b.z));
-  for (const b of visible) drawBrick(ctx, b, s, ox, oy, b.z < uptoZ);
+    .filter((b) => courseOf(b) <= uptoCourse)
+    .sort((a, b) => (a.x + a.y + a.z * PLATE_RATIO) - (b.x + b.y + b.z * PLATE_RATIO));
+  for (const b of visible) drawBrick(ctx, b, s, ox, oy, courseOf(b) < uptoCourse);
   return canvas.toDataURL("image/png");
 }

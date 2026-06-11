@@ -1,0 +1,26 @@
+{
+  "kind": "trellis",
+  "model": "TRELLIS.2-4B (visualbruno ComfyUI wrapper)",
+  "input_image": "img_flv_seed2002_st28_cfg5p0_lora1p0_neg.png",
+  "preset": "fast",
+  "time_s": 363.5,
+  "ss_steps": 20,
+  "shape_steps": 25,
+  "tex_steps": 18,
+  "shape_guidance": 7.5,
+  "max_tokens": 49152,
+  "decimation": 40000,
+  "texture_size": 512,
+  "voxel_target": 32,
+  "seed": 1001,
+  "voxel_count": 16913,
+  "grid": [
+    31,
+    33,
+    67
+  ],
+  "n_bricks": 7806,
+  "connected": false,
+  "support_ratio": 0.827,
+  "voxel_error": null
+}

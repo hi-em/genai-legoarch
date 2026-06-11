@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { DEFAULTS } from "../hero/tinkerParams.js";
 
 // ---------- global chrome: sound mute (read by lib/sound.js) ----------
 const initMuted = (() => { try { return localStorage.getItem("lEgoarCh.muted") === "1"; } catch { return false; } })();
@@ -45,8 +46,17 @@ export const useView = create((set) => ({
 export const useBuild = create((set) => ({
   prompt: "",
   imageUrl: null,     // FLUX render (data URL)
+  glbUrl: null,       // raw TRELLIS mesh (data URL) — powers the compare slider;
+                      // NEVER persisted (a ~3MB GLB would blow the shelf quota)
   brickModel: null,   // backend-legolized bricks + stability + parts
   setCopy: null,      // set-designer persona copy (name, blurb, quote, ...)
+  params: { ...DEFAULTS },  // Tinker slider values (survive "Forge another")
+  seed: null,         // null = surprise me (backend rolls + echoes the seed)
+  runRecord: null,    // reproducibility snapshot of the last successful forge:
+                      // { prompt, seed, params, imageMs, modelMs, startedAt }
   set: (patch) => set(patch),
-  reset: () => set({ prompt: "", imageUrl: null, brickModel: null, setCopy: null }),
+  setParams: (patch) => set((s) => ({ params: { ...s.params, ...patch } })),
+  resetParams: () => set({ params: { ...DEFAULTS }, seed: null }),
+  // keep params + seed across resets — a tuned dial should survive the next forge
+  reset: () => set({ prompt: "", imageUrl: null, glbUrl: null, brickModel: null, setCopy: null, runRecord: null }),
 }));

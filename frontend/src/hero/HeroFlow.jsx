@@ -1,25 +1,33 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Upload, X, Box, FileText, Receipt, Share2, Star, RotateCcw, Volume2, VolumeX } from "lucide-react";
-import { generate, generate3D, getSetCopy } from "../api.js";
+import { Sparkles, Upload, X, Box, FileText, Receipt, Share2, Star, RotateCcw, Volume2, VolumeX, Copy, SlidersHorizontal } from "lucide-react";
+import { generate, generateMesh, legolizeMesh, getSetCopy } from "../api.js";
 import { useBuild, useCollection, useView, useUI } from "../state/store.js";
-import { adaptBrickModel, totalParts, totalColors } from "../lib/brickModel.js";
+import { adaptBrickModel, totalParts, totalColors, courseCount } from "../lib/brickModel.js";
 import { frontElevationThumb } from "../lib/thumb.js";
 import { downscaleDataUrl } from "../lib/image.js";
 import { playSnap, playPop } from "../lib/sound.js";
 import { Button, Chip, Textarea, StudLoader, StatTile, toast } from "../components/ui/index.js";
 import AssemblyViewer from "../viewer/AssemblyViewer.jsx";
 import BrickViewer from "../viewer/BrickViewer.jsx";
+import MeshViewer from "../viewer/MeshViewer.jsx";
+import SpineCompareViewer from "../viewer/SpineCompareViewer.jsx";
 import { EXAMPLES } from "./examples.js";
+import TinkerPanel from "./TinkerPanel.jsx";
+import LoadingTheater from "./LoadingTheater.jsx";
+import { paramsFor, summarizeRun } from "./tinkerParams.js";
 import TrophyShell from "./trophies/TrophyShell.jsx";
 import TheBox from "./trophies/TheBox.jsx";
 import ShareCard from "./trophies/ShareCard.jsx";
 import PricedSet from "./trophies/PricedSet.jsx";
 import { generateBooklet } from "../lib/booklet.js";
 
-// phases: "intro" | "rendering" | "assembling" | "reveal"
+// Staged pipeline with a user stop after every expensive step:
+//   intro -> rendering -> render (image stop: shape dials, re-render)
+//         -> meshing  -> mesh   (mesh stop: brick dials, re-mesh; CPU-cheap re-legolize)
+//         -> legolizing -> assembling -> reveal
 export default function HeroFlow() {
-  const { prompt, imageUrl, brickModel, setCopy, set, reset } = useBuild();
+  const { prompt, imageUrl, glbUrl, brickModel, setCopy, params, seed, runRecord, set, reset } = useBuild();
   const addToShelf = useCollection((s) => s.add);
   const collectionCount = useCollection((s) => s.items.length);
   const showView = useView((s) => s.show);
@@ -28,7 +36,6 @@ export default function HeroFlow() {
   const [phase, setPhase] = useState("intro");
   const [text, setText] = useState(prompt || "");
   const [photo, setPhoto] = useState(null);
-  const [status, setStatus] = useState("");
   const [trophy, setTrophy] = useState(null); // "box" | "share" | "priced" | null
   const fileRef = useRef(null);
 
@@ -40,28 +47,102 @@ export default function HeroFlow() {
     reader.readAsDataURL(file);
   }
 
-  async function onForge() {
+  // ---- stage 1: prompt -> FLUX render --------------------------------------
+  async function onForge({ rerender = false } = {}) {
     if (!text.trim()) {
       toast.info("Name a building", "Type a landmark or pick an example first.");
       return;
     }
     playSnap();
-    set({ prompt: text, imageUrl: null, brickModel: null });
+    set({ prompt: text, imageUrl: null, glbUrl: null, brickModel: null, runRecord: null });
     setPhase("rendering");
+    const startedAt = Date.now();
     try {
-      setStatus("Photographing the set…");
-      const r1 = await generate(text, photo);
-      set({ imageUrl: r1.imageUrl });
-      setStatus("Reconstructing in 3D and solving the brick layout…");
-      const r2 = await generate3D(r1.imageUrl);
-      if (!r2.brickModel) throw new Error(r2.voxelError || "No brick layout returned.");
-      set({ brickModel: r2.brickModel });
-      // fetch the box copy in parallel with the assembly animation
-      getSetCopy(text, r2.brickModel).then((c) => set({ setCopy: c })).catch(() => {});
+      // a re-render with a pinned seed would reproduce the same image — only
+      // honour the pin on the first render or when the user changed dials
+      const useSeed = rerender && seed == null ? null : seed;
+      const r1 = await generate(text, photo, { seed: useSeed, ...paramsFor("render", params) });
+      set({
+        imageUrl: r1.imageUrl,
+        // reproducibility record grows stage by stage (faculty: prompt, seed,
+        // model, params per shown output)
+        runRecord: {
+          prompt: text,
+          enhancedPrompt: r1.params?.prompt || text,
+          photoAttached: !!photo,
+          seed: r1.params?.seed ?? seed,
+          params: { ...params },
+          resolved: { image: r1.params },
+          imageMs: Date.now() - startedAt,
+          startedAt,
+        },
+      });
+      setPhase("render");
+    } catch (e) {
+      toast.error("Render failed", String(e?.message || e));
+      setPhase("intro");
+    }
+  }
+
+  // ---- stage 2: render -> TRELLIS mesh --------------------------------------
+  async function onReconstruct() {
+    playSnap();
+    setPhase("meshing");
+    const t0 = Date.now();
+    try {
+      const rec = runRecord || {};
+      const r = await generateMesh(imageUrl, {
+        seed: seed ?? rec.seed,                 // tie the mesh to the image's seed
+        ...paramsFor("shape", params),
+      });
+      set({
+        glbUrl: r.glbUrl,
+        brickModel: null,                       // a new mesh invalidates old bricks
+        runRecord: {
+          ...rec,
+          params: { ...params },
+          resolved: { ...rec.resolved, mesh: r.params },
+          meshMs: Date.now() - t0,
+        },
+      });
+      setPhase("mesh");
+    } catch (e) {
+      toast.error("3D reconstruction failed", String(e?.message || e));
+      setPhase("render");
+    }
+  }
+
+  // ---- stage 3: mesh -> voxels -> bricks (CPU, seconds — retry freely) ------
+  async function onLegolize() {
+    playSnap();
+    setPhase("legolizing");
+    const t0 = Date.now();
+    try {
+      const rec = runRecord || {};
+      const { randomness, seam_weight, voxel_target } = paramsFor("bricks", params);
+      // the render feeds colour exposure matching — only send real data URLs
+      // (the dev sample's imageUrl is a static asset path)
+      const renderForColors = imageUrl?.startsWith("data:") ? imageUrl : null;
+      const r = await legolizeMesh(glbUrl, renderForColors, {
+        seed: seed ?? rec.seed,
+        voxel_target,
+        legolize_options: { randomness, seam_weight },
+      });
+      if (!r.brickModel) throw new Error("No brick layout returned.");
+      set({
+        brickModel: r.brickModel,
+        runRecord: {
+          ...rec,
+          params: { ...params },
+          resolved: { ...rec.resolved, bricks: r.params },
+          bricksMs: Date.now() - t0,
+        },
+      });
+      getSetCopy(text, r.brickModel).then((c) => set({ setCopy: c })).catch(() => {});
       setPhase("assembling");
     } catch (e) {
-      toast.error("Forge failed", String(e?.message || e));
-      setPhase("intro");
+      toast.error("Legolize failed", String(e?.message || e));
+      setPhase("mesh");
     }
   }
 
@@ -71,7 +152,7 @@ export default function HeroFlow() {
     const raw = (await import("../dev/sampleModel.json")).default;
     const bm = adaptBrickModel(raw);
     const sampleRender = (await import("../dev/sampleRender.png")).default;
-    const subj = "Fondation Louis Vuitton, Frank Gehry";
+    const subj = "Brutalist concrete tower with stepped setbacks";
     set({ prompt: subj, imageUrl: sampleRender, brickModel: bm });
     setText(subj);
     getSetCopy(subj, bm).then((c) => set({ setCopy: c })).catch(() => {});
@@ -91,15 +172,16 @@ export default function HeroFlow() {
       nBricks: brickModel.stability.nBricks,
       brickModel,
       setCopy,
+      prompt,
+      runRecord,         // tiny JSON — full reproducibility for every saved set
       created_at: new Date().toISOString(),
     });
     toast.success("Added to your shelf", "Reopen it anytime from your Collection.");
   }
 
   function onForgeAnother() {
-    reset();
+    reset();             // keeps params + seed — tuned dials survive
     setPhoto(null);
-    setStatus("");
     setPhase("intro");
   }
 
@@ -156,6 +238,7 @@ export default function HeroFlow() {
                     <Chip key={ex.label} onClick={() => setText(ex.prompt)}>{ex.label}</Chip>
                   ))}
                 </div>
+                <TinkerPanel groups={["render"]} />
                 <div className="mt-3.5 flex flex-wrap items-center justify-center gap-2.5">
                   <Button variant="primary" onClick={onForge}>
                     <Sparkles size={16} /> Forge the set
@@ -185,13 +268,13 @@ export default function HeroFlow() {
             </motion.section>
           )}
 
-          {phase === "rendering" && (
+          {["rendering", "meshing", "legolizing"].includes(phase) && (
             <motion.section
-              key="rendering"
+              key="waiting"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="w-full max-w-[760px]"
+              className="w-full max-w-[880px]"
             >
-              <div className="grid gap-5 sm:grid-cols-2">
+              <div className="grid gap-6 sm:grid-cols-2">
                 <div className="overflow-hidden rounded-xl bg-elevated shadow-pop">
                   {imageUrl ? (
                     <motion.img
@@ -203,10 +286,85 @@ export default function HeroFlow() {
                     <div className="grid aspect-square w-full place-items-center"><StudLoader /></div>
                   )}
                 </div>
-                <div className="flex flex-col items-start justify-center gap-3 px-2">
-                  <StudLoader />
-                  <h2 className="font-display text-xl font-extrabold text-on-dark">{text}</h2>
-                  <p className="text-on-dark-muted">{status}</p>
+                <div className="flex flex-col justify-center">
+                  <h2 className="mb-4 truncate font-display text-lg font-extrabold text-on-dark" title={text}>
+                    {(text || "").split(",")[0]}
+                  </h2>
+                  <LoadingTheater
+                    stage={{ rendering: "image", meshing: "mesh", legolizing: "bricks" }[phase]}
+                    prompt={text}
+                    params={params}
+                  />
+                </div>
+              </div>
+            </motion.section>
+          )}
+
+          {/* ---- stop 1: the render — judge it, tune the 3D dials, go ---- */}
+          {phase === "render" && imageUrl && (
+            <motion.section
+              key="render-stop"
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="w-full max-w-[880px]"
+            >
+              <div className="grid gap-6 sm:grid-cols-2 sm:items-center">
+                <div className="overflow-hidden rounded-xl bg-elevated shadow-pop">
+                  <img src={imageUrl} alt="legoarch render" className="block aspect-square w-full object-cover" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-brand-yellow">step 2 of 3 · the set photo</p>
+                  <h2 className="mt-1 font-display text-2xl font-black leading-tight text-on-dark">
+                    Happy with the render?
+                  </h2>
+                  <p className="mt-1 text-sm text-on-dark-muted">
+                    Next, TRELLIS rebuilds it in 3D (~2–3 min). Tune how faithfully it
+                    should follow the photo — or roll another render first.
+                  </p>
+                  <div className="mt-3">
+                    <TinkerPanel inline groups={["shape"]} presets={false} seedRow={false} />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2.5">
+                    <Button variant="primary" onClick={onReconstruct}>
+                      <Box size={15} /> Reconstruct in 3D
+                    </Button>
+                    <Button variant="secondary" onClick={() => onForge({ rerender: true })}>
+                      <RotateCcw size={15} /> Re-render
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </motion.section>
+          )}
+
+          {/* ---- stop 2: the raw mesh — orbit it, tune the bricks, legolize ---- */}
+          {phase === "mesh" && glbUrl && (
+            <motion.section
+              key="mesh-stop"
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="w-full max-w-[880px]"
+            >
+              <div className="grid gap-6 sm:grid-cols-2 sm:items-center">
+                <MeshViewer glbUrl={glbUrl} height={400} />
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-brand-yellow">step 3 of 3 · the 3D model</p>
+                  <h2 className="mt-1 font-display text-2xl font-black leading-tight text-on-dark">
+                    Now, let's make it buildable.
+                  </h2>
+                  <p className="mt-1 text-sm text-on-dark-muted">
+                    This is the raw generated mesh. Legolizing takes seconds and no AI —
+                    so experiment with the brick settings as much as you like.
+                  </p>
+                  <div className="mt-3">
+                    <TinkerPanel inline groups={["bricks"]} presets={false} seedRow={false} />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2.5">
+                    <Button variant="primary" onClick={onLegolize}>
+                      <Sparkles size={15} /> Legolize
+                    </Button>
+                    <Button variant="secondary" onClick={onReconstruct}>
+                      <RotateCcw size={15} /> Re-generate 3D
+                    </Button>
+                  </div>
                 </div>
               </div>
             </motion.section>
@@ -219,7 +377,7 @@ export default function HeroFlow() {
               className="w-full max-w-[820px]"
             >
               <p className="mb-2 text-center text-sm font-semibold uppercase tracking-wide text-on-dark-muted">
-                Snapping {brickModel.grid[2]} courses into place…
+                Snapping {courseCount(brickModel)} courses into place…
               </p>
               <AssemblyViewer brickModel={brickModel} height={520} onComplete={() => setPhase("reveal")} />
             </motion.section>
@@ -232,7 +390,11 @@ export default function HeroFlow() {
               className="w-full max-w-[860px]"
             >
               <div className="grid gap-6 md:grid-cols-[1.3fr_1fr] md:items-center">
-                <BrickViewer brickModel={brickModel} height={420} />
+                {glbUrl ? (
+                  <SpineCompareViewer glbUrl={glbUrl} brickModel={brickModel} height={420} />
+                ) : (
+                  <BrickViewer brickModel={brickModel} height={420} />
+                )}
                 <div>
                   <p className="text-xs font-bold uppercase tracking-widest text-brand-yellow">
                     lEgoarCh · {setCopy?.series || "Architecture"}{setCopy?.set_number ? ` · ${setCopy.set_number}` : ""}
@@ -249,7 +411,10 @@ export default function HeroFlow() {
 
                   <div className="mt-4 grid grid-cols-2 gap-2.5">
                     <StatTile value={totalParts(brickModel)} label="pieces" />
-                    <StatTile value={brickModel.grid.join("×")} label="studs (w×d×h)" />
+                    <StatTile
+                      value={`${brickModel.grid[0]}×${brickModel.grid[1]}×${courseCount(brickModel)}`}
+                      label="studs × studs × courses"
+                    />
                     <StatTile value={totalColors(brickModel)} label="colors" />
                     <StatTile
                       value={brickModel.stability.connected ? "Stable" : "Check"}
@@ -258,8 +423,27 @@ export default function HeroFlow() {
                     />
                   </div>
 
+                  {runRecord && (
+                    <button
+                      onClick={() => {
+                        navigator.clipboard?.writeText(JSON.stringify(runRecord, null, 2));
+                        toast.success("Recipe copied", "Prompt, seed and every dial — paste it anywhere.");
+                      }}
+                      title="Copy the full run record (prompt, seed, all parameters)"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-on-dark-muted hover:bg-white/20"
+                    >
+                      <Copy size={11} />
+                      {summarizeRun(runRecord) || "copy run recipe"}
+                    </button>
+                  )}
+
                   <div className="mt-5 flex flex-wrap gap-2.5">
                     <Button variant="primary" onClick={onAddToShelf}><Star size={15} /> Add to shelf</Button>
+                    {glbUrl && (
+                      <Button variant="secondary" onClick={() => setPhase("mesh")} title="Back to the brick settings — re-legolizing takes seconds">
+                        <SlidersHorizontal size={15} /> Tune bricks
+                      </Button>
+                    )}
                     <Button variant="secondary" onClick={onForgeAnother}><RotateCcw size={15} /> Forge another</Button>
                   </div>
 

@@ -35,14 +35,31 @@ _POLL_SECONDS = 1.0
 _MAX_WAIT = 900.0  # 15 min ceiling per job
 
 # ---- tuned defaults (env-overridable) -----------------------------------------
-# FLUX.2 Klein is guidance-distilled; 28 steps is visually on par with the stock
-# 50 at ~half the time (verified on the legoarch LoRA). See docs/research.md.
+# These (not the workflow JSONs) are the single source of truth for generation
+# defaults: the JSONs are raw ComfyUI exports and every tunable value below is
+# injected by node id at submit time. Benchmark evidence: docs/benchmarks.md.
+#
+# FLUX.2 Klein *base* (the checkpoint we load) is NOT guidance/step-distilled —
+# real CFG applies and the negative prompt works. Benchmark winners (2026-06,
+# stages A-E in docs/benchmarks.md): 28 steps ≈ 40 at 70% of the time; CFG 5.0
+# beats 3.0/4.0 on geometric definition + palette separation; LoRA 1.0 keeps
+# the stud/seam texture 0.75 loses; the negative prompt yields chunkier,
+# cleaner massing that survives voxelization best.
 FLUX_STEPS = int(os.environ.get("FLUX_STEPS", "28"))
+FLUX_CFG = float(os.environ.get("FLUX_CFG", "5.0"))
+FLUX_LORA_STRENGTH = float(os.environ.get("FLUX_LORA_STRENGTH", "1.0"))
+FLUX_NEGATIVE = os.environ.get(
+    "FLUX_NEGATIVE",
+    "people, trees, cars, vehicles, text, watermark, photograph of real building, "
+    "landscape, cluttered background, thin spires, antennas",
+)
 # TRELLIS: we voxelize at ~26^3 and SAMPLE the texture for LEGO colour matching,
 # so a 200k-face / 1024px texture mesh is wasted detail. We cut steps + face
 # budget hard but KEEP the texture (it's what the colour match reads from).
 TRELLIS_SS_STEPS = int(os.environ.get("TRELLIS_SS_STEPS", "20"))      # node 94
 TRELLIS_SHAPE_STEPS = int(os.environ.get("TRELLIS_SHAPE_STEPS", "25"))  # node 94
+TRELLIS_SHAPE_GUIDANCE = float(os.environ.get("TRELLIS_SHAPE_GUIDANCE", "7.5"))  # node 94
+TRELLIS_MAX_TOKENS = int(os.environ.get("TRELLIS_MAX_TOKENS", "49152"))  # node 94
 TRELLIS_TEX_STEPS = int(os.environ.get("TRELLIS_TEX_STEPS", "18"))     # node 95
 TRELLIS_DECIMATION = int(os.environ.get("TRELLIS_DECIMATION", "40000"))  # node 96
 TRELLIS_TEXTURE_SIZE = int(os.environ.get("TRELLIS_TEXTURE_SIZE", "512"))  # node 96
@@ -53,15 +70,21 @@ TXT2IMG = {
     "file": "flux_txt2img.api.json",
     "output": "676",        # SaveImage on the legoarch-LoRA branch (678:*)
     "prompt": "734",        # PrimitiveStringMultiline -> concat "legoarch " + this
+    "negative": "678:661",  # CLIPTextEncode .text (empty in the export; CFG>1 so it works)
     "seed": "685",          # PrimitiveInt seed
     "steps": "678:668",     # PrimitiveInt -> Flux2Scheduler.steps
     "cfg": "678:674",       # PrimitiveFloat -> CFGGuider.cfg
+    "lora": "678:682",      # LoraLoader .strength_model / .strength_clip
 }
 IMG2IMG = {
     "file": "flux_img2img.api.json",
     "output": "663",        # SaveImage
     "prompt": "728",        # PrimitiveStringMultiline (we prepend "legoarch ")
+    "negative": "662:410",  # CLIPTextEncode .text feeding the negative ReferenceLatent
     "seed": "662:353",      # PrimitiveInt seed
+    "steps": "662:354",     # PrimitiveInt -> Flux2Scheduler.steps
+    "cfg": "662:553",       # PrimitiveFloat -> CFGGuider.cfg
+    "lora": "662:689",      # LoraLoader .strength_model / .strength_clip
     "image": "660",         # LoadImage
 }
 TRELLIS = {
@@ -69,6 +92,9 @@ TRELLIS = {
     "output": "96",         # Trellis2ExportGLB
     "image": "85",          # LoadImage
     "seeds": ["94", "95"],  # ImageToShape / ShapeToTexturedMesh seeds
+    "shape_node": "94",     # Trellis2ImageToShape: ss/shape steps + guidance + max_tokens
+    "tex_node": "95",       # Trellis2ShapeToTexturedMesh: tex_sampling_steps
+    "export_node": "96",    # Trellis2ExportGLB: decimation_target, texture_size
 }
 
 
@@ -98,7 +124,9 @@ def _set_value(graph: dict[str, Any], node_id: str, value: Any, key: str = "valu
 
 
 def _rand_seed() -> int:
-    return random.randint(1, 2**53 - 1)
+    # int32 range: the TRELLIS nodes cap seed at 2**31-1, and it keeps seeds
+    # safely representable everywhere (JS Number, JSON, UI display).
+    return random.randint(1, 2**31 - 1)
 
 
 # ---- ComfyUI REST -------------------------------------------------------------
@@ -173,28 +201,63 @@ def _newest_glb(after: float = 0.0) -> Optional[Path]:
 
 
 # ---- high-level operations ----------------------------------------------------
-def run_txt2img(prompt: str, seed: Optional[int] = None, steps: Optional[int] = None) -> bytes:
-    """FLUX.2 + legoarch text-to-image. Returns PNG bytes."""
+def run_txt2img(
+    prompt: str,
+    seed: Optional[int] = None,
+    steps: Optional[int] = None,
+    cfg_scale: Optional[float] = None,
+    lora_strength: Optional[float] = None,
+    negative: Optional[str] = None,
+) -> dict[str, Any]:
+    """FLUX.2 + legoarch text-to-image.
+
+    Returns {'png': bytes, 'params': {...resolved values for reproducibility}}.
+    """
     from .prompt_enhance import enhance_prompt
 
     cfg = TXT2IMG
     graph = _prune_to(_load_workflow(cfg["file"]), cfg["output"])
+    resolved = {
+        "seed": seed if seed is not None else _rand_seed(),
+        "steps": steps if steps is not None else FLUX_STEPS,
+        "guidance": cfg_scale if cfg_scale is not None else FLUX_CFG,
+        "lora_strength": lora_strength if lora_strength is not None else FLUX_LORA_STRENGTH,
+        "negative": negative if negative is not None else FLUX_NEGATIVE,
+    }
     # enhance_prompt returns the rich body WITHOUT the trigger; the graph's
     # StringConcatenate node prepends "legoarch " for us.
-    _set_value(graph, cfg["prompt"], enhance_prompt(prompt))
-    _set_value(graph, cfg["seed"], seed if seed is not None else _rand_seed())
-    _set_value(graph, cfg["steps"], steps if steps is not None else FLUX_STEPS)
+    enhanced = enhance_prompt(prompt)
+    resolved["prompt"] = enhanced
+    _set_value(graph, cfg["prompt"], enhanced)
+    _set_value(graph, cfg["seed"], resolved["seed"])
+    _set_value(graph, cfg["steps"], resolved["steps"])
+    _set_value(graph, cfg["cfg"], resolved["guidance"])
+    _set_value(graph, cfg["lora"], resolved["lora_strength"], key="strength_model")
+    _set_value(graph, cfg["negative"], resolved["negative"], key="text")
 
     entry = _submit_and_wait(COMFYUI_URL, graph)
     out = entry["outputs"].get(cfg["output"], {})
     imgs = out.get("images") or []
     if not imgs:
         raise RuntimeError("txt2img produced no image")
-    return _fetch(_view_url(COMFYUI_URL, imgs[0]))
+    return {"png": _fetch(_view_url(COMFYUI_URL, imgs[0])), "params": resolved}
 
 
-def run_img2img(prompt: str, image: bytes, seed: Optional[int] = None) -> bytes:
-    """FLUX.2 + legoarch image-to-image. Returns PNG bytes."""
+def run_img2img(
+    prompt: str,
+    image: bytes,
+    seed: Optional[int] = None,
+    steps: Optional[int] = None,
+    cfg_scale: Optional[float] = None,
+    lora_strength: Optional[float] = None,
+    negative: Optional[str] = None,
+) -> dict[str, Any]:
+    """FLUX.2 + legoarch image-to-image.
+
+    The exported img2img graph is tuned differently from txt2img (cfg 2.5,
+    LoRA 0.75) so we only override what the caller explicitly passes.
+    Returns {'png': bytes, 'params': {...resolved values}}.
+    """
     from .prompt_enhance import enhance_prompt
 
     cfg = IMG2IMG
@@ -202,33 +265,74 @@ def run_img2img(prompt: str, image: bytes, seed: Optional[int] = None) -> bytes:
     graph = _prune_to(_load_workflow(cfg["file"]), cfg["output"])
     _set_value(graph, cfg["image"], name, key="image")
     # this template has no concat node; prepend the trigger word ourselves.
-    _set_value(graph, cfg["prompt"], f"legoarch {enhance_prompt(prompt)}")
-    _set_value(graph, cfg["seed"], seed if seed is not None else _rand_seed())
+    enhanced = enhance_prompt(prompt)
+    _set_value(graph, cfg["prompt"], f"legoarch {enhanced}")
+    resolved = {
+        "prompt": enhanced,
+        "seed": seed if seed is not None else _rand_seed(),
+        "steps": steps if steps is not None else graph[cfg["steps"]]["inputs"]["value"],
+        "guidance": cfg_scale if cfg_scale is not None else graph[cfg["cfg"]]["inputs"]["value"],
+        "lora_strength": (
+            lora_strength
+            if lora_strength is not None
+            else graph[cfg["lora"]]["inputs"]["strength_model"]
+        ),
+    }
+    _set_value(graph, cfg["seed"], resolved["seed"])
+    if steps is not None:
+        _set_value(graph, cfg["steps"], steps)
+    if cfg_scale is not None:
+        _set_value(graph, cfg["cfg"], cfg_scale)
+    if lora_strength is not None:
+        _set_value(graph, cfg["lora"], lora_strength, key="strength_model")
+    if negative is not None:
+        _set_value(graph, cfg["negative"], negative, key="text")
 
     entry = _submit_and_wait(COMFYUI_URL, graph)
     out = entry["outputs"].get(cfg["output"], {})
     imgs = out.get("images") or []
     if not imgs:
         raise RuntimeError("img2img produced no image")
-    return _fetch(_view_url(COMFYUI_URL, imgs[0]))
+    return {"png": _fetch(_view_url(COMFYUI_URL, imgs[0])), "params": resolved}
 
 
-def run_trellis(image: bytes, seed: Optional[int] = None) -> dict[str, Any]:
-    """TRELLIS-2 image->3D. Returns {'glb': bytes, 'filename': str}."""
+def run_trellis(
+    image: bytes,
+    seed: Optional[int] = None,
+    ss_steps: Optional[int] = None,
+    shape_steps: Optional[int] = None,
+    shape_guidance: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+) -> dict[str, Any]:
+    """TRELLIS-2 image->3D. Returns {'glb': bytes, 'filename': str, 'params': {...}}."""
     cfg = TRELLIS
     name = _upload_image(COMFYUI_3D_URL, image, "legoarch_render.png")
     graph = _prune_to(_load_workflow(cfg["file"]), cfg["output"])
     _set_value(graph, cfg["image"], name, key="image")
     if seed is not None:
+        seed = int(seed) & 0x7FFFFFFF   # Trellis2 nodes reject seeds > int32 max
         for nid in cfg["seeds"]:
             _set_value(graph, nid, seed, key="seed")
+    resolved = {
+        "seed": seed,
+        "ss_steps": ss_steps if ss_steps is not None else TRELLIS_SS_STEPS,
+        "shape_steps": shape_steps if shape_steps is not None else TRELLIS_SHAPE_STEPS,
+        "shape_guidance": shape_guidance if shape_guidance is not None else TRELLIS_SHAPE_GUIDANCE,
+        "max_tokens": max_tokens if max_tokens is not None else TRELLIS_MAX_TOKENS,
+        "tex_steps": TRELLIS_TEX_STEPS,
+        "decimation": TRELLIS_DECIMATION,
+        "texture_size": TRELLIS_TEXTURE_SIZE,
+    }
     # faster preset — fewer diffusion steps + a far smaller face/texture budget
     # (we only need a clean shell + sampleable colour, not a 200k-face render)
-    _set_value(graph, "94", TRELLIS_SS_STEPS, key="ss_sampling_steps")
-    _set_value(graph, "94", TRELLIS_SHAPE_STEPS, key="shape_sampling_steps")
-    _set_value(graph, "95", TRELLIS_TEX_STEPS, key="tex_sampling_steps")
-    _set_value(graph, "96", TRELLIS_DECIMATION, key="decimation_target")
-    _set_value(graph, "96", TRELLIS_TEXTURE_SIZE, key="texture_size")
+    shape_node, tex_node, export_node = cfg["shape_node"], cfg["tex_node"], cfg["export_node"]
+    _set_value(graph, shape_node, resolved["ss_steps"], key="ss_sampling_steps")
+    _set_value(graph, shape_node, resolved["shape_steps"], key="shape_sampling_steps")
+    _set_value(graph, shape_node, resolved["shape_guidance"], key="shape_guidance_strength")
+    _set_value(graph, shape_node, resolved["max_tokens"], key="max_tokens")
+    _set_value(graph, tex_node, resolved["tex_steps"], key="tex_sampling_steps")
+    _set_value(graph, export_node, resolved["decimation"], key="decimation_target")
+    _set_value(graph, export_node, resolved["texture_size"], key="texture_size")
 
     started = time.time()
     entry = _submit_and_wait(COMFYUI_3D_URL, graph)
@@ -243,13 +347,17 @@ def run_trellis(image: bytes, seed: Optional[int] = None) -> dict[str, Any]:
         time.sleep(1.0)
         glb = _newest_glb(after=started)
     if glb is not None:
-        return {"glb": glb.read_bytes(), "filename": glb.name}
+        return {"glb": glb.read_bytes(), "filename": glb.name, "params": resolved}
 
     # Fallback: in case a future node version DOES report it in /history.
     out = entry.get("outputs", {}).get(cfg["output"], {})
     ref = _first_file_ref(out, ext=".glb")
     if ref:
-        return {"glb": _fetch(_view_url(COMFYUI_3D_URL, ref)), "filename": ref["filename"]}
+        return {
+            "glb": _fetch(_view_url(COMFYUI_3D_URL, ref)),
+            "filename": ref["filename"],
+            "params": resolved,
+        }
     raise RuntimeError(
         f"TRELLIS finished but no .glb appeared in {OUTPUT_3D_DIR}. "
         "Set COMFYUI_3D_OUTPUT to your ComfyUI-3D output directory."

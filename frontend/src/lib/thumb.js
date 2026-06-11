@@ -1,4 +1,8 @@
 // Cheap front-elevation thumbnail (no WebGL) for the collection shelf.
+// z is in PLATE layers: one plate row = 0.4 of a stud cell, so proportions
+// match the real 8 x 3.2 mm brick geometry.
+const PLATE_RATIO = 0.4;
+
 export function frontElevationThumb(bm, size = 240) {
   const [nx, , nz] = bm.grid;
   const canvas = document.createElement("canvas");
@@ -11,21 +15,26 @@ export function frontElevationThumb(bm, size = 240) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
 
-  const cell = Math.min(size / (nx + 2), size / (nz + 2));
+  const hWorld = nz * PLATE_RATIO;                 // model height in stud units
+  const cell = Math.min(size / (nx + 2), size / (hWorld + 2));
   const ox = (size - nx * cell) / 2;
-  const oy = (size - nz * cell) / 2;
-  // frontmost (max y) brick per (x,z) column
+  const oy = (size - hWorld * cell) / 2;
+  // frontmost (min depth) piece per (x, plate-z) cell, drawn per plate row
   const front = {};
   for (const b of bm.bricks) {
-    const k = b.x + "," + b.z;
-    if (!(k in front) || b.y > front[k].y) front[k] = b;
+    const h = b.h || 3;
+    for (let dx = 0; dx < (b.w || 1); dx++)
+      for (let dz = 0; dz < h; dz++) {
+        const k = (b.x + dx) + "," + (b.z + dz);
+        if (!(k in front) || b.y > front[k].y) front[k] = b;
+      }
   }
   for (const k in front) {
-    const b = front[k];
-    ctx.fillStyle = b.hex;
-    const px = ox + b.x * cell;
-    const py = size - oy - (b.z + 1) * cell;
-    ctx.fillRect(px, py, cell - 1, cell - 1);
+    const [cx, cz] = k.split(",").map(Number);
+    ctx.fillStyle = front[k].hex;
+    const px = ox + cx * cell;
+    const py = size - oy - (cz + 1) * cell * PLATE_RATIO;
+    ctx.fillRect(px, py, cell - 1, cell * PLATE_RATIO);
   }
   return canvas.toDataURL("image/png");
 }

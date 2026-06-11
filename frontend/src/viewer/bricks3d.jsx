@@ -1,28 +1,37 @@
 // Shared three.js brick primitives — used by both the static BrickViewer and the
 // animated AssemblyViewer so they stay visually identical.
 //
-// A brick covers a w*d footprint anchored at grid corner (x, y) on layer z.
-// Grid (x, y, z=up) maps to three (X=x, Y=z, Z=y). A footprint is drawn as ONE
-// box scaled to its extent (orientation-agnostic) with w*d studs scattered on top.
+// A piece covers a w*d footprint anchored at grid corner (x, y) with its bottom
+// on PLATE layer z and a height of h plates (3 = brick, 1 = plate/tile). Grid
+// (x, y, z=up) maps to three (X=x, Y=z, Z=y); 1 world unit = 1 stud, one plate
+// = 0.4 units (real LEGO proportion: 3.2 mm / 8 mm), so a brick is 1.2 tall.
+// A footprint is drawn as ONE box scaled to its extent (orientation-agnostic)
+// with w*d studs scattered on top — unless the part is a studless tile.
 import { Instances, Instance } from "@react-three/drei";
 import { BASEPLATE, MONO_BRICK } from "../lib/tokens.js";
+import { STUDLESS } from "../lib/brickModel.js";
 
 const GAP = 0.06;        // mortar line between adjacent bricks
-const BRICK_H = 0.92;    // brick body height (one course)
+export const PLATE_Y = 0.4;  // one plate layer in world units (3.2/8 mm)
+const GAP_Y = 0.05;      // horizontal mortar line between stacked pieces
 const STUD_H = 0.2;
+const BASE_Y = -0.5;     // world y of the model's bottom face (baseplate top)
+
+// World height of the model (nz in plate layers).
+export const worldHeight = (nz) => nz * PLATE_Y;
 
 // Translate so the model is centred at the origin (X/Z) and vertically centred
 // (Y), which keeps the orbit camera framed on the middle of the build.
 export function modelOffset([nx, ny, nz]) {
-  return [-(nx - 1) / 2, -(nz - 1) / 2, -(ny - 1) / 2];
+  return [-(nx - 1) / 2, -BASE_Y - worldHeight(nz) / 2, -(ny - 1) / 2];
 }
 
 function boxesOf(bricks) {
   return bricks.map((b) => {
-    const w = b.w || 1, d = b.d || 1;
+    const w = b.w || 1, d = b.d || 1, h = b.h || 3;
     return {
-      pos: [b.x + (w - 1) / 2, b.z, b.y + (d - 1) / 2],
-      scale: [Math.max(0.1, w - GAP), BRICK_H, Math.max(0.1, d - GAP)],
+      pos: [b.x + (w - 1) / 2, BASE_Y + (b.z + h / 2) * PLATE_Y, b.y + (d - 1) / 2],
+      scale: [Math.max(0.1, w - GAP), Math.max(0.1, h * PLATE_Y - GAP_Y), Math.max(0.1, d - GAP)],
       hex: b.hex,
     };
   });
@@ -31,15 +40,17 @@ function boxesOf(bricks) {
 function studsOf(bricks) {
   const out = [];
   for (const b of bricks) {
-    const w = b.w || 1, d = b.d || 1;
+    if (STUDLESS.has(b.part)) continue;        // tiles are the smooth finish
+    const w = b.w || 1, d = b.d || 1, h = b.h || 3;
+    const top = BASE_Y + (b.z + h) * PLATE_Y;
     for (let i = 0; i < w; i++)
       for (let j = 0; j < d; j++)
-        out.push({ pos: [b.x + i, b.z + BRICK_H / 2 + STUD_H / 2 - 0.04, b.y + j], hex: b.hex });
+        out.push({ pos: [b.x + i, top + STUD_H / 2 - 0.04, b.y + j], hex: b.hex });
   }
   return out;
 }
 
-export function BrickInstances({ bricks, studs = true, monochrome = false }) {
+export function BrickInstances({ bricks, studs = true, monochrome = false, clippingPlanes }) {
   if (!bricks || bricks.length === 0) return null;
   const boxes = boxesOf(bricks);
   const studList = studs ? studsOf(bricks) : [];
@@ -48,7 +59,7 @@ export function BrickInstances({ bricks, studs = true, monochrome = false }) {
     <group>
       <Instances limit={boxes.length} castShadow receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial roughness={0.55} metalness={0} />
+        <meshStandardMaterial roughness={0.55} metalness={0} clippingPlanes={clippingPlanes} />
         {boxes.map((b, i) => (
           <Instance key={i} position={b.pos} scale={b.scale} color={colorOf(b.hex)} />
         ))}
@@ -56,7 +67,7 @@ export function BrickInstances({ bricks, studs = true, monochrome = false }) {
       {studList.length > 0 && (
         <Instances limit={studList.length} castShadow>
           <cylinderGeometry args={[0.28, 0.28, STUD_H, 14]} />
-          <meshStandardMaterial roughness={0.5} />
+          <meshStandardMaterial roughness={0.5} clippingPlanes={clippingPlanes} />
           {studList.map((s, i) => (
             <Instance key={i} position={s.pos} color={colorOf(s.hex)} />
           ))}

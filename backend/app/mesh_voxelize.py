@@ -15,6 +15,25 @@ import io
 import numpy as np
 
 
+def _solidify(grid: np.ndarray) -> np.ndarray:
+    """Fill the interior of a (possibly leaky) shell, z-up grid.
+
+    trimesh's VoxelGrid.fill only fills FULLY enclosed cavities — a mesh with
+    an open bottom (common: TRELLIS models sit on a display base) leaks and
+    stays hollow. Buildings stand on the ground, so: seal the bottom with a
+    virtual ground plane, flood the outside air (6-connected), and everything
+    the air can't reach becomes solid.
+    """
+    from scipy import ndimage
+
+    padded = np.pad(grid, 1, constant_values=False)
+    padded[:, :, 0] = True                       # virtual ground seals the underside
+    air = ndimage.label(~padded, structure=ndimage.generate_binary_structure(3, 1))[0]
+    outside = air[0, 0, -1]                      # padded top corner is always open sky
+    interior = (~padded) & (air != outside)
+    return grid | interior[1:-1, 1:-1, 1:-1]
+
+
 def _trim_slices(grid: np.ndarray):
     """Slices that crop empty margins so the model sits tight in the grid."""
     if not grid.any():
@@ -60,31 +79,51 @@ def _remap(a: np.ndarray, up: str) -> np.ndarray:
 
 
 def match_exposure(voxel_rgb: np.ndarray, reference_png: bytes) -> np.ndarray:
-    """White-balance/expose the sampled voxel colours to the generated render.
+    """Match the sampled voxel colours to the generated render the user saw.
 
-    The TRELLIS texture bakes shading and reads darker than the FLUX render the
-    user actually saw. We rescale each channel so the model's foreground mean
-    matches the render's foreground mean — tying brick colours to the image.
+    The TRELLIS texture bakes shading (AO, unlit faces) and reads much darker
+    AND more bimodal than the FLUX render. A mean-gain under-lifts the shadows
+    (everything quantizes to Black), so we do per-channel QUANTILE matching:
+    the voxel foreground's colour distribution is mapped onto the render
+    foreground's distribution — shadows land on the render's shadows, lights
+    on its lights. Verified on the brutalist benchmark model (Black 57% ->
+    the render's true dark-grey/light-grey palette); see docs/benchmarks.md.
     """
     try:
         from PIL import Image
 
         ref = np.asarray(Image.open(io.BytesIO(reference_png)).convert("RGB")).reshape(-1, 3).astype(float)
         ref_fg = ref[~np.all(ref > 238, axis=1)]            # drop near-white background
-        occ = voxel_rgb.reshape(-1, 3).astype(float)
-        occ_fg = occ[occ.sum(axis=1) > 0]                   # only sampled voxels
-        if len(ref_fg) == 0 or len(occ_fg) == 0:
+        flat = voxel_rgb.reshape(-1, 3).astype(float)
+        mask = flat.sum(axis=1) > 0                         # only sampled voxels
+        if len(ref_fg) == 0 or not mask.any():
             return voxel_rgb
-        gain = np.clip(ref_fg.mean(axis=0) / np.maximum(occ_fg.mean(axis=0), 1.0), 0.5, 3.0)
-        out = np.clip(voxel_rgb.astype(float) * gain, 0, 255).astype(np.uint8)
+        qs = np.linspace(0.0, 1.0, 65)
+        out_flat = flat.copy()
+        for c in range(3):
+            src_q = np.quantile(flat[mask, c], qs)
+            dst_q = np.quantile(ref_fg[:, c], qs)
+            out_flat[mask, c] = np.interp(flat[mask, c], src_q, dst_q)
+        out = np.clip(out_flat, 0, 255).reshape(voxel_rgb.shape).astype(np.uint8)
         out[voxel_rgb.sum(axis=3) == 0] = 0                 # keep unsampled voxels black
         return out
     except Exception:
         return voxel_rgb
 
 
-def voxelize_glb(data: bytes, target: int = 26, fill: bool = False, up: str = "y") -> dict:
-    """Voxelize GLB bytes. `target` = voxels along the longest axis."""
+# vertical stretch applied before voxelizing: 8 mm stud pitch / 3.2 mm plate
+# height. Uniform-pitch voxels of the stretched mesh = plate-height cells of
+# the real mesh, which both fixes the old 1.2x vertical distortion (cubic
+# voxels rendered as 9.6 mm bricks) and triples the vertical resolution.
+PLATE_RATIO = 2.5
+
+
+def voxelize_glb(data: bytes, target: int = 32, fill: bool = False, up: str = "y") -> dict:
+    """Voxelize GLB bytes into plate-unit cells.
+
+    `target` = voxels (studs) along the longest HORIZONTAL axis; the vertical
+    axis comes out in plate layers (~2.5 cells per stud of height).
+    """
     import trimesh
 
     mesh = trimesh.load(io.BytesIO(data), file_type="glb", force="mesh")
@@ -92,17 +131,18 @@ def voxelize_glb(data: bytes, target: int = 26, fill: bool = False, up: str = "y
         raise ValueError("no mesh in GLB")
 
     mesh.apply_translation(-mesh.bounds.mean(axis=0))  # center on origin
-    biggest = float(max(mesh.extents))
+    up_axis = {"x": 0, "y": 1, "z": 2}[up]
+    horizontal = [float(e) for i, e in enumerate(mesh.extents) if i != up_axis]
+    biggest = max(horizontal) if horizontal else 0.0
     if biggest <= 0:
         raise ValueError("degenerate mesh")
 
+    scale = [1.0, 1.0, 1.0]
+    scale[up_axis] = PLATE_RATIO
+    mesh.apply_scale(scale)
+
     pitch = biggest / max(8, int(target))
     vg = mesh.voxelized(pitch)
-    if fill:
-        try:
-            vg = vg.fill()
-        except Exception:
-            pass
 
     matrix = np.asarray(vg.matrix, dtype=bool)  # [meshX, meshY, meshZ]
 
@@ -124,6 +164,8 @@ def voxelize_glb(data: bytes, target: int = 26, fill: bool = False, up: str = "y
 
     grid = _remap(matrix, up)
     cgrid = _remap(color_dense, up) if color_dense is not None else None
+    if fill:
+        grid = _solidify(grid)   # solid core: connected + supported + fewer pieces
 
     sl = _trim_slices(grid)
     grid = grid[sl]
