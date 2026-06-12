@@ -1,11 +1,16 @@
 """Per-brick color assignment.
 
-The voxel/stability steps are colorless; the signature legoarch look (pearl
-white, translucent tiles) must be assigned explicitly, or the output is grey
-rubble. We map a source RGB (sampled from the legoarch image, or a default) to
-the nearest real LEGO color via CIEDE2000 distance in Lab space.
+The voxel/stability steps are colorless; colour comes from sampling the
+TRELLIS texture per voxel and mapping to the nearest real LEGO colour via
+CIEDE2000 distance in Lab space.
 
-A small starter palette is included; expand with the full BrickLink/LDraw palette.
+Palettes are tiered: "classic" (~23 architecture staples) and "full" (~48
+current production colours), both generated from Rebrickable data and
+validated against LDConfig.ldr by scripts/build_catalog.py. The hardcoded
+starter palette below survives only as the "legacy" fallback when no
+catalog.json is present. Every assigned colour is finally clamped to the
+colours the part's mould was actually produced in (elements.csv), so the
+output is buildable, not just renderable.
 """
 from __future__ import annotations
 
@@ -14,7 +19,10 @@ from typing import Optional
 
 import numpy as np
 
-# (LDraw color code, name, sRGB 0-255). Starter subset — expand later.
+from ..catalog import get_palette as _catalog_palette, part_colors as _part_colors
+
+# (LDraw color code, name, sRGB 0-255). Legacy fallback when catalog.json is
+# missing — the live palettes come from the catalog package.
 LEGO_PALETTE: list[tuple[int, str, tuple[int, int, int]]] = [
     (15, "White", (255, 255, 255)),
     (151, "Light Bluish Gray", (160, 165, 169)),
@@ -83,44 +91,81 @@ def _ciede2000(lab1: np.ndarray, lab2: np.ndarray) -> np.ndarray:
                    + Rt * (dCp / Sc) * (dHp / Sh))
 
 
+# --- tiered palettes ---------------------------------------------------------
+# A "tier" names a palette: "classic" / "full" (from the generated catalog) or
+# "legacy" (the hardcoded list above). Each resolves once to (palette, Lab).
+_PALETTE_CACHE: dict[str, tuple[list[tuple[int, str, tuple[int, int, int]]], np.ndarray]] = {}
+
+
+def resolve_palette(tier: Optional[str] = None) -> tuple[list, np.ndarray]:
+    """Return (palette, lab_array) for a tier, falling back to legacy."""
+    name = tier or DEFAULT_TIER
+    hit = _PALETTE_CACHE.get(name)
+    if hit is not None:
+        return hit
+    pal = _catalog_palette(name) if name != "legacy" else None
+    if pal is None:
+        pal = LEGO_PALETTE
+    entry = (pal, _srgb_to_lab(np.array([p[2] for p in pal])))
+    _PALETTE_CACHE[name] = entry
+    return entry
+
+
+DEFAULT_TIER = "classic" if _catalog_palette("classic") else "legacy"
+
+# Back-compat: the legacy module-level Lab table (tests/poke scripts may use it).
 _PALETTE_LAB = _srgb_to_lab(np.array([p[2] for p in LEGO_PALETTE]))
 
 
-def nearest_lego_color(rgb: tuple[int, int, int]) -> int:
+def nearest_lego_color(rgb: tuple[int, int, int], tier: Optional[str] = None) -> int:
     """Return the LDraw color code nearest to an sRGB value (CIEDE2000)."""
+    pal, lab_tbl = resolve_palette(tier)
     lab = _srgb_to_lab(np.array(rgb))
-    d = _ciede2000(lab[None, :], _PALETTE_LAB)
-    return LEGO_PALETTE[int(np.argmin(d))][0]
+    d = _ciede2000(lab[None, :], lab_tbl)
+    return pal[int(np.argmin(d))][0]
 
 
-def quantize_voxels(voxel_rgb: np.ndarray, smooth: bool = True) -> np.ndarray:
+def quantize_voxels(
+    voxel_rgb: np.ndarray, smooth: bool = True,
+    tier: Optional[str] = None, smooth_iters: int = 1,
+) -> np.ndarray:
     """Map every sampled voxel to its nearest palette INDEX (CIEDE2000).
 
     Returns an (nx, ny, nz) int grid; -1 marks unsampled (black) voxels, which
     act as wildcards in the packer's colour-uniformity check. Quantizing BEFORE
     packing lets pieces respect colour boundaries instead of averaging across
     them. `smooth` applies a 3x3x1 majority filter so texture noise doesn't
-    shatter footprints into 1x1 confetti.
+    shatter footprints into 1x1 confetti; `smooth_iters` repeats it (richer
+    palettes draw more boundaries, so they may need a second pass).
     """
+    pal, lab_tbl = resolve_palette(tier)
     flat = voxel_rgb.reshape(-1, 3).astype(float)
     sampled = flat.sum(axis=1) > 0
     out = np.full(flat.shape[0], -1, dtype=int)
     if sampled.any():
         lab = _srgb_to_lab(flat[sampled])
-        d = _ciede2000(lab[:, None, :], _PALETTE_LAB[None, :, :])
+        d = _ciede2000(lab[:, None, :], lab_tbl[None, :, :])
         out[sampled] = np.argmin(d, axis=1)
     code = out.reshape(voxel_rgb.shape[:3])
-    return _smooth_codes(code) if smooth else code
+    if smooth:
+        for _ in range(max(1, int(smooth_iters))):
+            code = _smooth_codes(code, n_classes=len(pal))
+    return code
 
 
-def _smooth_codes(code: np.ndarray) -> np.ndarray:
+def _smooth_codes(code: np.ndarray, n_classes: Optional[int] = None) -> np.ndarray:
     """3x3x1 per-layer majority vote over palette indices (wildcards stay -1)."""
     from scipy import ndimage
 
+    if n_classes is None:
+        n_classes = len(LEGO_PALETTE)
     kern = np.ones((3, 3, 1))
     best = np.full(code.shape, -1, dtype=int)
     best_cnt = np.zeros(code.shape)
-    for c in range(len(LEGO_PALETTE)):
+    # convolve only the classes actually present — a Full-48 palette request
+    # typically uses ~7, and each pass sweeps the whole grid
+    present = np.unique(code[code >= 0])
+    for c in present[present < n_classes]:
         cnt = ndimage.convolve((code == c).astype(np.uint8), kern, mode="constant")
         upd = cnt > best_cnt
         best[upd] = c
@@ -129,12 +174,12 @@ def _smooth_codes(code: np.ndarray) -> np.ndarray:
     return best
 
 
-# --- signature legoarch palette (LDraw codes) -------------------------------
-_PODIUM = 151   # Light Bluish Gray
+# --- signature legoarch palette (LDraw codes, catalog-aligned) --------------
+_PODIUM = 71    # Light Bluish Gray
 _CROWN = 72     # Dark Bluish Gray
 _WINDOW = 46    # Trans Yellow
 _BODY = 15      # White
-_ACCENT = 71    # Light Gray
+_ACCENT = 19    # Tan
 
 
 def _on_edge(x: int, y: int, z: int, w: int, d: int, occ: np.ndarray) -> bool:
@@ -150,7 +195,7 @@ def _on_edge(x: int, y: int, z: int, w: int, d: int, occ: np.ndarray) -> bool:
     )
 
 
-def _colors_from_code(bricks, code: np.ndarray) -> list[int]:
+def _colors_from_code(bricks, code: np.ndarray, palette: list) -> list[int]:
     """Each piece takes the quantized palette colour of its cells (the packer
     guarantees uniformity, so the mode is just 'the' value or a wildcard)."""
     out: list[int] = []
@@ -161,11 +206,11 @@ def _colors_from_code(bricks, code: np.ndarray) -> list[int]:
             out.append(15)                      # wildcard-only piece -> White
         else:
             idx, counts = np.unique(vals, return_counts=True)
-            out.append(LEGO_PALETTE[int(idx[np.argmax(counts)])][0])
+            out.append(palette[int(idx[np.argmax(counts)])][0])
     return out
 
 
-def _colors_from_rgb(bricks, voxel_rgb: np.ndarray) -> list[int]:
+def _colors_from_rgb(bricks, voxel_rgb: np.ndarray, tier: Optional[str]) -> list[int]:
     """Match each piece to the real LEGO colour nearest the generated model's
     colour over its full cell volume (CIEDE2000)."""
     out: list[int] = []
@@ -176,7 +221,35 @@ def _colors_from_rgb(bricks, voxel_rgb: np.ndarray) -> list[int]:
             out.append(15)                      # default White
             continue
         mean = lit.mean(axis=0)
-        out.append(nearest_lego_color((int(mean[0]), int(mean[1]), int(mean[2]))))
+        out.append(nearest_lego_color(
+            (int(mean[0]), int(mean[1]), int(mean[2])), tier=tier))
+    return out
+
+
+def clamp_to_available(bricks, colors: list[int], tier: Optional[str] = None) -> list[int]:
+    """Snap each piece's colour to one its mould was actually produced in.
+
+    Uses the catalog's elements.csv-derived availability. A colour outside the
+    palette (e.g. heuristic codes) or a part without availability data passes
+    through unchanged. Distance is CIEDE2000 over the active palette.
+    """
+    avail_map = _part_colors()
+    if not avail_map:
+        return colors
+    pal, lab_tbl = resolve_palette(tier)
+    idx_of = {p[0]: i for i, p in enumerate(pal)}
+    out: list[int] = []
+    for (part, *_rest), color in zip(bricks, colors):
+        avail = avail_map.get(part)
+        if not avail or color in avail or color not in idx_of:
+            out.append(color)
+            continue
+        cand = [i for i, p in enumerate(pal) if p[0] in avail]
+        if not cand:
+            out.append(color)
+            continue
+        d = _ciede2000(lab_tbl[idx_of[color]][None, :], lab_tbl[cand])
+        out.append(pal[cand[int(np.argmin(d))]][0])
     return out
 
 
@@ -184,6 +257,7 @@ def assign_colors(
     bricks, occ, image_url: Optional[str] = None, seed: int = 7,
     voxel_rgb: Optional[np.ndarray] = None,
     code: Optional[np.ndarray] = None,
+    tier: Optional[str] = None,
 ) -> list[int]:
     """Assign an LDraw color per piece.
 
@@ -192,11 +266,13 @@ def assign_colors(
     model's real colour per cell volume (CIEDE2000) from `voxel_rgb`. Fallback
     (untextured mesh): the signature legoarch heuristic — light-grey podium,
     dark-grey crown, the odd translucent-yellow window, pearl-white body.
+    Whatever the path, the result is clamped to real part+colour combos.
     """
     if code is not None:
-        return _colors_from_code(bricks, code)
+        pal, _ = resolve_palette(tier)
+        return clamp_to_available(bricks, _colors_from_code(bricks, code, pal), tier)
     if voxel_rgb is not None:
-        return _colors_from_rgb(bricks, voxel_rgb)
+        return clamp_to_available(bricks, _colors_from_rgb(bricks, voxel_rgb, tier), tier)
 
     nz = occ.shape[2]                            # plate units: 2 courses = 6 plates
     rng = random.Random(int(seed) & 0xFFFFFFFF)
@@ -210,4 +286,4 @@ def assign_colors(
             out.append(_WINDOW)
         else:
             out.append(_ACCENT if rng.random() < 0.12 else _BODY)
-    return out
+    return clamp_to_available(bricks, out, tier)

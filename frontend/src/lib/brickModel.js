@@ -13,7 +13,7 @@ const hexOf = (code) => byCode[code]?.hex || "#cccccc";
 const nameOf = (code) => byCode[code]?.name || `Color ${code}`;
 
 // studless tile parts (LDraw ids) — the renderer skips their studs
-export const STUDLESS = new Set(["3070b", "3069b", "3068b"]);
+export const STUDLESS = new Set(["3070b", "3069b", "63864", "2431", "3068b", "87079"]);
 
 export const PLATES_PER_COURSE = 3;
 export const courseOf = (b) => Math.floor(b.z / PLATES_PER_COURSE);
@@ -61,6 +61,9 @@ export function adaptBrickModel(raw) {
     supportRatio: s.support_ratio ?? s.supportRatio ?? 1,
     nBricks: s.n_bricks ?? bricks.length,
     unsupportedLayers: s.unsupported_layers ?? [],
+    // honest-repair stats (Testuz pillars) — surfaced, not silently dropped
+    pillarsAdded: s.pillars_added ?? s.pillarsAdded ?? 0,
+    componentsBefore: s.components_before ?? s.componentsBefore ?? null,
   };
 
   return {

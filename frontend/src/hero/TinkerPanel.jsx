@@ -94,7 +94,7 @@ export default function TinkerPanel({
         </div>
       )}
 
-      {/* compact one-line slider rows for the active group */}
+      {/* compact one-line rows for the active group: sliders + choice pills */}
       <div className="space-y-1.5">
         {PARAMS.filter((p) => p.group === activeTab).map((p) => (
           <div
@@ -106,25 +106,52 @@ export default function TinkerPanel({
             <label className="w-[108px] shrink-0 truncate text-[11px] font-semibold text-ink" title={p.label}>
               {p.label}
             </label>
-            <Slider
-              className="flex-1"
-              value={params[p.key] ?? p.def}
-              onValueChange={(v) => setParams({ [p.key]: v })}
-              min={p.min}
-              max={p.max}
-              step={p.step}
-              accent={visibleGroups.find((g) => g.id === activeTab)?.accent}
-              aria-label={p.label}
-            />
-            <span
-              className={cn(
-                "w-12 shrink-0 rounded bg-elevated px-1 text-right font-mono text-[11px]",
-                (params[p.key] ?? p.def) !== p.def ? "font-bold text-brand-blue" : "text-ink-soft"
-              )}
-              title={(params[p.key] ?? p.def) !== p.def ? `default ${fmt(p.def)}` : undefined}
-            >
-              {fmt(params[p.key] ?? p.def)}
-            </span>
+            {p.kind === "choice" ? (
+              <div className="flex flex-1 items-center gap-1" role="radiogroup" aria-label={p.label}>
+                {p.choices.map((c) => {
+                  const current = params[p.key] ?? p.def;
+                  const on = current === c.value;
+                  return (
+                    <button
+                      key={String(c.value)}
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => { setParams({ [p.key]: c.value }); playSnap(); }}
+                      className={cn(
+                        "rounded-full border-2 px-2.5 py-0.5 text-[11px] font-bold transition",
+                        on
+                          ? "border-brand-blue bg-brand-blue/10 text-brand-blue"
+                          : "border-stone-300 bg-elevated text-ink-soft hover:border-stone-400"
+                      )}
+                    >
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <>
+                <Slider
+                  className="flex-1"
+                  value={params[p.key] ?? p.def}
+                  onValueChange={(v) => setParams({ [p.key]: v })}
+                  min={p.min}
+                  max={p.max}
+                  step={p.step}
+                  accent={visibleGroups.find((g) => g.id === activeTab)?.accent}
+                  aria-label={p.label}
+                />
+                <span
+                  className={cn(
+                    "w-12 shrink-0 rounded bg-elevated px-1 text-right font-mono text-[11px]",
+                    (params[p.key] ?? p.def) !== p.def ? "font-bold text-brand-blue" : "text-ink-soft"
+                  )}
+                  title={(params[p.key] ?? p.def) !== p.def ? `default ${fmt(p.def)}` : undefined}
+                >
+                  {fmt(params[p.key] ?? p.def)}
+                </span>
+              </>
+            )}
           </div>
         ))}
       </div>

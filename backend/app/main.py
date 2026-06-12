@@ -61,6 +61,8 @@ class Generate3DReq(BaseModel):
     shape_steps: Optional[int] = None      # TRELLIS shape steps
     shape_guidance: Optional[float] = None  # TRELLIS shape guidance strength
     voxel_target: int = 32                 # studs along the longest horizontal axis
+    fill_mode: str = "solid"               # "solid" | "shell" | "surface"
+    shell_thickness: int = 2               # wall thickness in studs (shell mode)
     legolize_options: dict[str, Any] = {}  # seed / randomness / seam_weight / tile_tops
 
 
@@ -77,7 +79,9 @@ class LegolizeMeshReq(BaseModel):
     image_b64: Optional[str] = None        # the render, for colour exposure matching
     seed: Optional[int] = None
     voxel_target: int = 32
-    legolize_options: dict[str, Any] = {}  # randomness / seam_weight / tile_tops
+    fill_mode: str = "solid"               # "solid" | "shell" | "surface"
+    shell_thickness: int = 2               # wall thickness in studs (shell mode)
+    legolize_options: dict[str, Any] = {}  # randomness / seam_weight / tile_tops / palette / slopes
 
 
 class SetCopyReq(BaseModel):
@@ -123,19 +127,26 @@ def _voxelize_and_legolize(
     voxel_target: int,
     seed: Optional[int],
     options: dict[str, Any],
+    fill_mode: str = "solid",
+    shell_thickness: int = 2,
 ) -> dict[str, Any]:
     """GLB -> plate-unit voxels -> brick model. Pure CPU, a few seconds.
 
-    fill=True (solid core, not a hollow shell) is what guarantees a single
-    connected component + ~0.99 support at ANY TRELLIS preset, and packs
-    ~70% fewer pieces (big interior bricks instead of 1x1 surface skin).
-    Benchmark evidence: docs/benchmarks.md §4.
+    fill_mode "solid" guarantees a single connected component + ~0.99 support
+    at ANY TRELLIS preset and packs ~70% fewer pieces than a raw surface skin
+    (docs/benchmarks.md §4). "shell" hollows the solid back to real walls —
+    exterior-connected voids (windows, courtyards) stay open — and relies on
+    the connectivity repair pass for the rare floating fragment.
     """
     import numpy as np
 
     from .mesh_voxelize import match_exposure, voxelize_glb
 
-    voxel = voxelize_glb(glb, target=voxel_target, fill=True)
+    voxel = voxelize_glb(
+        glb, target=voxel_target,
+        fill_mode=fill_mode if fill_mode in ("solid", "shell", "surface") else "solid",
+        shell_thickness=shell_thickness,
+    )
     nx, ny, nz = voxel["nx"], voxel["ny"], voxel["nz"]
     occ = (
         np.frombuffer(base64.b64decode(voxel["occ_b64"]), dtype=np.uint8)
@@ -234,8 +245,15 @@ def legolize_mesh(req: LegolizeMeshReq) -> dict[str, Any]:
         png = _decode_image(req.image_b64) if req.image_b64 else None
     except Exception:
         png = None
-    out = _voxelize_and_legolize(glb, png, voxel_target, req.seed, req.legolize_options)
-    out["params"] = {"voxel_target": voxel_target, "seed": req.seed, **req.legolize_options}
+    out = _voxelize_and_legolize(
+        glb, png, voxel_target, req.seed, req.legolize_options,
+        fill_mode=req.fill_mode, shell_thickness=req.shell_thickness,
+    )
+    out["params"] = {
+        "voxel_target": voxel_target, "seed": req.seed,
+        "fill_mode": req.fill_mode, "shell_thickness": req.shell_thickness,
+        **req.legolize_options,
+    }
     return out
 
 
@@ -268,7 +286,10 @@ def generate_3d(req: Generate3DReq) -> dict[str, Any]:
         "params": {**result.get("params", {}), "voxel_target": voxel_target},
     }
     try:
-        out = _voxelize_and_legolize(result["glb"], img, voxel_target, req.seed, req.legolize_options)
+        out = _voxelize_and_legolize(
+            result["glb"], img, voxel_target, req.seed, req.legolize_options,
+            fill_mode=req.fill_mode, shell_thickness=req.shell_thickness,
+        )
         resp.update(out)
     except Exception as e:  # keep the GLB usable even if voxelization fails
         resp["voxelError"] = str(e)

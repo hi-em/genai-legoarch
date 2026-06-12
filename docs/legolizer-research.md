@@ -83,3 +83,26 @@ What the official sets actually do, and where we stand:
 - Kim, et al. *Legorization with multi-height bricks from silhouette-fitted voxelization.* CGI 2017. https://dl.acm.org/doi/10.1145/3095140.3095180
 - StableLego: arXiv 2402.10711 · BrickGPT: arXiv 2505.05469
 - brickr: https://github.com/ryantimpe/brickr · LSculpt: https://lsculpt.sourceforge.net · Image2Lego: arXiv 2108.08477
+
+## Implemented 2026-06-12: catalog grounding, hollow shells, slope pass
+
+- **Real catalog** (`scripts/build_catalog.py` → `app/catalog/`): Rebrickable
+  CSV dumps (colors/parts/elements) cross-validated against LDraw LDConfig;
+  every assigned colour is clamped to a (part, colour) combo a real element
+  exists for. Palette tiers: classic 23 / full 48.
+- **Hollow shell** (`mesh_voxelize._shell`): anisotropic box erosion of the
+  solidified grid (t studs horizontally, ~2.5t plates vertically). Exterior
+  voids survive by construction. Connectivity restored when needed by a
+  Testuz-style pillar repair (`legolizer/repair.py`) with honest stats.
+- **Slope pass** (`legolizer/slopes.py`, "Pass 1.5") — the Zhou & Chen 2019
+  idea implemented as a deterministic staircase detector: a column whose top
+  course sits exactly one course above its downhill neighbour, with a 2-stud
+  seat behind, is bevelled with the widest fitting 45° slope (3037/3038/
+  3039/3040b), colour-aware run merging, orientations 0/90/180/270. To our
+  knowledge the first open implementation of slope-aware legolization.
+  v2 hooks documented in the module: 33° family on 3-stud treads (3298/4286),
+  curved family from mesh-normal buckets (6091/11477/93273), inverted slopes
+  under overhangs (3660b/3665a), corner doubles (3045/3046).
+- **Renderer**: real LDraw part geometry (packed per-part MPDs, three.js
+  LDrawLoader, per-part InstancedMesh). Load-time canonicalisation aligns
+  every part to the engine convention (footprint w×d, slopes downhill +X).

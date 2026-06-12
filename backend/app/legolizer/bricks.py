@@ -39,21 +39,32 @@ PART_1x1 = "3005"
 PART_1x2 = "3004"
 PART_1x3 = "3622"
 PART_1x4 = "3010"
+PART_1x6 = "3009"
+PART_1x8 = "3008"
 PART_2x2 = "3003"
 PART_2x3 = "3002"
 PART_2x4 = "3001"
+PART_2x6 = "2456"
+PART_2x8 = "3007"
 
 PLATE_1x1 = "3024"
 PLATE_1x2 = "3023"
 PLATE_1x3 = "3623"
 PLATE_1x4 = "3710"
+PLATE_1x6 = "3666"
+PLATE_1x8 = "3460"
 PLATE_2x2 = "3022"
 PLATE_2x3 = "3021"
 PLATE_2x4 = "3020"
+PLATE_2x6 = "3795"
+PLATE_2x8 = "3034"
 
 TILE_1x1 = "3070b"
 TILE_1x2 = "3069b"
+TILE_1x3 = "63864"
+TILE_1x4 = "2431"
 TILE_2x2 = "3068b"
+TILE_2x4 = "87079"
 
 BRICK_H = 3   # brick height in plates
 PLATE_H = 1
@@ -61,8 +72,12 @@ PLATE_H = 1
 # (part, ax, az) native footprint in studs. The merge expands these into both
 # orientations. Keep 1x1 last — it is the guaranteed terminal fallback.
 FOOTPRINTS: list[tuple[str, int, int]] = [
+    (PART_2x8, 2, 8),
+    (PART_2x6, 2, 6),
     (PART_2x4, 2, 4),
     (PART_2x3, 2, 3),
+    (PART_1x8, 1, 8),
+    (PART_1x6, 1, 6),
     (PART_2x2, 2, 2),
     (PART_1x4, 1, 4),
     (PART_1x3, 1, 3),
@@ -71,8 +86,12 @@ FOOTPRINTS: list[tuple[str, int, int]] = [
 ]
 
 FOOTPRINTS_PLATE: list[tuple[str, int, int]] = [
+    (PLATE_2x8, 2, 8),
+    (PLATE_2x6, 2, 6),
     (PLATE_2x4, 2, 4),
     (PLATE_2x3, 2, 3),
+    (PLATE_1x8, 1, 8),
+    (PLATE_1x6, 1, 6),
     (PLATE_2x2, 2, 2),
     (PLATE_1x4, 1, 4),
     (PLATE_1x3, 1, 3),
@@ -85,16 +104,35 @@ TILE_EQUIV: dict[tuple[int, int], str] = {
     (1, 1): TILE_1x1,
     (1, 2): TILE_1x2,
     (2, 1): TILE_1x2,
+    (1, 3): TILE_1x3,
+    (3, 1): TILE_1x3,
+    (1, 4): TILE_1x4,
+    (4, 1): TILE_1x4,
     (2, 2): TILE_2x2,
+    (2, 4): TILE_2x4,
+    (4, 2): TILE_2x4,
 }
 
-TILE_PARTS = {TILE_1x1, TILE_1x2, TILE_2x2}
+TILE_PARTS = {TILE_1x1, TILE_1x2, TILE_1x3, TILE_1x4, TILE_2x2, TILE_2x4}
+
+# tile -> studded plate of the same footprint (repair un-tiles pillar bases)
+TILE_TO_PLATE: dict[str, str] = {
+    TILE_1x1: PLATE_1x1,
+    TILE_1x2: PLATE_1x2,
+    TILE_1x3: PLATE_1x3,
+    TILE_1x4: PLATE_1x4,
+    TILE_2x2: PLATE_2x2,
+    TILE_2x4: PLATE_2x4,
+}
+
+from . import slopes as _slopes  # noqa: E402  (leaf module: numpy only)
 
 # Set of legal part ids, for validation/tests.
 LEGAL_PARTS = (
     {p for p, _, _ in FOOTPRINTS}
     | {p for p, _, _ in FOOTPRINTS_PLATE}
     | TILE_PARTS
+    | _slopes.SLOPE_PARTS
 )
 
 
@@ -193,6 +231,17 @@ def split_and_merge(
     exposed[:, :, :-1] &= ~occ[:, :, 1:]
 
     pieces: list[list] = []
+
+    # ---- pass 1.5 (runs FIRST): bevel one-course roof steps with real 45°
+    # slope bricks. Their cells leave the free mask, so the rectangular
+    # passes pack around them untouched.
+    if bool(options.get("slopes", True)):
+        slope_pieces, _consumed = _slopes.place_slopes(occ, code)
+        for sp in slope_pieces:
+            part, sx, sy, sz, rot, w, d, h = sp
+            free[sx:sx + w, sy:sy + d, sz:sz + h] = False
+            ids[sx:sx + w, sy:sy + d, sz:sz + h] = len(pieces)
+            pieces.append(sp)
 
     def _greedy_pass(zp: int, mask: np.ndarray, candidates, h: int,
                      xcuts: set, ycuts: set, terminal_1x1: bool) -> None:

@@ -34,6 +34,29 @@ def _solidify(grid: np.ndarray) -> np.ndarray:
     return grid | interior[1:-1, 1:-1, 1:-1]
 
 
+def _shell(solid: np.ndarray, t_xy: int = 2, t_z: int = 5) -> np.ndarray:
+    """Hollow a solidified grid down to walls/floors of real thickness.
+
+    Erodes the solid with three 1D structuring elements (their composition is
+    a box erosion), then keeps `solid & ~core`. Anisotropic on purpose: cells
+    are 1 stud wide but 1 plate (0.4 stud) tall, so a wall `t_xy` studs thick
+    needs ~2.5x that many cells vertically to give floors/roofs the same
+    physical depth. Voids that connect to outside air (windows, courtyards,
+    arcades) were never solidified, so the shell wraps THEM in walls too —
+    architecture keeps its rooms.
+    """
+    from scipy import ndimage
+
+    core = solid
+    for axis, t in ((0, t_xy), (1, t_xy), (2, t_z)):
+        if t <= 0:
+            continue
+        shape = [1, 1, 1]
+        shape[axis] = 2 * t + 1
+        core = ndimage.binary_erosion(core, structure=np.ones(shape), border_value=0)
+    return solid & ~core
+
+
 def _trim_slices(grid: np.ndarray):
     """Slices that crop empty margins so the model sits tight in the grid."""
     if not grid.any():
@@ -118,11 +141,19 @@ def match_exposure(voxel_rgb: np.ndarray, reference_png: bytes) -> np.ndarray:
 PLATE_RATIO = 2.5
 
 
-def voxelize_glb(data: bytes, target: int = 32, fill: bool = False, up: str = "y") -> dict:
+def voxelize_glb(
+    data: bytes, target: int = 32, fill: bool = False, up: str = "y",
+    fill_mode: str | None = None, shell_thickness: int = 2,
+) -> dict:
     """Voxelize GLB bytes into plate-unit cells.
 
     `target` = voxels (studs) along the longest HORIZONTAL axis; the vertical
     axis comes out in plate layers (~2.5 cells per stud of height).
+
+    `fill_mode`: "surface" (raw voxel skin), "solid" (flood-fill interior —
+    the old fill=True), or "shell" (solidify, then hollow back to walls
+    `shell_thickness` studs thick; exterior-connected voids stay open).
+    The legacy `fill` bool maps to solid/surface when fill_mode is None.
     """
     import trimesh
 
@@ -164,8 +195,14 @@ def voxelize_glb(data: bytes, target: int = 32, fill: bool = False, up: str = "y
 
     grid = _remap(matrix, up)
     cgrid = _remap(color_dense, up) if color_dense is not None else None
-    if fill:
+    mode = fill_mode or ("solid" if fill else "surface")
+    if mode in ("solid", "shell"):
         grid = _solidify(grid)   # solid core: connected + supported + fewer pieces
+    if mode == "shell":
+        t = max(1, int(shell_thickness))
+        # round-half-UP: int(round()) is banker's rounding, which made t=1
+        # floors thinner than walls (2.5 -> 2) while t=3 rounded up
+        grid = _shell(grid, t_xy=t, t_z=int(t * 2.5 + 0.5))
 
     sl = _trim_slices(grid)
     grid = grid[sl]

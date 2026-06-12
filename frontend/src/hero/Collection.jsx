@@ -7,6 +7,7 @@ import { toLdraw, download, partsToCsv } from "../lib/ldraw.js";
 import { generateBooklet } from "../lib/booklet.js";
 import { Button, StatTile, toast } from "../components/ui/index.js";
 import BrickViewer from "../viewer/BrickViewer.jsx";
+import ShelfWall from "../shelf/ShelfWall.jsx";
 import TrophyShell from "./trophies/TrophyShell.jsx";
 import TheBox from "./trophies/TheBox.jsx";
 import ShareCard from "./trophies/ShareCard.jsx";
@@ -85,11 +86,42 @@ function SetDetail({ set, onBack }) {
   );
 }
 
+// shelf | grid — persisted so the choice survives reloads; shelf is the default.
+const VIEW_KEY = "lEgoarCh.collectionView";
+const loadViewMode = () => {
+  try { return localStorage.getItem(VIEW_KEY) === "grid" ? "grid" : "shelf"; } catch { return "shelf"; }
+};
+
+function ViewToggle({ mode, onPick }) {
+  return (
+    <div className="mx-auto mb-4 flex w-fit items-center gap-1 rounded-pill border border-border-dark bg-black/25 p-1">
+      {[["shelf", "Shelf"], ["grid", "Grid"]].map(([m, label]) => (
+        <button
+          key={m}
+          onClick={() => onPick(m)}
+          className={
+            "rounded-pill px-3.5 py-1 text-xs font-semibold transition-colors " +
+            (mode === m ? "bg-elevated text-ink shadow-plate-flat" : "text-on-dark-muted hover:text-on-dark")
+          }
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function Collection() {
   const items = useCollection((s) => s.items);
   const remove = useCollection((s) => s.remove);
   const show = useView((s) => s.show);
   const [selected, setSelected] = useState(null);
+  const [viewMode, setViewMode] = useState(loadViewMode);
+
+  function pickView(m) {
+    setViewMode(m);
+    try { localStorage.setItem(VIEW_KEY, m); } catch {}
+  }
 
   const current = selected && items.find((i) => i.id === selected);
 
@@ -105,8 +137,17 @@ export default function Collection() {
           <p className="max-w-[360px] text-on-dark-muted">Forge a building into a buildable set and add it here — your collection survives reloads.</p>
           <Button variant="primary" onClick={() => show("hero")}><Sparkles size={15} /> Forge a set</Button>
         </div>
+      ) : viewMode === "shelf" ? (
+        <div className="flex w-full flex-1 flex-col px-5 pb-8">
+          <ViewToggle mode={viewMode} onPick={pickView} />
+          <div className="mx-auto h-[calc(100dvh-200px)] min-h-[420px] w-full max-w-[1200px]">
+            <ShelfWall items={items} onSelect={(it) => setSelected(it.id)} />
+          </div>
+        </div>
       ) : (
-        <div className="mx-auto grid w-full max-w-[1000px] grid-cols-2 gap-4 px-5 pb-16 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="flex w-full flex-col px-5 pb-16">
+          <ViewToggle mode={viewMode} onPick={pickView} />
+          <div className="mx-auto grid w-full max-w-[1000px] grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {items.map((it) => (
             <motion.div
               key={it.id}
@@ -130,6 +171,7 @@ export default function Collection() {
               </button>
             </motion.div>
           ))}
+          </div>
         </div>
       )}
     </div>

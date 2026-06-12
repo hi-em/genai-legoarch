@@ -18,6 +18,7 @@ import LoadingTheater from "./LoadingTheater.jsx";
 import { paramsFor, summarizeRun } from "./tinkerParams.js";
 import TrophyShell from "./trophies/TrophyShell.jsx";
 import TheBox from "./trophies/TheBox.jsx";
+import BoxArt from "./trophies/BoxArt.jsx";
 import ShareCard from "./trophies/ShareCard.jsx";
 import PricedSet from "./trophies/PricedSet.jsx";
 import { generateBooklet } from "../lib/booklet.js";
@@ -129,14 +130,19 @@ export default function HeroFlow() {
     const t0 = Date.now();
     try {
       const rec = runRecord || {};
-      const { randomness, seam_weight, voxel_target } = paramsFor("bricks", params);
+      const {
+        randomness, seam_weight, voxel_target,
+        fill_mode, shell_thickness, slopes, palette,
+      } = paramsFor("bricks", params);
       // the render feeds colour exposure matching — only send real data URLs
       // (the dev sample's imageUrl is a static asset path)
       const renderForColors = imageUrl?.startsWith("data:") ? imageUrl : null;
       const r = await legolizeMesh(glbName, renderForColors, {
         seed: seed ?? rec.seed,
         voxel_target,
-        legolize_options: { randomness, seam_weight },
+        fill_mode,
+        shell_thickness,
+        legolize_options: { randomness, seam_weight, slopes, palette },
       });
       if (!r.brickModel) throw new Error("No brick layout returned.");
       set({
@@ -173,7 +179,7 @@ export default function HeroFlow() {
     if (!brickModel) return;
     playPop();
     const renderThumb = await downscaleDataUrl(imageUrl, 360, 0.72);
-    addToShelf({
+    const dropped = addToShelf({
       id: String(Date.now()),
       title: setCopy?.set_name || (prompt || "Untitled set").split(",")[0],
       setNumber: setCopy?.set_number || "",
@@ -186,7 +192,14 @@ export default function HeroFlow() {
       runRecord,         // tiny JSON — full reproducibility for every saved set
       created_at: new Date().toISOString(),
     });
-    toast.success("Added to your shelf", "Reopen it anytime from your Collection.");
+    if (dropped > 0) {
+      toast.info(
+        "Added — shelf was full",
+        `${dropped} oldest set${dropped > 1 ? "s" : ""} made room (browser storage limit).`
+      );
+    } else {
+      toast.success("Added to your shelf", "Reopen it anytime from your Collection.");
+    }
   }
 
   function onForgeAnother() {
@@ -460,6 +473,7 @@ export default function HeroFlow() {
                   <div className="mt-4 flex flex-wrap gap-2">
                     {[
                       [Box, "The Box", () => setTrophy("box")],
+                      [Sparkles, "Boxed set", () => setTrophy("boxart")],
                       [FileText, "Instructions", () => {
                         toast.info("Building your manual…", "Rendering step-by-step pages.");
                         setTimeout(() => generateBooklet(brickModel, setCopy), 30);
@@ -486,9 +500,10 @@ export default function HeroFlow() {
       <TrophyShell
         open={!!trophy}
         onClose={() => setTrophy(null)}
-        title={{ box: "The Box", share: "Share card", priced: "Priced set" }[trophy] || ""}
+        title={{ box: "The Box", boxart: "The boxed set", share: "Share card", priced: "Priced set" }[trophy] || ""}
       >
         {trophy === "box" && <TheBox imageUrl={imageUrl} brickModel={brickModel} setCopy={setCopy} />}
+        {trophy === "boxart" && <BoxArt imageUrl={imageUrl} setCopy={setCopy} brickModel={brickModel} />}
         {trophy === "share" && <ShareCard imageUrl={imageUrl} brickModel={brickModel} setCopy={setCopy} />}
         {trophy === "priced" && <PricedSet brickModel={brickModel} setCopy={setCopy} />}
       </TrophyShell>

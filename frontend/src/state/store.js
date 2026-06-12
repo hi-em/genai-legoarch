@@ -32,7 +32,14 @@ function saveShelf(items) {
 }
 export const useCollection = create((set, get) => ({
   items: loadShelf(),
-  add: (item) => { const items = saveShelf([item, ...get().items]); set({ items }); },
+  // returns how many OLDER sets quota-pressure dropped, so callers can be
+  // honest instead of toasting success while sets silently vanish
+  add: (item) => {
+    const wanted = [item, ...get().items];
+    const items = saveShelf(wanted);
+    set({ items });
+    return Math.max(0, wanted.length - items.length);
+  },
   remove: (id) => { const items = saveShelf(get().items.filter((i) => i.id !== id)); set({ items }); },
 }));
 

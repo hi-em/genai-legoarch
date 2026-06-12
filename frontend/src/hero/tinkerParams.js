@@ -48,6 +48,39 @@ export const PARAMS = [
     min: 0, max: 2, step: 0.1, def: 1,
     blurb: "Penalty for stacking joints on joints — exactly why real brick walls use a running bond. Zero = fragile straight cracks.",
   },
+  // ---- the Sprint-1/2 engine dials (catalog era) ----
+  {
+    key: "fill_mode", group: "bricks", label: "Structure",
+    kind: "choice", def: "solid",
+    choices: [
+      { value: "solid", label: "Solid" },
+      { value: "shell", label: "Hollow" },
+    ],
+    blurb: "Solid packs the core with big hidden bricks. Hollow keeps real walls (like actual LEGO sets) — courtyards and windows stay open, hidden 1x1 pillars are added where physics demands.",
+  },
+  {
+    key: "shell_thickness", group: "bricks", label: "Wall thickness",
+    min: 1, max: 4, step: 1, def: 2,
+    blurb: "Wall depth in studs when Structure is Hollow. 2 is the sweet spot; 1 gets fragile, 4 is nearly solid again.",
+  },
+  {
+    key: "slopes", group: "bricks", label: "Roof slopes",
+    kind: "choice", def: true,
+    choices: [
+      { value: true, label: "On" },
+      { value: false, label: "Off" },
+    ],
+    blurb: "Bevel one-course roof steps with real 45° slope bricks (3037–3040) facing downhill — the move that turns a ziggurat into a roofline.",
+  },
+  {
+    key: "palette", group: "bricks", label: "Colour palette",
+    kind: "choice", def: "classic",
+    choices: [
+      { value: "classic", label: "Classic 23" },
+      { value: "full", label: "Full 48" },
+    ],
+    blurb: "Real production colours from the Rebrickable catalog, validated against LDraw. Classic = the architecture staples; Full = every current colour (richer, but busier seams).",
+  },
 ];
 
 export const DEFAULTS = Object.fromEntries(PARAMS.map((p) => [p.key, p.def]));

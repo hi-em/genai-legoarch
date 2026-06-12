@@ -19,6 +19,7 @@ import numpy as np
 
 from . import bricks as _bricks
 from . import color as _color
+from . import repair as _repair
 from . import stability as _stability
 
 
@@ -72,14 +73,19 @@ def legolize_voxelgrid(
     occ = _occupancy.astype(bool)
 
     seed = int(options.get("seed", 1))
+    tier = str(options.get("palette", _color.DEFAULT_TIER))
     # Quantize colours BEFORE packing so pieces respect colour boundaries
     # (escape hatch: color_strict=False reverts to average-after-pack).
     code = None
     if voxel_rgb is not None and options.get("color_strict", True):
-        code = _color.quantize_voxels(voxel_rgb)
+        code = _color.quantize_voxels(
+            voxel_rgb, tier=tier,
+            smooth_iters=int(options.get("smooth_iters", 1)),
+        )
     raw_bricks = _bricks.split_and_merge(occ, code=code, seed=seed, options=options)
     colors = _color.assign_colors(
-        raw_bricks, occ, image_url, seed=seed, voxel_rgb=voxel_rgb, code=code
+        raw_bricks, occ, image_url, seed=seed, voxel_rgb=voxel_rgb, code=code,
+        tier=tier,
     )
 
     model = BrickModel(
@@ -88,7 +94,12 @@ def legolize_voxelgrid(
         grid=tuple(int(s) for s in occ.shape),
         unit_mm=unit_mm,
     )
-    model.stability = _stability.analyze(model)
+    # Testuz-style repair: ground every floating component with hidden 1x1
+    # pillars (hollow shells make these possible), then report honestly.
+    repair_stats = {}
+    if options.get("repair", True):
+        repair_stats = _repair.repair_connectivity(model, Brick, tier=tier)
+    model.stability = {**_stability.analyze(model), **repair_stats}
     model.parts_list = _bricks.parts_count(model.bricks)
     return model
 

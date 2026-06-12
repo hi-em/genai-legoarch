@@ -22,6 +22,22 @@ const PART_PRICE = {
   "3070b": 0.03, // tile 1x1
   "3069b": 0.04, // tile 1x2
   "3068b": 0.06, // tile 2x2
+  // catalog-era additions (2026-06): long bricks/plates, new tiles, 45° slopes
+  "3009": 0.14, // brick 1x6
+  "3008": 0.22, // brick 1x8
+  "2456": 0.18, // brick 2x6
+  "3007": 0.30, // brick 2x8
+  "3666": 0.07, // plate 1x6
+  "3460": 0.10, // plate 1x8
+  "3795": 0.10, // plate 2x6
+  "3034": 0.12, // plate 2x8
+  "63864": 0.06, // tile 1x3
+  "2431": 0.07, // tile 1x4
+  "87079": 0.10, // tile 2x4
+  "3040b": 0.06, // slope 45 2x1
+  "3039": 0.08, // slope 45 2x2
+  "3038": 0.16, // slope 45 2x3
+  "3037": 0.18, // slope 45 2x4
 };
 const DEFAULT_PRICE = 0.08;
 

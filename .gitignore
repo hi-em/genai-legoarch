@@ -28,3 +28,6 @@ backend/outputs/
 # Large model weights are tracked via git-LFS (see .gitattributes).
 # If you prefer to keep them out of git entirely, uncomment:
 # references/*.safetensors
+
+# local data caches (Rebrickable CSVs, LDraw library)
+.cache/

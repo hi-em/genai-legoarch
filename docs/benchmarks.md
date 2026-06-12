@@ -189,3 +189,44 @@ Encoded as env-overridable defaults in
 | Voxel target (brick detail) | 32 studs | 16–64 |
 | Voxel fill (solid core) | **on** (`fill=True`, main.py) | not exposed |
 | Legolizer randomness / seam weight | 0.12 / 1.0 | 0–0.5 / 0–2 |
+
+## 6. Catalog-era engine A/B (2026-06-12 — Sprints 1A/1B/2)
+
+Engine upgrades benchmarked on existing TRELLIS meshes via the production
+`/legolize-mesh` path (CPU-only loop, ~2-4 s per run, seed 7, voxel 32).
+
+### 6.1 Fill modes (solid vs hollow shell, wall 2 studs / 5 plates)
+
+| Mesh | solid pieces | shell t=2 | shell t=3 | notes |
+|---|---|---|---|---|
+| quality 12.8 MB (chunky massing) | 10,355 | **6,728 (−35%)** | 8,652 | connected ✓ both, support 0.996→0.956, shell is also ~25% faster |
+| draft 2.7 MB (terraced) | 9,526 | 8,374 (−12%) | 8,983 | terraces have little interior |
+| quality 10.9 MB (thin towers) | 4,482 | 4,449 (−1%) | 4,482 | walls thinner than 2 studs everywhere — already a shell |
+
+Verdict: shell is a clear win on chunky massing, harmless elsewhere.
+Exterior-connected voids (courtyards, window reveals) survive both modes by
+construction (outside-air flood fill). Floating fragments are re-grounded by
+the Testuz-style repair pass (hidden colour-matched 1×1 pillars, count
+reported honestly in the stability panel). UI default stays **solid**; the
+Structure dial exposes Hollow at the mesh stop.
+
+### 6.2 Slope pass (Pass 1.5) + real catalog, live API run
+
+Quality 12.8 MB mesh, shell t=2, classic palette (23 validated colours):
+
+| metric | value |
+|---|---|
+| pieces | 6,123 |
+| slope bricks (3037/3038/3039/3040b) | **268, all four orientations** |
+| connected / pillars added | ✓ / 0 |
+| distinct colours used | 10 (every part+colour combo verified against elements.csv) |
+
+Palette expansion 12 → 23 colours produced **no measurable merge shattering**
+(piece counts within noise of the old hardcoded palette); the 3×3×1 majority
+filter absorbs the extra colour boundaries. `smooth_iters` exists as a dial
+if the Full-48 tier ever needs a second pass.
+
+Catalog provenance: Rebrickable CSV dumps (colors/parts/elements, daily,
+attribution required) cross-validated against LDraw `LDConfig.ldr` — colour
+ids are accepted only when the Rebrickable and LDraw names agree, which
+caught Olive Green (326≠330) and Nougat as non-identity mappings.
