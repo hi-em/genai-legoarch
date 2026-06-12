@@ -7,7 +7,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { STAGE_TRACKS, eduCards } from "./loadingContent.js";
+import { STAGE_TRACKS, STAGE_META, eduCards } from "./loadingContent.js";
+import { TONE } from "../lib/promptGrammar.js";
 import { DUR, EASE, SPRING } from "../lib/motion.js";
 import { useReducedMotion } from "../lib/useReducedMotion.js";
 import { cn } from "../lib/cn.js";
@@ -30,7 +31,7 @@ function useStageProgress(track, reduced) {
   }, [track]);
 
   useEffect(() => {
-    if (reduced) return;            // reduced motion: plain "step n of m" text
+    if (reduced) return;            // reduced motion: static stud row, no timers
     const steps = STAGE_TRACKS[track].steps;
     const timer = setInterval(() => {
       const elapsed = performance.now() - startRef.current;
@@ -57,9 +58,13 @@ function StageTracker({ track, reduced }) {
   const { steps, totalHint } = STAGE_TRACKS[track];
   const { stepIdx, stepP } = useStageProgress(track, reduced);
   const step = steps[stepIdx];
+  const meta = STAGE_META[track];
 
   return (
     <div>
+      <p className="mb-2 text-xs font-bold uppercase tracking-widest text-brand-yellow">
+        stage {meta.ord} of 3 · {meta.title}
+      </p>
       {/* stud-row progress: done = solid yellow, current pulses, next = faint */}
       <div className="flex items-center gap-2">
         {steps.map((s, i) => (
@@ -73,9 +78,6 @@ function StageTracker({ track, reduced }) {
             )}
           />
         ))}
-        <span className="ml-1 text-[11px] font-semibold uppercase tracking-wide text-on-dark-muted">
-          step {stepIdx + 1} of {steps.length}
-        </span>
       </div>
 
       <AnimatePresence mode="wait">
@@ -100,8 +102,8 @@ function StageTracker({ track, reduced }) {
           />
         </div>
       )}
-      <p className="mt-2 text-[11px] text-on-dark-muted/80">
-        This part takes {totalHint} — worth the wait.
+      <p className="mt-2 text-micro text-on-dark-muted/80">
+        Usually takes {totalHint}.
       </p>
     </div>
   );
@@ -109,23 +111,16 @@ function StageTracker({ track, reduced }) {
 
 // ---- educational carousel --------------------------------------------------------
 
-const TONE = {
-  yellow: "bg-brand-yellow/90 text-ink",
-  blue: "bg-brand-blue/90 text-white",
-  red: "bg-brand-red/90 text-white",
-  neutral: "bg-sunken text-ink",
-};
-
 function CardBody({ card }) {
   if (card.kind === "anatomy") {
     return (
       <div className="space-y-2">
         {card.segs.map((s, i) => (
           <div key={i} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className={cn("max-w-full truncate rounded-full px-2 py-0.5 text-[11px] font-bold", TONE[s.tone])}>
+            <span className={cn("max-w-full truncate rounded-full px-2 py-0.5 text-micro font-bold", TONE[s.tone])}>
               {s.chip}
             </span>
-            <span className="text-[11px] leading-snug text-muted">{s.why}</span>
+            <span className="text-micro leading-snug text-muted">{s.why}</span>
           </div>
         ))}
       </div>
@@ -137,6 +132,9 @@ function CardBody({ card }) {
 function EduCarousel({ deck, reduced }) {
   const [idx, setIdx] = useState(0);
   const pausedUntil = useRef(0);
+
+  // per-stage decks differ in length — restart when the deck swaps
+  useEffect(() => setIdx(0), [deck]);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -151,7 +149,7 @@ function EduCarousel({ deck, reduced }) {
     setIdx((i) => (i + dir + deck.length) % deck.length);
   };
 
-  const card = deck[idx];
+  const card = deck[idx % deck.length]; // safe during a deck swap, pre-reset
   return (
     <div className="relative">
       <AnimatePresence mode="wait">
@@ -170,7 +168,7 @@ function EduCarousel({ deck, reduced }) {
               <circle cx="6.5" cy="4" r="2.6" fill="#e0301c" />
               <circle cx="15.5" cy="4" r="2.6" fill="#e0301c" />
             </svg>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted">
+            <p className="text-nano font-bold uppercase tracking-widest text-muted">
               {card.kind === "anatomy" ? "your prompt, decoded" :
                card.kind === "dial" ? "your dials" :
                card.kind === "pipeline" ? "under the hood" : "brick science"}
@@ -235,7 +233,7 @@ function Conveyor() {
 
 export default function LoadingTheater({ stage, prompt, params }) {
   const reduced = useReducedMotion();
-  const deck = useMemo(() => eduCards({ prompt, params }), [prompt, params]);
+  const deck = useMemo(() => eduCards({ stage, prompt, params }), [stage, prompt, params]);
 
   return (
     <div className="flex w-full flex-col gap-5">

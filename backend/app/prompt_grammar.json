@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "comment": "Single source of truth for the 8-slot legoarch prompt grammar. Backend: prompt_enhance.py derives STYLE_SUFFIX and the enhancer reference (', '.join of slot examples) from this file. Frontend: synced to frontend/src/lib/promptGrammar.gen.json by scripts/sync_grammar.mjs — edit HERE, then run the sync. The sync asserts the join-invariant.",
+  "trigger": {
+    "token": "legoarch",
+    "tone": "yellow",
+    "ui_hint": "The trigger word — added server-side, it activates the custom LoRA fine-tuned on 40 official-style set photos."
+  },
+  "style_suffix": "standalone model on dark display base, white background, elevated 3/4 angle, product photography, studio lighting, official LEGO set photography",
+  "slots": [
+    {
+      "id": "identity",
+      "name": "Identity",
+      "description": "Building + city + architect — the proper nouns that anchor the subject.",
+      "example": "Habitat 67 Montreal Moshe Safdie",
+      "ui_hint": "Who and where. Proper nouns anchor the form the image model reaches for.",
+      "tone": "blue",
+      "match": { "position": "first" }
+    },
+    {
+      "id": "set_framing",
+      "name": "LEGO set framing",
+      "description": "Declares the subject as a LEGO Architecture set, not a real building.",
+      "example": "LEGO Architecture set",
+      "ui_hint": "Frames the render as a set photo — scale, studs and plastic follow from these four words.",
+      "tone": "yellow",
+      "match": { "pattern": "LEGO Architecture set" }
+    },
+    {
+      "id": "massing",
+      "name": "Massing",
+      "description": "Fused massing with verbs, described as one connected volume.",
+      "example": "stacked offset concrete cube modules forming a terraced pyramidal hill",
+      "ui_hint": "The big shapes. Massing is what survives 3D reconstruction and voxelization — fused verbs keep the build connected.",
+      "tone": "red",
+      "match": { "pattern": "massing|stacked|terraced|fused|interlock|rising|forming|floating|tower|module|prism|shell|volume|cluster|curved|cantilever" }
+    },
+    {
+      "id": "materials",
+      "name": "Materials",
+      "description": "Smooth plastic brick materials with named colours.",
+      "example": "smooth light bluish grey and tan plastic bricks",
+      "ui_hint": "Says 'plastic bricks' out loud — the LoRA leans in, and surfaces stay matte and buildable.",
+      "tone": "neutral",
+      "match": { "pattern": "plastic bricks|plastic brick" }
+    },
+    {
+      "id": "signature_pattern",
+      "name": "Signature pattern",
+      "description": "The repeating texture or facade pattern that makes the building recognisable.",
+      "example": "repeating modular box pattern with recessed terrace openings",
+      "ui_hint": "The texture move — the one repeating detail that says 'this building' at 32 studs.",
+      "tone": "red",
+      "match": { "pattern": "pattern|texture|openings|reveals|filigree|chevron|ribbon|window|recess|repeating|facade|fluted|ridged" }
+    },
+    {
+      "id": "base_volume",
+      "name": "Base & podium",
+      "description": "How the model meets the ground — podium, plinth, stepped base.",
+      "example": "cantilevered cubic clusters over a solid podium",
+      "ui_hint": "Grounding. A solid podium gives the voxelizer something to stand the model on.",
+      "tone": "neutral",
+      "match": { "pattern": "podium|plinth|solid base|ground floor|monumental steps|stepped base|over a" }
+    },
+    {
+      "id": "palette",
+      "name": "Named LEGO palette",
+      "description": "Real LEGO colour names WITH placement (which colour goes where).",
+      "example": "light bluish grey volumes, tan terrace insets, dark grey shadow gaps",
+      "ui_hint": "Named LEGO colors with placement — the color matcher maps these to real bricks.",
+      "tone": "yellow",
+      "match": { "pattern": "grey|gray|white|tan|sand|red|blue|black|orange|terracotta|coral|lavender|cream|green|brown|nougat|glazing|accents|insets" }
+    },
+    {
+      "id": "studio_tail",
+      "name": "Studio tail",
+      "description": "Constant product-photography suffix; doubles as the 3D reconstruction's input conditioning.",
+      "example": "standalone model on dark display base, white background, elevated 3/4 angle, product photography, studio lighting, official LEGO set photography",
+      "ui_hint": "The studio tail — white background + 3/4 angle is exactly what the 3D reconstruction needs.",
+      "tone": "neutral",
+      "match": { "pattern": "display base|white background|3/4 angle|product photography|studio lighting|set photography" }
+    }
+  ]
+}

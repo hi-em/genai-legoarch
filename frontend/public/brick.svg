@@ -1,14 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- abstract 2x2 brick mark (deliberately NOT the protected 2x4 silhouette) -->
-  <rect x="10" y="22" width="44" height="30" rx="4" fill="#B40000"/>
-  <rect x="10" y="22" width="44" height="8" rx="4" fill="#cf2230"/>
-  <g fill="#d23a44">
-    <circle cx="23" cy="20" r="7"/><circle cx="41" cy="20" r="7"/>
-  </g>
-  <g fill="#9c0008">
-    <ellipse cx="23" cy="22" rx="7" ry="3"/><ellipse cx="41" cy="22" rx="7" ry="3"/>
-  </g>
-  <g fill="#e06a72">
-    <circle cx="23" cy="18" r="6"/><circle cx="41" cy="18" r="6"/>
-  </g>
+  <!-- lEgoarCh mark: "Plate Stack" — three offset plates (Visualize ·
+       Materialize · Legolize) with one stud. Abstract plate profile,
+       deliberately NOT a protected LEGO brick silhouette. -->
+  <rect x="8" y="44" width="48" height="13" rx="3" fill="#1e5aa8"/>
+  <rect x="14" y="30" width="40" height="13" rx="3" fill="#c91a09"/>
+  <rect x="20" y="16" width="30" height="13" rx="3" fill="#f6c700"/>
+  <rect x="30" y="9" width="10" height="8" rx="2.5" fill="#f6c700"/>
+  <rect x="30" y="9" width="10" height="3" rx="1.5" fill="#ffffff" opacity="0.22"/>
 </svg>

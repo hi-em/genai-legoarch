@@ -10,20 +10,24 @@ import BrickViewer from "../viewer/BrickViewer.jsx";
 import ShelfWall from "../shelf/ShelfWall.jsx";
 import TrophyShell from "./trophies/TrophyShell.jsx";
 import TheBox from "./trophies/TheBox.jsx";
+import BoxArt from "./trophies/BoxArt.jsx";
 import ShareCard from "./trophies/ShareCard.jsx";
 import PricedSet from "./trophies/PricedSet.jsx";
+import Wordmark from "../components/brand/Wordmark.jsx";
+import LogoMark from "../components/brand/LogoMark.jsx";
 
 function Header({ children }) {
   const show = useView((s) => s.show);
   return (
     <header className="z-10 flex w-full items-center justify-between px-5 py-4">
       <button onClick={() => show("hero")} className="inline-flex items-center gap-1.5 text-sm font-semibold text-on-dark hover:text-brand-yellow">
-        <ArrowLeft size={16} /> Forge
+        <ArrowLeft size={16} /> Builder
       </button>
-      <div className="font-display text-base font-extrabold tracking-tight text-on-dark">
-        l<span className="text-brand-yellow">E</span>go<span className="text-brand-red">a</span>r<span className="text-brand-blue">C</span>h
-      </div>
-      <div className="min-w-[56px] text-right text-[11px] text-on-dark-muted">{children}</div>
+      <span className="flex items-center gap-2">
+        <LogoMark size={18} />
+        <Wordmark className="text-base text-on-dark" />
+      </span>
+      <div className="min-w-[56px] text-right text-micro text-on-dark-muted">{children}</div>
     </header>
   );
 }
@@ -55,14 +59,15 @@ function SetDetail({ set, onBack }) {
 
           <div className="mt-4 grid grid-cols-2 gap-2.5">
             <StatTile value={totalParts(bm)} label="pieces" />
-            <StatTile value={`${bm.grid[0]}×${bm.grid[1]}×${courseCount(bm)}`} label="studs × studs × courses" />
+            <StatTile value={`${bm.grid[0]}×${bm.grid[1]}×${courseCount(bm)}`} label="studs × studs × layers" />
             <StatTile value={totalColors(bm)} label="colors" />
-            <StatTile value={bm.stability.connected ? "Stable" : "Check"} label={`${Math.round(bm.stability.supportRatio * 100)}% supported`} variant={bm.stability.connected ? "ok" : "warn"} />
+            <StatTile value={bm.stability.connected ? "Stable" : "Wobbly"} label={`${Math.round(bm.stability.supportRatio * 100)}% supported`} variant={bm.stability.connected ? "ok" : "warn"} />
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
             {[
               [Box, "The Box", () => setTrophy("box")],
+              [Sparkles, "Boxed set", () => setTrophy("boxart")],
               [FileText, "Instructions", () => { toast.info("Building your manual…", "Rendering pages."); setTimeout(() => generateBooklet(bm, copy), 30); }],
               [Receipt, "Priced set", () => setTrophy("priced")],
               [Share2, "Share card", () => setTrophy("share")],
@@ -77,8 +82,9 @@ function SetDetail({ set, onBack }) {
         </div>
       </div>
 
-      <TrophyShell open={!!trophy} onClose={() => setTrophy(null)} title={{ box: "The Box", share: "Share card", priced: "Priced set" }[trophy] || ""}>
+      <TrophyShell open={!!trophy} onClose={() => setTrophy(null)} title={{ box: "The Box", boxart: "The boxed set", share: "Share card", priced: "Priced set" }[trophy] || ""}>
         {trophy === "box" && <TheBox imageUrl={img} brickModel={bm} setCopy={copy} />}
+        {trophy === "boxart" && <BoxArt imageUrl={img} setCopy={copy} brickModel={bm} />}
         {trophy === "share" && <ShareCard imageUrl={img} brickModel={bm} setCopy={copy} />}
         {trophy === "priced" && <PricedSet brickModel={bm} setCopy={copy} />}
       </TrophyShell>
@@ -134,13 +140,13 @@ export default function Collection() {
       ) : items.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-5 pb-20 text-center">
           <h2 className="font-display text-2xl font-black text-on-dark">Your shelf is empty</h2>
-          <p className="max-w-[360px] text-on-dark-muted">Forge a building into a buildable set and add it here — your collection survives reloads.</p>
-          <Button variant="primary" onClick={() => show("hero")}><Sparkles size={15} /> Forge a set</Button>
+          <p className="max-w-[360px] text-on-dark-muted">Turn a building into a buildable set and add it here — your collection survives reloads.</p>
+          <Button variant="primary" onClick={() => show("hero")}><Sparkles size={15} /> Visualize a set</Button>
         </div>
       ) : viewMode === "shelf" ? (
         <div className="flex w-full flex-1 flex-col px-5 pb-8">
           <ViewToggle mode={viewMode} onPick={pickView} />
-          <div className="mx-auto h-[calc(100dvh-200px)] min-h-[420px] w-full max-w-[1200px]">
+          <div className="mx-auto h-[calc(100dvh-170px)] min-h-[420px] w-full max-w-[1400px]">
             <ShelfWall items={items} onSelect={(it) => setSelected(it.id)} />
           </div>
         </div>
@@ -160,7 +166,7 @@ export default function Collection() {
               </div>
               <div className="p-2.5">
                 <p className="truncate font-display text-sm font-bold text-ink">{it.title}</p>
-                <p className="text-[11px] text-muted">{(it.nBricks || 0).toLocaleString()} pcs{it.setNumber ? ` · ${it.setNumber}` : ""}</p>
+                <p className="text-micro text-muted">{(it.nBricks || 0).toLocaleString()} pcs{it.setNumber ? ` · ${it.setNumber}` : ""}</p>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); remove(it.id); }}

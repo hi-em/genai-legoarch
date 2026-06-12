@@ -62,7 +62,7 @@ export default function PricedSet({ brickModel, setCopy }) {
       {setCopy?.value_verdict && (
         <p className="mt-3 text-sm italic text-muted">{setCopy.value_verdict}</p>
       )}
-      <p className="mt-1 text-[11px] text-muted-faint">
+      <p className="mt-1 text-micro text-muted-faint">
         Estimate only — actual BrickLink prices vary by seller, condition, and color rarity.
       </p>
     </div>

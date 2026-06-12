@@ -14,144 +14,19 @@ import { downloadDataUrl } from "./downloadImage.js";
 import { partGeometryOf, loadPartGeometry } from "../../viewer/partGeometry.js";
 import { playSnap } from "../../lib/sound.js";
 import { useReducedMotion } from "../../lib/useReducedMotion.js";
-
-// box proportions (LEGO Architecture-ish landscape box, world units)
-const BW = 3.6, BH = 2.6, BD = 0.78;
-const LID_T = 0.14;
-
-// ---------------------------------------------------------------------------
-// Front-panel art: everything drawn by us on a canvas -> always correct.
-function drawFrontPanel(ctx, W, H, img, setCopy, pieces) {
-  // matte black + subtle blueprint motif
-  ctx.fillStyle = "#0b0b0e";
-  ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = "rgba(64, 180, 190, 0.10)";
-  ctx.lineWidth = 1;
-  const grid = W / 18;
-  for (let x = 0; x <= W; x += grid) {
-    ctx.beginPath(); ctx.moveTo(x, H * 0.1); ctx.lineTo(x, H); ctx.stroke();
-  }
-  for (let y = H * 0.1; y <= H; y += grid) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-  }
-
-  // hero art — the user's render with its white studio background keyed to
-  // transparent (same ~238 threshold the backend's exposure matcher treats
-  // as background), so the model floats on the black box, LEGO
-  // Architecture style — not a pasted photo rectangle
-  if (img) {
-    const off = document.createElement("canvas");
-    off.width = img.width;
-    off.height = img.height;
-    const octx = off.getContext("2d");
-    octx.drawImage(img, 0, 0);
-    try {
-      const data = octx.getImageData(0, 0, off.width, off.height);
-      const px = data.data;
-      for (let i = 0; i < px.length; i += 4) {
-        const lo = Math.min(px[i], px[i + 1], px[i + 2]);
-        if (lo > 238) px[i + 3] = 0;                       // pure studio white
-        else if (lo > 218) px[i + 3] = Math.round(255 * (238 - lo) / 20); // soft edge
-      }
-      octx.putImageData(data, 0, 0);
-    } catch {
-      /* tainted canvas — draw unkeyed rather than fail */
-    }
-    const zone = { x: W * 0.1, y: H * 0.1, w: W * 0.8, h: H * 0.6 };
-    const s = Math.min(zone.w / img.width, zone.h / img.height);
-    const dw = img.width * s, dh = img.height * s;
-    const dx = zone.x + (zone.w - dw) / 2, dy = zone.y + (zone.h - dh) / 2;
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.6)";
-    ctx.shadowBlur = 30;
-    ctx.shadowOffsetY = 12;
-    ctx.drawImage(off, dx, dy, dw, dh);
-    ctx.restore();
-  }
-
-  // logo chip, top-left
-  const chipW = W * 0.18, chipH = H * 0.075, m = W * 0.045;
-  ctx.fillStyle = "#c91a09";
-  ctx.beginPath();
-  ctx.roundRect(m, m, chipW, chipH, 8);
-  ctx.fill();
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `900 ${chipH * 0.52}px 'DM Sans', system-ui, sans-serif`;
-  ctx.textBaseline = "middle";
-  ctx.textAlign = "center";
-  ctx.fillText("lEgoarCh", m + chipW / 2, m + chipH / 2 + 1);
-
-  // badges, top-right
-  ctx.font = `800 ${H * 0.026}px 'DM Sans', system-ui, sans-serif`;
-  ctx.textAlign = "right";
-  const badge = (text, x) => {
-    const w = ctx.measureText(text).width + H * 0.03;
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.beginPath();
-    ctx.roundRect(x - w, m, w, H * 0.05, 5);
-    ctx.fill();
-    ctx.fillStyle = "#16181c";
-    ctx.fillText(text, x - H * 0.015, m + H * 0.027);
-    return x - w - H * 0.015;
-  };
-  let bx = W - m;
-  if (pieces) bx = badge(`${pieces.toLocaleString()} pcs`, bx);
-  badge("18+", bx);
-
-  // name band, bottom — the words, OUR words
-  const bandY = H * 0.76;
-  const grad = ctx.createLinearGradient(0, bandY - H * 0.06, 0, H);
-  grad.addColorStop(0, "rgba(5,5,7,0)");
-  grad.addColorStop(0.35, "rgba(5,5,7,0.96)");
-  grad.addColorStop(1, "rgba(5,5,7,1)");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, bandY - H * 0.06, W, H - bandY + H * 0.06);
-
-  ctx.textAlign = "left";
-  ctx.fillStyle = "rgba(255,255,255,0.55)";
-  ctx.font = `700 ${H * 0.024}px 'DM Sans', system-ui, sans-serif`;
-  ctx.fillText((setCopy?.series || "lEgoarCh · Architecture").toUpperCase(), m, bandY + H * 0.02);
-
-  ctx.fillStyle = "#ffffff";
-  let nameSize = H * 0.052;
-  ctx.font = `900 ${nameSize}px 'DM Sans', system-ui, sans-serif`;
-  const name = setCopy?.set_name || "Untitled set";
-  while (ctx.measureText(name).width > W * 0.72 && nameSize > H * 0.03) {
-    nameSize *= 0.94;
-    ctx.font = `900 ${nameSize}px 'DM Sans', system-ui, sans-serif`;
-  }
-  ctx.fillText(name, m, bandY + H * 0.085);
-
-  ctx.textAlign = "right";
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.font = `700 ${H * 0.042}px ui-monospace, monospace`;
-  ctx.fillText(setCopy?.set_number || "", W - m, bandY + H * 0.085);
-}
+import { BOX, buildFrontTexture } from "../../lib/boxTexture.js";
 
 function useFrontTexture(imageUrl, setCopy, pieces) {
   const [tex, setTex] = useState(null);
   useEffect(() => {
     let alive = true;
-    const W = 1280, H = Math.round((1280 * BH) / BW);
-    const canvas = document.createElement("canvas");
-    canvas.width = W;
-    canvas.height = H;
-    const ctx = canvas.getContext("2d");
-    const finish = (img) => {
-      if (!alive) return;
-      drawFrontPanel(ctx, W, H, img, setCopy, pieces);
-      const t = new THREE.CanvasTexture(canvas);
-      t.colorSpace = THREE.SRGBColorSpace;
-      t.anisotropy = 4;
+    let made = null;
+    buildFrontTexture({ imageUrl, setCopy, pieces }).then((t) => {
+      if (!alive) { t.dispose(); return; }
+      made = t;
       setTex(t);
-    };
-    if (imageUrl) {
-      const img = new Image();
-      img.onload = () => finish(img);
-      img.onerror = () => finish(null);
-      img.src = imageUrl;
-    } else finish(null);
-    return () => { alive = false; };
+    });
+    return () => { alive = false; made?.dispose(); };
   }, [imageUrl, setCopy, pieces]);
   return tex;
 }
@@ -168,8 +43,8 @@ const easeBack = (t) => {
 
 const PANEL_T = 0.024;          // cardboard thickness
 const FLOOR_Y = -1.45;          // studio floor (world)
-const FLAP_SHORT = BH * 0.3;    // flaps on the x walls, fold first
-const FLAP_LONG = BH * 0.5;     // flaps on the z walls, meet in the middle
+const FLAP_SHORT = BOX.BH * 0.3;    // flaps on the x walls, fold first
+const FLAP_LONG = BOX.BH * 0.5;     // flaps on the z walls, meet in the middle
 
 // Timeline (seconds): die-cut -> walls -> rain -> flaps -> tip-up -> settle
 const T_WALLS = 0.5, T_WALLS_D = 0.55;     // each wall fold duration
@@ -181,15 +56,15 @@ const T_FLIP = 4.5, T_FLIP_D = 1.1;
  *  hinged at the wall's far edge. Data-driven so all four sides share it. */
 function Side({ axis, sign, wallLen, flapDepth, mats, wallRef, flapRef }) {
   // local frame before fold: wall lies flat, extending OUTWARD from hinge
-  const along = axis === "z" ? [wallLen, PANEL_T, BD] : [BD, PANEL_T, wallLen];
+  const along = axis === "z" ? [wallLen, PANEL_T, BOX.BD] : [BOX.BD, PANEL_T, wallLen];
   const flapSize = axis === "z" ? [wallLen, PANEL_T, flapDepth] : [flapDepth, PANEL_T, wallLen];
   const out = (v) => (axis === "z" ? [0, 0, sign * v] : [sign * v, 0, 0]);
   return (
-    <group position={out(axis === "z" ? BH / 2 : BW / 2)} ref={wallRef}>
-      <mesh position={out(BD / 2)} material={mats} castShadow receiveShadow>
+    <group position={out(axis === "z" ? BOX.BH / 2 : BOX.BW / 2)} ref={wallRef}>
+      <mesh position={out(BOX.BD / 2)} material={mats} castShadow receiveShadow>
         <boxGeometry args={along} />
       </mesh>
-      <group position={out(BD)} ref={flapRef}>
+      <group position={out(BOX.BD)} ref={flapRef}>
         <mesh position={out(flapDepth / 2)} material={mats} castShadow>
           <boxGeometry args={flapSize} />
         </mesh>
@@ -290,7 +165,7 @@ function PackingScene({ frontTex, rain, reduced, replayKey }) {
       const p = easeOut(clamp01((t - T_FLIP) / T_FLIP_D));
       flipRef.current.rotation.x = (-Math.PI / 2) * p;
       // keep the box centre-stage while it tips
-      flipRef.current.position.z = THREE.MathUtils.lerp(-BH / 2, BH / 2 + 0.1, p * 0.55);
+      flipRef.current.position.z = THREE.MathUtils.lerp(-BOX.BH / 2, BOX.BH / 2 + 0.1, p * 0.55);
       if (p >= 1 && snaps.current === 5) { snaps.current = 6; playSnap(); }
     }
 
@@ -304,16 +179,16 @@ function PackingScene({ frontTex, rain, reduced, replayKey }) {
   return (
     <group ref={swayRef}>
       {/* hinge group: origin at the back floor edge of the lying carton */}
-      <group ref={flipRef} position={[0, FLOOR_Y, -BH / 2]}>
-        <group position={[0, PANEL_T / 2, BH / 2]}>
+      <group ref={flipRef} position={[0, FLOOR_Y, -BOX.BH / 2]}>
+        <group position={[0, PANEL_T / 2, BOX.BH / 2]}>
           {/* floor panel — its OUTER (down) face is the printed front art */}
           <mesh material={floorMats} receiveShadow castShadow>
-            <boxGeometry args={[BW, PANEL_T, BH]} />
+            <boxGeometry args={[BOX.BW, PANEL_T, BOX.BH]} />
           </mesh>
-          <Side axis="z" sign={1} wallLen={BW} flapDepth={FLAP_LONG} mats={wallMats} wallRef={wallRefs[0]} flapRef={flapRefs[0]} />
-          <Side axis="z" sign={-1} wallLen={BW} flapDepth={FLAP_LONG} mats={wallMats} wallRef={wallRefs[1]} flapRef={flapRefs[1]} />
-          <Side axis="x" sign={1} wallLen={BH} flapDepth={FLAP_SHORT} mats={wallMats} wallRef={wallRefs[2]} flapRef={flapRefs[2]} />
-          <Side axis="x" sign={-1} wallLen={BH} flapDepth={FLAP_SHORT} mats={wallMats} wallRef={wallRefs[3]} flapRef={flapRefs[3]} />
+          <Side axis="z" sign={1} wallLen={BOX.BW} flapDepth={FLAP_LONG} mats={wallMats} wallRef={wallRefs[0]} flapRef={flapRefs[0]} />
+          <Side axis="z" sign={-1} wallLen={BOX.BW} flapDepth={FLAP_LONG} mats={wallMats} wallRef={wallRefs[1]} flapRef={flapRefs[1]} />
+          <Side axis="x" sign={1} wallLen={BOX.BH} flapDepth={FLAP_SHORT} mats={wallMats} wallRef={wallRefs[2]} flapRef={flapRefs[2]} />
+          <Side axis="x" sign={-1} wallLen={BOX.BH} flapDepth={FLAP_SHORT} mats={wallMats} wallRef={wallRefs[3]} flapRef={flapRefs[3]} />
           {/* the set's own bricks, raining in */}
           {rain.map((b, i) => (
             <mesh
@@ -366,12 +241,12 @@ export default function BoxArt({ imageUrl, setCopy, brickModel }) {
     const n = Math.min(34, src.length);
     for (let i = 0; i < n; i++) {
       const b = src[Math.floor((i * 9973) % src.length)];
-      // local frame of the LYING carton: wide x (BW), deep z (BH), shallow y (BD)
+      // local frame of the LYING carton: wide x (BOX.BW), deep z (BOX.BH), shallow y (BOX.BD)
       picks.push({
         part: b.part,
         hex: b.hex || "#c91a09",
-        x: (Math.sin(i * 12.9898) * 0.5) * (BW - 0.7),
-        z: (Math.sin(i * 78.233) * 0.5) * (BH - 0.7),
+        x: (Math.sin(i * 12.9898) * 0.5) * (BOX.BW - 0.7),
+        z: (Math.sin(i * 78.233) * 0.5) * (BOX.BH - 0.7),
         fromY: 2.6 + (i % 7) * 0.3,
         toY: 0.12 + (i % 4) * 0.13,
         delay: i * 0.045,
@@ -415,7 +290,7 @@ export default function BoxArt({ imageUrl, setCopy, brickModel }) {
           <Exporter apiRef={exportRef} />
         </Canvas>
       </div>
-      <p className="text-[11px] text-muted">
+      <p className="text-micro text-muted">
         The art is your render; the box, the type and the numbers are drawn by us — nothing to misspell. Drag to orbit.
       </p>
       <div className="flex justify-center gap-2">

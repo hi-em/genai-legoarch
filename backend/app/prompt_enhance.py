@@ -10,26 +10,24 @@ still works offline.
 """
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
 
-# Constant studio/product-photo tail shared by all prompts (from the reference).
-STYLE_SUFFIX = (
-    "standalone model on dark display base, white background, elevated 3/4 angle, "
-    "product photography, studio lighting, official LEGO set photography"
+# The 8-slot prompt grammar lives in prompt_grammar.json — ONE source of truth
+# shared with the frontend (scripts/sync_grammar.mjs copies it for the UI's
+# anatomy cards and recipe chips). The reference exemplar is the join of the
+# slot examples; deliberately PRISMATIC (stacked/terraced massing, opaque
+# named LEGO colours): translucent or hair-thin forms render beautifully but
+# shred in the TRELLIS reconstruction and the ~32-stud voxelization
+# downstream. (The old Fondation Louis Vuitton reference lives on in
+# docs/benchmarks.md as the documented stress case.)
+_GRAMMAR = json.loads(
+    (Path(__file__).resolve().parent / "prompt_grammar.json").read_text(encoding="utf-8")
 )
-
-# The reference exemplar the Claude enhancer imitates. Deliberately PRISMATIC
-# (stacked/terraced massing, opaque named LEGO colours): translucent or
-# hair-thin forms render beautifully but shred in the TRELLIS reconstruction
-# and the ~32-stud voxelization downstream. (The old Fondation Louis Vuitton
-# reference lives on in docs/benchmarks.md as the documented stress case.)
-_REFERENCE = (
-    "Habitat 67 Montreal Moshe Safdie, LEGO Architecture set, stacked offset concrete "
-    "cube modules forming a terraced pyramidal hill, smooth light bluish grey and tan "
-    "plastic bricks, repeating modular box pattern with recessed terrace openings, "
-    "cantilevered cubic clusters over a solid podium, light bluish grey volumes, tan "
-    "terrace insets, dark grey shadow gaps, " + STYLE_SUFFIX
-)
+STYLE_SUFFIX = _GRAMMAR["style_suffix"]
+_REFERENCE = ", ".join(s["example"] for s in _GRAMMAR["slots"])
+assert _REFERENCE.endswith(STYLE_SUFFIX), "grammar: studio_tail must close the reference"
 
 _SYSTEM = (
     "You write a single image-generation prompt for a LEGO-Architecture-style model. "

@@ -75,7 +75,7 @@ def _template(subject: str, st: dict[str, Any]) -> dict[str, str]:
     tagline = rng.choice([
         f"{name}, in {n:,} bricks.",
         f"Generated. Solved. Buildable.",
-        f"{colors} colours. {parts} parts. One landmark.",
+        f"{colors} colors. {parts} parts. One landmark.",
     ])
     return {
         "set_name": name,

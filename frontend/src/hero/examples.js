@@ -9,9 +9,8 @@
 // design choices in 21065/21012/21014) so the TRELLIS mesh voxelizes into a
 // single connected build. Habitat 67 remains the internal enhancement
 // reference in backend/app/prompt_enhance.py — it is not a chip.
-const TAIL =
-  "standalone model on dark display base, white background, elevated 3/4 angle, " +
-  "product photography, studio lighting, official LEGO set photography";
+// the studio tail comes from the shared grammar — one source of truth
+import { STYLE_SUFFIX as TAIL } from "../lib/promptGrammar.js";
 
 export const EXAMPLES = [
   {

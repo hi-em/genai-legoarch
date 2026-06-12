@@ -6,7 +6,7 @@ import { cn } from "../lib/cn.js";
 // Abstract "brick buddy" — a friendly 2x2 brick with a face. Deliberately NOT a
 // minifigure (trademark-protected).
 const TIP =
-  "Name a building, hit Forge, and watch it click together — course by course — into a set you could actually build.";
+  "Name a building, hit Visualize, and watch it click together — course by course — into a set you could actually build.";
 
 function BuddyFace({ size = 52 }) {
   return (

@@ -59,7 +59,7 @@ export default function TinkerPanel({
               onPointerEnter={() => setCaption(pr.hint)}
               onPointerLeave={() => setCaption(null)}
               className={cn(
-                "rounded-full border-2 px-2.5 py-0.5 text-[11px] font-bold transition",
+                "rounded-full border-2 px-2.5 py-0.5 text-micro font-bold transition",
                 preset === pr.id
                   ? "border-brand-blue bg-brand-blue/10 text-brand-blue"
                   : "border-stone-300 bg-elevated text-ink-soft hover:border-stone-400"
@@ -69,7 +69,7 @@ export default function TinkerPanel({
             </button>
           ))}
           {!preset && (
-            <span className="self-center rounded-full bg-brand-yellow px-2 py-0.5 text-[10px] font-bold text-ink">
+            <span className="self-center rounded-full bg-brand-yellow px-2 py-0.5 text-nano font-bold text-ink">
               Custom
             </span>
           )}
@@ -84,7 +84,7 @@ export default function TinkerPanel({
               key={g.id}
               onClick={() => setTab(g.id)}
               className={cn(
-                "flex-1 rounded-full px-2 py-1 text-[11px] font-bold transition",
+                "flex-1 rounded-full px-2 py-1 text-micro font-bold transition",
                 activeTab === g.id ? "bg-ink text-white shadow-sm" : "text-muted hover:text-ink"
               )}
             >
@@ -103,7 +103,7 @@ export default function TinkerPanel({
             onPointerEnter={() => setCaption(p.blurb)}
             onPointerLeave={() => setCaption(null)}
           >
-            <label className="w-[108px] shrink-0 truncate text-[11px] font-semibold text-ink" title={p.label}>
+            <label className="w-[108px] shrink-0 truncate text-micro font-semibold text-ink" title={p.label}>
               {p.label}
             </label>
             {p.kind === "choice" ? (
@@ -118,7 +118,7 @@ export default function TinkerPanel({
                       aria-checked={on}
                       onClick={() => { setParams({ [p.key]: c.value }); playSnap(); }}
                       className={cn(
-                        "rounded-full border-2 px-2.5 py-0.5 text-[11px] font-bold transition",
+                        "rounded-full border-2 px-2.5 py-0.5 text-micro font-bold transition",
                         on
                           ? "border-brand-blue bg-brand-blue/10 text-brand-blue"
                           : "border-stone-300 bg-elevated text-ink-soft hover:border-stone-400"
@@ -143,7 +143,7 @@ export default function TinkerPanel({
                 />
                 <span
                   className={cn(
-                    "w-12 shrink-0 rounded bg-elevated px-1 text-right font-mono text-[11px]",
+                    "w-12 shrink-0 rounded bg-elevated px-1 text-right font-mono text-micro",
                     (params[p.key] ?? p.def) !== p.def ? "font-bold text-brand-blue" : "text-ink-soft"
                   )}
                   title={(params[p.key] ?? p.def) !== p.def ? `default ${fmt(p.def)}` : undefined}
@@ -157,7 +157,7 @@ export default function TinkerPanel({
       </div>
 
       {/* shared caption — the education layer, one line tall */}
-      <p className="min-h-[28px] text-[11px] leading-snug text-muted">
+      <p className="min-h-[28px] text-micro leading-snug text-muted">
         {caption || DEFAULT_CAPTION}
       </p>
 
@@ -169,26 +169,26 @@ export default function TinkerPanel({
             onPointerEnter={() => setCaption("Same seed + same dials = the exact same set, every time. That's reproducibility.")}
             onPointerLeave={() => setCaption(null)}
           >
-            <span className="text-[11px] font-semibold text-ink">Seed</span>
+            <span className="text-micro font-semibold text-ink">Seed</span>
             {seed == null ? (
-              <span className="text-[11px] text-muted">random</span>
+              <span className="text-micro text-muted">random</span>
             ) : (
               <input
                 type="number"
                 value={seed}
                 onChange={(e) => set({ seed: Number(e.target.value) || 0 })}
-                className="w-24 rounded border border-stone-300 bg-elevated px-1.5 py-0.5 font-mono text-[11px] text-ink focus:border-brand-blue focus:outline-none"
+                className="w-24 rounded border border-stone-300 bg-elevated px-1.5 py-0.5 font-mono text-micro text-ink focus:border-brand-blue focus:outline-none"
                 aria-label="Seed"
               />
             )}
             <button
               onClick={rollSeed}
-              className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-[11px] font-semibold text-ink-soft shadow-plate-flat hover:brightness-95"
+              className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-micro font-semibold text-ink-soft shadow-plate-flat hover:brightness-95"
             >
               <Dices size={11} /> {seed == null ? "Pin" : "Re-roll"}
             </button>
             {seed != null && (
-              <button onClick={() => set({ seed: null })} className="text-[11px] text-muted underline-offset-2 hover:underline">
+              <button onClick={() => set({ seed: null })} className="text-micro text-muted underline-offset-2 hover:underline">
                 unpin
               </button>
             )}
@@ -196,7 +196,7 @@ export default function TinkerPanel({
           <button
             onClick={() => { resetParams(); playSnap(); }}
             disabled={tweaks === 0 && seed == null}
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-muted enabled:hover:bg-elevated enabled:hover:text-ink disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-micro font-semibold text-muted enabled:hover:bg-elevated enabled:hover:text-ink disabled:opacity-40"
           >
             <RotateCcw size={11} /> Reset
           </button>
@@ -218,7 +218,7 @@ export default function TinkerPanel({
         <SlidersHorizontal size={13} />
         Tinker
         {tweaks > 0 && (
-          <span className="rounded-full bg-brand-yellow px-1.5 py-px text-[10px] font-bold text-ink">
+          <span className="rounded-full bg-brand-yellow px-1.5 py-px text-nano font-bold text-ink">
             {preset && preset !== "balanced" ? PRESETS.find((p) => p.id === preset)?.label : `${tweaks} tweak${tweaks > 1 ? "s" : ""}`}
           </span>
         )}

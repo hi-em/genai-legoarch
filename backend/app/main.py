@@ -193,9 +193,34 @@ def get_mesh(name: str):
     binary streaming, and re-legolize requests reference the file by name
     instead of re-uploading 16 MB.
     """
+    from fastapi import HTTPException
     from fastapi.responses import FileResponse
 
-    return FileResponse(_mesh_path(name), media_type="model/gltf-binary")
+    try:
+        path = _mesh_path(name)
+    except FileNotFoundError:
+        # distinguishable 404 so the frontend can steer the user to
+        # re-materialize instead of retrying a doomed request forever
+        raise HTTPException(status_code=404, detail={"code": "mesh_not_found", "name": name})
+    return FileResponse(path, media_type="model/gltf-binary")
+
+
+@app.get("/latest-mesh")
+def latest_mesh(since: float = 0.0) -> dict[str, Any]:
+    """Newest GLB in the 3D output dir with mtime >= `since`.
+
+    `since` is epoch MILLISECONDS (what Date.now() persisted at job start);
+    the frontend's refresh-recovery banner uses this to re-attach a mesh
+    whose job outlived the page. 404 when nothing new exists.
+    """
+    from fastapi import HTTPException
+
+    from . import comfy_client
+
+    p = comfy_client._newest_glb(after=since / 1000.0)
+    if p is None:
+        raise HTTPException(status_code=404, detail={"code": "no_mesh"})
+    return {"glbName": p.name, "glbUrl": f"/api/mesh/{p.name}", "mtimeMs": p.stat().st_mtime * 1000}
 
 
 @app.post("/generate-mesh")
@@ -235,7 +260,16 @@ def legolize_mesh(req: LegolizeMeshReq) -> dict[str, Any]:
     """The CPU half only: GLB -> voxels -> bricks. Seconds, no ComfyUI."""
     voxel_target = max(16, min(64, req.voxel_target))
     if req.glb_name:
-        glb = _mesh_path(req.glb_name).read_bytes()
+        from fastapi import HTTPException
+
+        try:
+            glb = _mesh_path(req.glb_name).read_bytes()
+        except FileNotFoundError:
+            # the mesh file was cleaned up — tell the frontend EXACTLY that,
+            # so it steers the user to re-materialize instead of retry-looping
+            raise HTTPException(
+                status_code=404, detail={"code": "mesh_not_found", "name": req.glb_name}
+            )
     elif req.glb_b64:
         glb = _decode_image(req.glb_b64)       # same b64/data-URL decoding rules
     else:

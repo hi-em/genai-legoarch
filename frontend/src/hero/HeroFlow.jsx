@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Upload, X, Box, FileText, Receipt, Share2, Star, RotateCcw, Volume2, VolumeX, Copy, SlidersHorizontal } from "lucide-react";
-import { generate, generateMesh, legolizeMesh, getSetCopy } from "../api.js";
-import { useBuild, useCollection, useView, useUI } from "../state/store.js";
+import { generate, generateMesh, legolizeMesh, getSetCopy, latestMesh } from "../api.js";
+import { useBuild, useCollection, useView, useUI, derivePhase, isShelfDupe } from "../state/store.js";
 import { adaptBrickModel, totalParts, totalColors, courseCount } from "../lib/brickModel.js";
 import { frontElevationThumb } from "../lib/thumb.js";
 import { downscaleDataUrl } from "../lib/image.js";
@@ -15,6 +15,8 @@ import SpineCompareViewer from "../viewer/SpineCompareViewer.jsx";
 import { EXAMPLES } from "./examples.js";
 import TinkerPanel from "./TinkerPanel.jsx";
 import LoadingTheater from "./LoadingTheater.jsx";
+import VisualizingCanvas from "./VisualizingCanvas.jsx";
+import RecipeCard from "./RecipeCard.jsx";
 import { paramsFor, summarizeRun } from "./tinkerParams.js";
 import TrophyShell from "./trophies/TrophyShell.jsx";
 import TheBox from "./trophies/TheBox.jsx";
@@ -22,6 +24,8 @@ import BoxArt from "./trophies/BoxArt.jsx";
 import ShareCard from "./trophies/ShareCard.jsx";
 import PricedSet from "./trophies/PricedSet.jsx";
 import { generateBooklet } from "../lib/booklet.js";
+import Wordmark from "../components/brand/Wordmark.jsx";
+import LogoMark from "../components/brand/LogoMark.jsx";
 
 // Staged pipeline with a user stop after every expensive step:
 //   intro -> rendering -> render (image stop: shape dials, re-render)
@@ -34,16 +38,16 @@ export default function HeroFlow() {
   const showView = useView((s) => s.show);
   const muted = useUI((s) => s.muted);
   const toggleMute = useUI((s) => s.toggleMute);
-  // Resume at the furthest completed stop if the store already has results —
-  // a dev-server HMR remount (or a crash) shouldn't throw away a finished
-  // render or a 5-minute mesh.
-  const [phase, setPhase] = useState(() => {
-    const s = useBuild.getState();
-    if (s.brickModel) return "reveal";
-    if (s.glbUrl) return "mesh";
-    if (s.imageUrl) return "render";
-    return "intro";
-  });
+  // Phase is a pure DERIVATION of the store — never component state. HMR
+  // remounts, Collection round-trips and refreshes always land on whatever
+  // the data supports; in-flight work keeps its waiting panel because
+  // `inFlight` lives in the store too.
+  const phase = useBuild(derivePhase);
+  const inFlight = useBuild((s) => s.inFlight);
+  const saved = useBuild((s) => s.saved);
+  const tuning = useBuild((s) => s.tuning);
+  const pendingJob = useBuild((s) => s.pendingJob);
+  const { startJob, finishJob, failJob, cancelJob, dismissPendingJob } = useBuild.getState();
   const [text, setText] = useState(prompt || "");
   const [photo, setPhoto] = useState(null);
   const [trophy, setTrophy] = useState(null); // "box" | "share" | "priced" | null
@@ -59,21 +63,26 @@ export default function HeroFlow() {
 
   // ---- stage 1: prompt -> FLUX render --------------------------------------
   async function onForge({ rerender = false } = {}) {
+    if (useBuild.getState().inFlight) return;   // synchronous double-click guard
     if (!text.trim()) {
       toast.info("Name a building", "Type a landmark or pick an example first.");
       return;
     }
     playSnap();
-    set({ prompt: text, imageUrl: null, glbUrl: null, brickModel: null, runRecord: null });
-    setPhase("rendering");
+    // NOTE: no destructive pre-clear — the old render survives a failed
+    // re-render; downstream artifacts are invalidated on SUCCESS instead.
+    const { jobId, signal } = startJob("image", { prompt: text });
+    set({ prompt: text });
     const startedAt = Date.now();
     try {
       // a re-render with a pinned seed would reproduce the same image — only
       // honour the pin on the first render or when the user changed dials
       const useSeed = rerender && seed == null ? null : seed;
-      const r1 = await generate(text, photo, { seed: useSeed, ...paramsFor("render", params) });
-      set({
+      const r1 = await generate(text, photo, { signal, seed: useSeed, ...paramsFor("render", params) });
+      finishJob(jobId, {
         imageUrl: r1.imageUrl,
+        glbUrl: null, glbName: null, brickModel: null, setCopy: null,
+        saved: false, tuning: false, assembling: false,
         // reproducibility record grows stage by stage (faculty: prompt, seed,
         // model, params per shown output)
         runRecord: {
@@ -87,28 +96,40 @@ export default function HeroFlow() {
           startedAt,
         },
       });
-      setPhase("render");
     } catch (e) {
-      toast.error("Render failed", String(e?.message || e));
-      setPhase("intro");
+      if (e?.name === "AbortError") return;
+      if (failJob(jobId)) {
+        toast.error(
+          e?.name === "TimeoutError" ? "Render timed out" : "Render didn't finish",
+          "Your prompt and dials are safe — check the backend is running, then try again."
+        );
+      }
     }
   }
 
   // ---- stage 2: render -> TRELLIS mesh --------------------------------------
   async function onReconstruct() {
+    if (useBuild.getState().inFlight) return;   // one 4-9 min GPU job at a time
     playSnap();
-    setPhase("meshing");
+    // persist a small render thumb so the refresh-recovery banner has context
+    const imageThumb = imageUrl?.startsWith("data:")
+      ? await downscaleDataUrl(imageUrl, 360, 0.7)
+      : null;
+    const { jobId, signal } = startJob("mesh", { prompt: text, imageThumb });
     const t0 = Date.now();
     try {
       const rec = runRecord || {};
       const r = await generateMesh(imageUrl, {
+        signal,
         seed: seed ?? rec.seed,                 // tie the mesh to the image's seed
         ...paramsFor("shape", params),
       });
-      set({
+      finishJob(jobId, {
         glbUrl: r.glbUrl,
         glbName: r.glbName,
         brickModel: null,                       // a new mesh invalidates old bricks
+        setCopy: null,
+        saved: false, tuning: false,
         runRecord: {
           ...rec,
           params: { ...params },
@@ -116,17 +137,23 @@ export default function HeroFlow() {
           meshMs: Date.now() - t0,
         },
       });
-      setPhase("mesh");
     } catch (e) {
-      toast.error("3D reconstruction failed", String(e?.message || e));
-      setPhase("render");
+      if (e?.name === "AbortError") return;
+      // derivation keeps the old mesh stop alive when glbUrl still exists
+      if (failJob(jobId)) {
+        toast.error(
+          e?.name === "TimeoutError" ? "3D timed out" : "3D didn't finish",
+          "Your render is safe. Try again — or roll another render first."
+        );
+      }
     }
   }
 
   // ---- stage 3: mesh -> voxels -> bricks (CPU, seconds — retry freely) ------
   async function onLegolize() {
+    if (useBuild.getState().inFlight) return;
     playSnap();
-    setPhase("legolizing");
+    const { jobId, signal } = startJob("bricks", { prompt: text, glbName });
     const t0 = Date.now();
     try {
       const rec = runRecord || {};
@@ -138,6 +165,7 @@ export default function HeroFlow() {
       // (the dev sample's imageUrl is a static asset path)
       const renderForColors = imageUrl?.startsWith("data:") ? imageUrl : null;
       const r = await legolizeMesh(glbName, renderForColors, {
+        signal,
         seed: seed ?? rec.seed,
         voxel_target,
         fill_mode,
@@ -145,8 +173,10 @@ export default function HeroFlow() {
         legolize_options: { randomness, seam_weight, slopes, palette },
       });
       if (!r.brickModel) throw new Error("No brick layout returned.");
-      set({
+      finishJob(jobId, {
         brickModel: r.brickModel,
+        saved: false, tuning: false, assembling: true,
+        setCopy: null,                          // stale persona copy never pairs with new bricks
         runRecord: {
           ...rec,
           params: { ...params },
@@ -154,11 +184,29 @@ export default function HeroFlow() {
           bricksMs: Date.now() - t0,
         },
       });
-      getSetCopy(text, r.brickModel).then((c) => set({ setCopy: c })).catch(() => {});
-      setPhase("assembling");
+      // fire-and-forget, but gated on jobId so a late reply can't write into
+      // a newer build (or a reset one)
+      getSetCopy(text, r.brickModel)
+        .then((c) => { if (useBuild.getState().jobId === jobId) set({ setCopy: c }); })
+        .catch(() => {});
     } catch (e) {
-      toast.error("Legolize failed", String(e?.message || e));
-      setPhase("mesh");
+      if (e?.name === "AbortError") return;
+      if (e?.code === "mesh_not_found") {
+        // the backend cleaned up the GLB — steer to re-materialize, don't loop
+        if (failJob(jobId, { glbUrl: null, glbName: null })) {
+          toast.error(
+            "The 3D file expired on the server",
+            "Re-materialize the 3D model, then legolize again."
+          );
+        }
+        return;
+      }
+      if (failJob(jobId)) {
+        toast.error(
+          "Brick solve didn't finish",
+          "Your 3D model is safe. Nudge a brick dial and try again — it only takes seconds."
+        );
+      }
     }
   }
 
@@ -169,19 +217,24 @@ export default function HeroFlow() {
     const bm = adaptBrickModel(raw);
     const sampleRender = (await import("../dev/sampleRender.png")).default;
     const subj = "Brutalist concrete tower with stepped setbacks";
-    set({ prompt: subj, imageUrl: sampleRender, brickModel: bm });
+    set({ prompt: subj, imageUrl: sampleRender, brickModel: bm, assembling: true, saved: false });
     setText(subj);
     getSetCopy(subj, bm).then((c) => set({ setCopy: c })).catch(() => {});
-    setPhase("assembling");
   }
 
   async function onAddToShelf() {
-    if (!brickModel) return;
+    if (!brickModel || useBuild.getState().saved) return;
+    const title = setCopy?.set_name || (prompt || "Untitled set").split(",")[0];
+    if (isShelfDupe(useCollection.getState().items, title, brickModel.stability.nBricks)) {
+      toast.info("Already on your shelf", "This exact set is on display in your Collection.");
+      return;
+    }
+    set({ saved: true });        // synchronous: a double-click can't add twice
     playPop();
     const renderThumb = await downscaleDataUrl(imageUrl, 360, 0.72);
     const dropped = addToShelf({
-      id: String(Date.now()),
-      title: setCopy?.set_name || (prompt || "Untitled set").split(",")[0],
+      id: crypto.randomUUID(),
+      title,
       setNumber: setCopy?.set_number || "",
       thumb: frontElevationThumb(brickModel, 240),
       renderThumb,
@@ -194,8 +247,8 @@ export default function HeroFlow() {
     });
     if (dropped > 0) {
       toast.info(
-        "Added — shelf was full",
-        `${dropped} oldest set${dropped > 1 ? "s" : ""} made room (browser storage limit).`
+        "Added — oldest sets removed",
+        `Your browser's storage is full: the ${dropped} oldest set${dropped > 1 ? "s were" : " was"} deleted to make room.`
       );
     } else {
       toast.success("Added to your shelf", "Reopen it anytime from your Collection.");
@@ -203,18 +256,91 @@ export default function HeroFlow() {
   }
 
   function onForgeAnother() {
+    const s = useBuild.getState();
+    if (
+      s.brickModel && !s.saved &&
+      !window.confirm("This set isn't saved to your shelf — discard it and start another?")
+    ) return;
     reset();             // keeps params + seed — tuned dials survive
     setPhoto(null);
-    setPhase("intro");
+    setText("");
+  }
+
+  // a render that isn't a data URL or bundled asset can't feed the trophies
+  const trophyImage =
+    imageUrl && (imageUrl.startsWith("data:") || imageUrl.startsWith("/")) ? imageUrl : null;
+
+  async function onRecoverMesh() {
+    try {
+      const r = await latestMesh(pendingJob.startedAt);
+      set({
+        prompt: pendingJob.prompt || "",
+        imageUrl: pendingJob.imageThumb || null,
+        glbUrl: r.glbUrl,
+        glbName: r.glbName,
+        pendingJob: null,
+      });
+      dismissPendingJob();
+      if (pendingJob.prompt) setText(pendingJob.prompt);
+      toast.success("Recovered the 3D model", "Picked up where you left off.");
+    } catch {
+      toast.info("Nothing finished yet", "It may still be running — try again in a couple of minutes.");
+    }
   }
 
   return (
     <div className="felt relative flex min-h-full w-full flex-col items-center">
+      {/* refresh-recovery: a job outlived the page */}
+      {pendingJob && !inFlight && (
+        <div className="z-10 mt-3 w-full max-w-[640px] rounded-xl bg-elevated px-4 py-3 shadow-pop">
+          <p className="text-sm font-semibold text-ink">
+            A build was interrupted.{" "}
+            <span className="font-normal text-muted">
+              “{(pendingJob.prompt || "Your set").split(",")[0]}” was{" "}
+              {{ image: "rendering its set photo", mesh: "being rebuilt in 3D", bricks: "being solved into bricks" }[pendingJob.stage]}{" "}
+              when the page closed{pendingJob.stage === "mesh" ? " — the server may have finished it" : ""}.
+            </span>
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {pendingJob.stage === "mesh" && (
+              <Button variant="primary" onClick={onRecoverMesh}>Check for the 3D model</Button>
+            )}
+            {pendingJob.stage === "bricks" && pendingJob.glbName && (
+              <Button
+                variant="primary"
+                onClick={() => {
+                  set({
+                    prompt: pendingJob.prompt || "",
+                    glbUrl: `/api/mesh/${pendingJob.glbName}`,
+                    glbName: pendingJob.glbName,
+                    pendingJob: null,
+                  });
+                  dismissPendingJob();
+                  if (pendingJob.prompt) setText(pendingJob.prompt);
+                }}
+              >
+                Reopen the 3D model
+              </Button>
+            )}
+            {pendingJob.stage === "image" && (
+              <Button
+                variant="primary"
+                onClick={() => { setText(pendingJob.prompt || ""); dismissPendingJob(); }}
+              >
+                Start over with this prompt
+              </Button>
+            )}
+            <Button variant="secondary" onClick={dismissPendingJob}>Dismiss</Button>
+          </div>
+        </div>
+      )}
+
       {/* brand bar */}
       <header className="z-10 flex w-full items-center justify-between px-5 py-4">
-        <div className="font-display text-lg font-extrabold tracking-tight text-on-dark">
-          l<span className="text-brand-yellow">E</span>go<span className="text-brand-red">a</span>r<span className="text-brand-blue">C</span>h
-        </div>
+        <span className="flex items-center gap-2">
+          <LogoMark size={22} />
+          <Wordmark className="text-lg text-on-dark" />
+        </span>
         <div className="flex items-center gap-2">
           <button
             onClick={toggleMute}
@@ -240,6 +366,9 @@ export default function HeroFlow() {
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
               className="w-full max-w-[640px] text-center"
             >
+              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-brand-yellow">
+                step 1 of 3 · visualize
+              </p>
               <h1 className="font-display text-4xl font-black leading-tight text-on-dark sm:text-5xl">
                 Name a building.<br />Get a buildable LEGO set.
               </h1>
@@ -263,8 +392,8 @@ export default function HeroFlow() {
                 </div>
                 <TinkerPanel groups={["render"]} />
                 <div className="mt-3.5 flex flex-wrap items-center justify-center gap-2.5">
-                  <Button variant="primary" onClick={onForge}>
-                    <Sparkles size={16} /> Forge the set
+                  <Button variant="primary" onClick={onForge} disabled={!!inFlight}>
+                    <Sparkles size={16} /> Visualize it
                   </Button>
                   <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} className="hidden" />
                   {photo ? (
@@ -299,12 +428,14 @@ export default function HeroFlow() {
             >
               <div className="grid gap-6 sm:grid-cols-2">
                 <div className="overflow-hidden rounded-xl bg-elevated shadow-pop">
-                  {imageUrl ? (
+                  {imageUrl && inFlight !== "image" ? (
                     <motion.img
                       src={imageUrl} alt="legoarch render"
                       initial={{ opacity: 0, scale: 1.03 }} animate={{ opacity: 1, scale: 1 }}
                       className="block aspect-square w-full object-cover"
                     />
+                  ) : inFlight === "image" ? (
+                    <VisualizingCanvas prompt={text} />
                   ) : (
                     <div className="grid aspect-square w-full place-items-center"><StudLoader /></div>
                   )}
@@ -318,6 +449,14 @@ export default function HeroFlow() {
                     prompt={text}
                     params={params}
                   />
+                  <div className="mt-4">
+                    <Button variant="secondary" onClick={cancelJob}>
+                      <X size={15} /> Stop waiting
+                    </Button>
+                    <p className="mt-1.5 text-xs text-on-dark-muted">
+                      Stops the wait here — the job may keep running on the server.
+                    </p>
+                  </div>
                 </div>
               </div>
             </motion.section>
@@ -331,27 +470,26 @@ export default function HeroFlow() {
               className="w-full max-w-[880px]"
             >
               <div className="grid gap-6 sm:grid-cols-2 sm:items-center">
-                <div className="overflow-hidden rounded-xl bg-elevated shadow-pop">
-                  <img src={imageUrl} alt="legoarch render" className="block aspect-square w-full object-cover" />
-                </div>
+                <RecipeCard imageUrl={imageUrl} runRecord={runRecord} />
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-brand-yellow">step 2 of 3 · the set photo</p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-brand-yellow">step 2 of 3 · materialize</p>
                   <h2 className="mt-1 font-display text-2xl font-black leading-tight text-on-dark">
                     Happy with the render?
                   </h2>
                   <p className="mt-1 text-sm text-on-dark-muted">
-                    Next, TRELLIS rebuilds it in 3D (~2–3 min). Tune how faithfully it
-                    should follow the photo — or roll another render first.
+                    Next we materialize it: an image-to-3D model (TRELLIS) rebuilds the
+                    sides the photo can't see — realistically 4–6 minutes. Tune how
+                    faithfully it should follow the photo, or roll another render first.
                   </p>
                   <div className="mt-3">
                     <TinkerPanel inline groups={["shape"]} presets={false} seedRow={false} />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2.5">
-                    <Button variant="primary" onClick={onReconstruct}>
-                      <Box size={15} /> Reconstruct in 3D
+                    <Button variant="primary" onClick={onReconstruct} disabled={!!inFlight}>
+                      <Box size={15} /> Materialize in 3D
                     </Button>
-                    <Button variant="secondary" onClick={() => onForge({ rerender: true })}>
-                      <RotateCcw size={15} /> Re-render
+                    <Button variant="secondary" onClick={() => onForge({ rerender: true })} disabled={!!inFlight}>
+                      <RotateCcw size={15} /> Re-visualize
                     </Button>
                   </div>
                 </div>
@@ -369,7 +507,7 @@ export default function HeroFlow() {
               <div className="grid gap-6 sm:grid-cols-2 sm:items-center">
                 <MeshViewer glbUrl={glbUrl} height={400} />
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-brand-yellow">step 3 of 3 · the 3D model</p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-brand-yellow">step 3 of 3 · legolize</p>
                   <h2 className="mt-1 font-display text-2xl font-black leading-tight text-on-dark">
                     Now, let's make it buildable.
                   </h2>
@@ -381,12 +519,17 @@ export default function HeroFlow() {
                     <TinkerPanel inline groups={["bricks"]} presets={false} seedRow={false} />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2.5">
-                    <Button variant="primary" onClick={onLegolize}>
+                    <Button variant="primary" onClick={onLegolize} disabled={!!inFlight}>
                       <Sparkles size={15} /> Legolize
                     </Button>
-                    <Button variant="secondary" onClick={onReconstruct}>
-                      <RotateCcw size={15} /> Re-generate 3D
+                    <Button variant="secondary" onClick={onReconstruct} disabled={!!inFlight}>
+                      <RotateCcw size={15} /> Re-materialize
                     </Button>
+                    {tuning && brickModel && (
+                      <Button variant="secondary" onClick={() => set({ tuning: false })} title="Back to the finished set">
+                        Back to reveal
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -402,7 +545,7 @@ export default function HeroFlow() {
               <p className="mb-2 text-center text-sm font-semibold uppercase tracking-wide text-on-dark-muted">
                 Snapping {courseCount(brickModel)} courses into place…
               </p>
-              <AssemblyViewer brickModel={brickModel} height={520} onComplete={() => setPhase("reveal")} />
+              <AssemblyViewer brickModel={brickModel} height={520} onComplete={() => set({ assembling: false })} />
             </motion.section>
           )}
 
@@ -436,11 +579,11 @@ export default function HeroFlow() {
                     <StatTile value={totalParts(brickModel)} label="pieces" />
                     <StatTile
                       value={`${brickModel.grid[0]}×${brickModel.grid[1]}×${courseCount(brickModel)}`}
-                      label="studs × studs × courses"
+                      label="studs × studs × layers"
                     />
                     <StatTile value={totalColors(brickModel)} label="colors" />
                     <StatTile
-                      value={brickModel.stability.connected ? "Stable" : "Check"}
+                      value={brickModel.stability.connected ? "Stable" : "Wobbly"}
                       label={`${Math.round(brickModel.stability.supportRatio * 100)}% supported`}
                       variant={brickModel.stability.connected ? "ok" : "warn"}
                     />
@@ -453,7 +596,7 @@ export default function HeroFlow() {
                         toast.success("Recipe copied", "Prompt, seed and every dial — paste it anywhere.");
                       }}
                       title="Copy the full run record (prompt, seed, all parameters)"
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-on-dark-muted hover:bg-white/20"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-micro font-medium text-on-dark-muted hover:bg-white/20"
                     >
                       <Copy size={11} />
                       {summarizeRun(runRecord) || "copy run recipe"}
@@ -461,13 +604,15 @@ export default function HeroFlow() {
                   )}
 
                   <div className="mt-5 flex flex-wrap gap-2.5">
-                    <Button variant="primary" onClick={onAddToShelf}><Star size={15} /> Add to shelf</Button>
+                    <Button variant="primary" onClick={onAddToShelf} disabled={saved}>
+                      <Star size={15} /> {saved ? "On your shelf" : "Add to shelf"}
+                    </Button>
                     {glbUrl && (
-                      <Button variant="secondary" onClick={() => setPhase("mesh")} title="Back to the brick settings — re-legolizing takes seconds">
+                      <Button variant="secondary" onClick={() => set({ tuning: true })} title="Back to the brick settings — re-legolizing takes seconds">
                         <SlidersHorizontal size={15} /> Tune bricks
                       </Button>
                     )}
-                    <Button variant="secondary" onClick={onForgeAnother}><RotateCcw size={15} /> Forge another</Button>
+                    <Button variant="secondary" onClick={onForgeAnother}><RotateCcw size={15} /> Visualize another</Button>
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -502,9 +647,9 @@ export default function HeroFlow() {
         onClose={() => setTrophy(null)}
         title={{ box: "The Box", boxart: "The boxed set", share: "Share card", priced: "Priced set" }[trophy] || ""}
       >
-        {trophy === "box" && <TheBox imageUrl={imageUrl} brickModel={brickModel} setCopy={setCopy} />}
-        {trophy === "boxart" && <BoxArt imageUrl={imageUrl} setCopy={setCopy} brickModel={brickModel} />}
-        {trophy === "share" && <ShareCard imageUrl={imageUrl} brickModel={brickModel} setCopy={setCopy} />}
+        {trophy === "box" && <TheBox imageUrl={trophyImage} brickModel={brickModel} setCopy={setCopy} />}
+        {trophy === "boxart" && <BoxArt imageUrl={trophyImage} setCopy={setCopy} brickModel={brickModel} />}
+        {trophy === "share" && <ShareCard imageUrl={trophyImage} brickModel={brickModel} setCopy={setCopy} />}
         {trophy === "priced" && <PricedSet brickModel={brickModel} setCopy={setCopy} />}
       </TrophyShell>
     </div>

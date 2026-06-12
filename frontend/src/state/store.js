@@ -49,21 +49,109 @@ export const useView = create((set) => ({
   show: (view) => set({ view }),
 }));
 
+// ---------- collection dupe guard ----------
+export const isShelfDupe = (items, title, nBricks) =>
+  items.some((i) => i.title === title && i.nBricks === nBricks);
+
+// ---------- pending-job persistence (refresh recovery) ----------
+const PENDING_KEY = "lEgoarCh.pendingJob.v1";
+function loadPendingJob() {
+  try {
+    const j = JSON.parse(localStorage.getItem(PENDING_KEY));
+    // ignore jobs older than 30 min — almost certainly dead
+    if (!j || Date.now() - j.startedAt > 30 * 60 * 1000) return null;
+    return j;
+  } catch { return null; }
+}
+function savePendingJob(job) { try { localStorage.setItem(PENDING_KEY, JSON.stringify(job)); } catch {} }
+function clearPendingJob() { try { localStorage.removeItem(PENDING_KEY); } catch {} }
+
 // ---------- the current build flowing through the hero pipeline ----------
-export const useBuild = create((set) => ({
+// Flow control lives HERE, not in component state: `phase` is a pure
+// derivation (derivePhase below), so navigation, HMR and refresh can never
+// strand the UI in a state the data doesn't support.
+export const useBuild = create((set, get) => ({
   prompt: "",
   imageUrl: null,     // FLUX render (data URL)
   glbUrl: null,       // raw TRELLIS mesh URL (/api/mesh/<name>) — compare slider
   glbName: null,      // mesh filename on the backend — re-legolize references it
   brickModel: null,   // backend-legolized bricks + stability + parts
   setCopy: null,      // set-designer persona copy (name, blurb, quote, ...)
-  params: { ...DEFAULTS },  // Tinker slider values (survive "Forge another")
+  params: { ...DEFAULTS },  // Tinker slider values (survive "Visualize another")
   seed: null,         // null = surprise me (backend rolls + echoes the seed)
-  runRecord: null,    // reproducibility snapshot of the last successful forge:
-                      // { prompt, seed, params, imageMs, modelMs, startedAt }
+  runRecord: null,    // reproducibility snapshot of the last successful forge
+
+  // ---- flow control: the single source of truth ----
+  inFlight: null,     // null | "image" | "mesh" | "bricks"
+  jobId: 0,           // monotonic; stale async completions are ignored
+  abortCtrl: null,    // AbortController for the in-flight request
+  tuning: false,      // user backed from reveal to the mesh stop ("Tune bricks")
+  assembling: false,  // between legolize success and AssemblyViewer onComplete
+  saved: false,       // current brickModel has been added to the shelf
+  pendingJob: loadPendingJob(), // recovery banner: {stage, prompt, startedAt, glbName?, imageThumb?}
+
   set: (patch) => set(patch),
   setParams: (patch) => set((s) => ({ params: { ...s.params, ...patch } })),
   resetParams: () => set({ params: { ...DEFAULTS }, seed: null }),
-  // keep params + seed across resets — a tuned dial should survive the next forge
-  reset: () => set({ prompt: "", imageUrl: null, glbUrl: null, glbName: null, brickModel: null, setCopy: null, runRecord: null }),
+
+  // ---- job lifecycle ----
+  // MUST set inFlight synchronously, before any await — that IS the
+  // double-click guard (AnimatePresence keeps exiting sections clickable).
+  startJob: (kind, persist = {}) => {
+    const jobId = get().jobId + 1;
+    const abortCtrl = new AbortController();
+    set({ inFlight: kind, jobId, abortCtrl, pendingJob: null });
+    savePendingJob({ stage: kind, startedAt: Date.now(), ...persist });
+    return { jobId, signal: abortCtrl.signal };
+  },
+  finishJob: (jobId, patch) => {
+    if (get().jobId !== jobId) return false;          // stale completion — ignore
+    clearPendingJob();
+    set({ inFlight: null, abortCtrl: null, ...patch });
+    return true;
+  },
+  failJob: (jobId, patch = {}) => {
+    if (get().jobId !== jobId) return false;
+    clearPendingJob();
+    set({ inFlight: null, abortCtrl: null, ...patch }); // NO phase rewind — derivation handles it
+    return true;
+  },
+  cancelJob: () => {
+    get().abortCtrl?.abort();
+    clearPendingJob();
+    set({ inFlight: null, abortCtrl: null, jobId: get().jobId + 1 }); // bump: late responses are discarded
+  },
+  dismissPendingJob: () => { clearPendingJob(); set({ pendingJob: null }); },
+
+  // keep params + seed across resets — a tuned dial should survive the next forge.
+  // jobId bumps so a still-running request (or its setCopy follow-up) can't
+  // write into the fresh build.
+  reset: () => {
+    clearPendingJob();
+    set((s) => ({
+      prompt: "", imageUrl: null, glbUrl: null, glbName: null, brickModel: null,
+      setCopy: null, runRecord: null,
+      inFlight: null, abortCtrl: null, tuning: false, assembling: false, saved: false,
+      pendingJob: null, jobId: s.jobId + 1,
+    }));
+  },
 }));
+
+if (import.meta.env?.DEV && typeof window !== "undefined") window.__bfBuild = useBuild;
+
+// Pure derivation: phase is a VIEW of store state, never stored. Failure
+// paths fall out automatically — failJob only clears inFlight, so the user
+// lands at the furthest stop whose data still exists.
+export function derivePhase(s) {
+  if (s.inFlight === "image") return "rendering";
+  if (s.inFlight === "mesh") return "meshing";
+  if (s.inFlight === "bricks") return "legolizing";
+  if (s.brickModel) {
+    if (s.tuning) return "mesh";       // reveal -> "Tune bricks" back-nav
+    if (s.assembling) return "assembling";
+    return "reveal";
+  }
+  if (s.glbUrl) return "mesh";
+  if (s.imageUrl) return "render";
+  return "intro";
+}

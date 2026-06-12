@@ -80,6 +80,8 @@ export default {
         mono: ["ui-monospace", "SFMono-Regular", "monospace"],
       },
       fontSize: {
+        micro: ["0.6875rem", { lineHeight: "1.45" }],
+        nano: ["0.625rem", { lineHeight: "1.4", letterSpacing: "0.02em" }],
         caption: ["0.75rem", { lineHeight: "1.4", letterSpacing: "0.01em" }],
         sm: ["0.8125rem", { lineHeight: "1.45" }],
         body: ["0.9375rem", { lineHeight: "1.6" }],

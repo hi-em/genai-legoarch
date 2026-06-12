@@ -158,7 +158,7 @@ function SpineHandle({ dividerRef, onFirstDrag }) {
           touched ? "opacity-0" : "opacity-100"
         )}
       >
-        <span className="rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+        <span className="rounded-full bg-black/45 px-2 py-0.5 text-nano font-semibold text-white backdrop-blur-sm">
           TRELLIS mesh
         </span>
       </div>
@@ -168,7 +168,7 @@ function SpineHandle({ dividerRef, onFirstDrag }) {
           touched ? "opacity-0" : "opacity-100"
         )}
       >
-        <span className="rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+        <span className="rounded-full bg-black/45 px-2 py-0.5 text-nano font-semibold text-white backdrop-blur-sm">
           LEGO bricks
         </span>
       </div>

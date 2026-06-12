@@ -3,6 +3,7 @@ import { Download } from "lucide-react";
 import { Button, toast } from "../../components/ui/index.js";
 import { totalParts, courseCount } from "../../lib/brickModel.js";
 import { exportNodePng } from "./downloadImage.js";
+import Wordmark from "../../components/brand/Wordmark.jsx";
 
 // The iconic black LEGO-Architecture box, recomposed for lEgoarCh.
 export default function TheBox({ imageUrl, brickModel, setCopy }) {
@@ -36,10 +37,8 @@ export default function TheBox({ imageUrl, brickModel, setCopy }) {
       >
         {/* top wordmark + series tab */}
         <div className="flex items-center justify-between px-5 pt-4">
-          <span className="font-display text-base font-black tracking-tight text-white">
-            l<span style={{ color: "#f6c700" }}>E</span>go<span style={{ color: "#c91a09" }}>a</span>r<span style={{ color: "#1e5aa8" }}>C</span>h
-          </span>
-          <span className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white/80">
+          <Wordmark className="text-base text-white" />
+          <span className="rounded bg-white/10 px-2 py-0.5 text-nano font-bold uppercase tracking-widest text-white/80">
             {setCopy?.series || "Architecture"}
           </span>
         </div>
@@ -60,11 +59,11 @@ export default function TheBox({ imageUrl, brickModel, setCopy }) {
         <div className="absolute inset-x-0 bottom-0 px-5 pb-4">
           <div className="mb-1 h-[3px] w-full" style={{ background: "linear-gradient(90deg,#c91a09,#f6c700,#1e5aa8)" }} />
           <h3 className="font-display text-2xl font-black leading-none text-white">{name}</h3>
-          <div className="mt-1 flex items-center justify-between text-[11px] text-white/70">
+          <div className="mt-1 flex items-center justify-between text-micro text-white/70">
             <span>{pieces.toLocaleString()} pieces · {h} bricks tall</span>
             <span>{number ? `Set ${number}` : ""}</span>
           </div>
-          <div className="mt-0.5 text-[10px] text-white/45">
+          <div className="mt-0.5 text-nano text-white/45">
             Built footprint ≈ {cmW.toFixed(0)} × {cmD.toFixed(0)} cm
           </div>
         </div>

@@ -12,9 +12,9 @@ export const PARAMS = [
     blurb: "How many denoising passes FLUX makes. More = finer stud detail, slower render — past ~28 the gains vanish.",
   },
   {
-    key: "guidance", group: "render", label: "Prompt strength (CFG)",
+    key: "guidance", group: "render", label: "Prompt strength",
     min: 1, max: 8, step: 0.5, def: 5,
-    blurb: "How strictly the image obeys your words. Low looks washed out; too high overcooks the colors.",
+    blurb: "How strictly the image obeys your words. Low looks washed out; too high overcooks the colors. (In diffusion-speak this dial is called CFG.)",
   },
   {
     key: "lora_scale", group: "render", label: "LEGO style dial",
@@ -73,13 +73,13 @@ export const PARAMS = [
     blurb: "Bevel one-course roof steps with real 45° slope bricks (3037–3040) facing downhill — the move that turns a ziggurat into a roofline.",
   },
   {
-    key: "palette", group: "bricks", label: "Colour palette",
+    key: "palette", group: "bricks", label: "Color palette",
     kind: "choice", def: "classic",
     choices: [
       { value: "classic", label: "Classic 23" },
       { value: "full", label: "Full 48" },
     ],
-    blurb: "Real production colours from the Rebrickable catalog, validated against LDraw. Classic = the architecture staples; Full = every current colour (richer, but busier seams).",
+    blurb: "Real production colors from the Rebrickable catalog, validated against LDraw. Classic = the architecture staples; Full = every current color (richer, but busier seams).",
   },
 ];
 
@@ -92,19 +92,19 @@ export const PRESETS = [
   {
     id: "draft",
     label: "Quick draft",
-    hint: "~2–3 min · smaller set",
+    hint: "~3–4 min · smaller set",
     params: { ...DEFAULTS, steps: 16, shape_steps: 20, voxel_target: 24 },
   },
   {
     id: "balanced",
     label: "Tuned default",
-    hint: "~5 min · the optimized workflow",
+    hint: "~6 min · the optimized workflow",
     params: { ...DEFAULTS },
   },
   {
     id: "max",
     label: "Max detail",
-    hint: "~6–7 min · big set",
+    hint: "~8–9 min · big set",
     params: { ...DEFAULTS, steps: 36, shape_steps: 40, voxel_target: 44 },
   },
 ];

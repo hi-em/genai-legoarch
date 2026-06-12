@@ -48,14 +48,14 @@ export default function ShareCard({ imageUrl, brickModel, setCopy }) {
           )}
         </div>
         <div className="flex flex-col justify-center p-5">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-brand-yellow">
+          <span className="text-nano font-bold uppercase tracking-widest text-brand-yellow">
             l<span className="text-white">E</span>goarCh
           </span>
           <h3 className="mt-1 font-display text-[22px] font-black leading-tight text-on-dark">{name}</h3>
           <p className="mt-1 text-xs text-on-dark-muted">{tagline}</p>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {[`${pieces.toLocaleString()} pieces`, `${totalColors(brickModel)} colors`, `${support}% supported`].map((t) => (
-              <span key={t} className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-white">{t}</span>
+              <span key={t} className="rounded-full bg-white/10 px-2.5 py-1 text-nano font-semibold text-white">{t}</span>
             ))}
           </div>
         </div>

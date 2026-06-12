@@ -9,7 +9,16 @@ export const CELL_H = 8.5;         // compartment inner height
 export const CELL_D = 7;           // compartment depth (back panel -> front edge)
 export const FRAME_T = 0.7;        // shelf board / divider thickness
 export const SET_TILT = -0.4;      // display angle of a set on its shelf (rad, about Y)
-export const ART_THRESHOLD = 2500; // models above this many bricks show box art, not 3D
+export const MODEL_BRICK_BUDGET = 12000; // models above this show as a hero box only
+
+// Diorama composition: the retail box sits at the back of the compartment
+// (slightly left, yawed toward the viewer), the built model stands in front.
+export const BOX_SCALE = 2.25;     // box size in world units (BOX.* × this)
+export const BOX_X = -0.35;        // box x offset from the compartment centre
+export const BOX_Z = 0.95;         // box depth position (back of the diorama)
+export const BOX_YAW = 0.12;       // box yaw toward the viewer (rad, about Y)
+export const MODEL_X = 0.4;        // model x offset from the compartment centre
+export const MODEL_Z = 3.7;        // model depth position (front of the diorama)
 
 export const rowsFor = (n) => Math.max(1, Math.ceil(n / COLS));
 export const wallWidth = () => COLS * CELL_W + (COLS + 1) * FRAME_T;
@@ -26,12 +35,14 @@ export function slotCenter(i, rows) {
 }
 
 // One canvas holds up to 20 sets, so huge models can't all be live geometry:
-// small/medium sets render as instanced 3D boxes, anything above the
-// threshold stands in as its saved front-elevation thumb ("box art").
+// sets within the budget show the full diorama (box + instanced 3D model),
+// anything above it shows a centred hero box instead.
 export const displayModeFor = (bm) =>
-  (bm?.bricks?.length || 0) > ART_THRESHOLD ? "art" : "model";
+  (bm?.bricks?.length || 0) <= MODEL_BRICK_BUDGET ? "model" : "box-only";
 
 // Uniform scale that fits a model inside a compartment at the display tilt.
+// Margins leave room for the box peeking past the model's edges and keep the
+// model clear of the plaque at the compartment front.
 export function fitScale(bm) {
   const [nx, ny, nz] = bm.grid;
   const h = Math.max(worldHeight(nz), 1);
@@ -40,9 +51,9 @@ export function fitScale(bm) {
   const projW = nx * cos + ny * sin; // footprint projected onto the wall plane
   const projD = nx * sin + ny * cos; // ...and into the compartment depth
   return Math.min(
-    (CELL_W - 2.4) / projW,
-    (CELL_H - 2.6) / h,   // headroom + plaque space
-    (CELL_D - 1.2) / projD,
+    (CELL_W - 3.0) / projW,
+    (CELL_H - 3.8) / h,   // headroom + plaque space
+    (CELL_D - 3.4) / projD,
     0.5                   // tiny models stay set-sized, not giant single bricks
   );
 }
