@@ -1,8 +1,10 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Upload, X, Box, FileText, Receipt, Share2, Star, RotateCcw, Volume2, VolumeX, Copy, SlidersHorizontal } from "lucide-react";
+import { Sparkles, Upload, X, Box, Star, RotateCcw, Volume2, VolumeX, Copy, SlidersHorizontal } from "lucide-react";
 import { generate, generateMesh, legolizeMesh, getSetCopy, latestMesh } from "../api.js";
 import { useBuild, useCollection, useView, useUI, derivePhase, isShelfDupe } from "../state/store.js";
+import { hasWebGL } from "../lib/webgl.js";
+import { useRoomStage } from "../room/useRoomStage.js";
 import { adaptBrickModel, totalParts, totalColors, courseCount } from "../lib/brickModel.js";
 import { frontElevationThumb } from "../lib/thumb.js";
 import { downscaleDataUrl } from "../lib/image.js";
@@ -21,12 +23,6 @@ import SolverSprint from "./SolverSprint.jsx";
 import CallSheet, { scoreCalls } from "./CallSheet.jsx";
 import RecipeCard from "./RecipeCard.jsx";
 import { paramsFor, summarizeRun } from "./tinkerParams.js";
-import TrophyShell from "./trophies/TrophyShell.jsx";
-import TheBox from "./trophies/TheBox.jsx";
-import BoxArt from "./trophies/BoxArt.jsx";
-import ShareCard from "./trophies/ShareCard.jsx";
-import PricedSet from "./trophies/PricedSet.jsx";
-import { generateBooklet } from "../lib/booklet.js";
 import Wordmark from "../components/brand/Wordmark.jsx";
 import LogoMark from "../components/brand/LogoMark.jsx";
 
@@ -54,7 +50,6 @@ export default function HeroFlow() {
   const { startJob, finishJob, failJob, cancelJob, dismissPendingJob } = useBuild.getState();
   const [text, setText] = useState(prompt || "");
   const [photo, setPhoto] = useState(null);
-  const [trophy, setTrophy] = useState(null); // "box" | "share" | "priced" | null
   const fileRef = useRef(null);
 
   function onPhoto(e) {
@@ -241,7 +236,7 @@ export default function HeroFlow() {
     set({ saved: true });        // synchronous: a double-click can't add twice
     playPop();
     const renderThumb = await downscaleDataUrl(imageUrl, 360, 0.72);
-    const dropped = addToShelf({
+    const item = {
       id: crypto.randomUUID(),
       title,
       setNumber: setCopy?.set_number || "",
@@ -252,16 +247,24 @@ export default function HeroFlow() {
       setCopy,
       prompt,
       runRecord,         // tiny JSON — full reproducibility for every saved set
+      glbName: glbName || null,   // lets the saved set export its .stl later
       created_at: new Date().toISOString(),
-    });
+    };
+    // Persist up-front: reserves the set's wall slot (index 0), survives a
+    // refresh mid-staging, and lets the quota toast be honest.
+    const dropped = addToShelf(item);
     if (dropped > 0) {
       toast.info(
         "Added — oldest sets removed",
         `Your browser's storage is full: the ${dropped} oldest set${dropped > 1 ? "s were" : " was"} deleted to make room.`
       );
     } else {
-      toast.success("Added to your shelf", "Reopen it anytime from your Collection.");
+      toast.success("Packed onto your shelf", "Find it in your collector's room.");
     }
+    // Enter the room: it packs on the central plinth, you inspect it, then slide
+    // it to its slot. With no WebGL we skip staging and just land on the list.
+    if (hasWebGL()) useRoomStage.getState().beginStaging({ id: item.id, item });
+    showView("collection");
   }
 
   function onForgeAnother() {
@@ -274,10 +277,6 @@ export default function HeroFlow() {
     setPhoto(null);
     setText("");
   }
-
-  // a render that isn't a data URL or bundled asset can't feed the trophies
-  const trophyImage =
-    imageUrl && (imageUrl.startsWith("data:") || imageUrl.startsWith("/")) ? imageUrl : null;
 
   async function onRecoverMesh() {
     try {
@@ -639,53 +638,25 @@ export default function HeroFlow() {
 
                   <div className="mt-5 flex flex-wrap gap-2.5">
                     <Button variant="primary" onClick={onAddToShelf} disabled={saved}>
-                      <Star size={15} /> {saved ? "On your shelf" : "Add to shelf"}
+                      <Star size={15} /> {saved ? "On your shelf" : "Pack & add to shelf"}
                     </Button>
-                    {glbUrl && (
-                      <Button variant="secondary" onClick={() => set({ tuning: true })} title="Back to the brick settings — re-legolizing takes seconds">
-                        <SlidersHorizontal size={15} /> Tune bricks
-                      </Button>
-                    )}
                     <Button variant="secondary" onClick={onForgeAnother}><RotateCcw size={15} /> Visualize another</Button>
                   </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {[
-                      [Box, "The Box", () => setTrophy("box")],
-                      [Sparkles, "Boxed set", () => setTrophy("boxart")],
-                      [FileText, "Instructions", () => {
-                        toast.info("Building your manual…", "Rendering step-by-step pages.");
-                        setTimeout(() => generateBooklet(brickModel, setCopy), 30);
-                      }],
-                      [Receipt, "Priced set", () => setTrophy("priced")],
-                      [Share2, "Share card", () => setTrophy("share")],
-                    ].map(([Icon, label, onClick]) => (
-                      <button
-                        key={label}
-                        onClick={onClick}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-elevated px-3 py-1.5 text-xs font-semibold text-ink shadow-plate-flat hover:brightness-95"
-                      >
-                        <Icon size={13} /> {label}
-                      </button>
-                    ))}
-                  </div>
+                  {glbUrl && (
+                    <button
+                      onClick={() => set({ tuning: true })}
+                      title="Back to the brick settings — re-legolizing takes seconds"
+                      className="mt-3 inline-flex items-center gap-1.5 text-sm text-on-dark-muted underline-offset-2 hover:text-on-dark hover:underline"
+                    >
+                      <SlidersHorizontal size={14} /> Tune bricks
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.section>
           )}
         </AnimatePresence>
       </main>
-
-      <TrophyShell
-        open={!!trophy}
-        onClose={() => setTrophy(null)}
-        title={{ box: "The Box", boxart: "The boxed set", share: "Share card", priced: "Priced set" }[trophy] || ""}
-      >
-        {trophy === "box" && <TheBox imageUrl={trophyImage} brickModel={brickModel} setCopy={setCopy} />}
-        {trophy === "boxart" && <BoxArt imageUrl={trophyImage} setCopy={setCopy} brickModel={brickModel} />}
-        {trophy === "share" && <ShareCard imageUrl={trophyImage} brickModel={brickModel} setCopy={setCopy} />}
-        {trophy === "priced" && <PricedSet brickModel={brickModel} setCopy={setCopy} />}
-      </TrophyShell>
     </div>
   );
 }

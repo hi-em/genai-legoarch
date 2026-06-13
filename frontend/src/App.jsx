@@ -1,10 +1,11 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { MotionConfig } from "framer-motion";
 import HeroFlow from "./hero/HeroFlow.jsx";
 import Collection from "./hero/Collection.jsx";
 import BrickBuddy from "./components/BrickBuddy.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { useView } from "./state/store.js";
+import { useRoomStage } from "./room/useRoomStage.js";
 import { Toaster, TooltipProvider } from "./components/ui/index.js";
 
 // Lazy so the montage (component + 40 webp tiles) stays out of the main chunk.
@@ -12,6 +13,11 @@ const LaunchIntro = lazy(() => import("./intro/LaunchIntro.jsx"));
 
 export default function App() {
   const view = useView((s) => s.view);
+  // Leaving the room (back to the builder, by any path) clears any in-progress
+  // staging so a previously-shelved set can't replay on the centre plinth when
+  // you return. Resetting an already-free store is a no-op (StrictMode-safe),
+  // and it never fires while view==="collection", so live staging survives.
+  useEffect(() => { if (view === "hero") useRoomStage.getState().releaseToFreeWalk(); }, [view]);
   // The launch ritual plays on EVERY load (owner decision) — it holds with an
   // "Enter the studio" CTA and is skippable, so repetition stays cheap. The
   // hero mounts beneath it so dismissal reveals the app already in place.

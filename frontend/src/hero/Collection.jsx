@@ -1,18 +1,12 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { ArrowLeft, Trash2, Box, FileText, Receipt, Share2, Download, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles, PackageOpen } from "lucide-react";
 import { useCollection, useView } from "../state/store.js";
 import { totalParts, totalColors, normalizeAdapted, courseCount } from "../lib/brickModel.js";
-import { toLdraw, download, partsToCsv } from "../lib/ldraw.js";
-import { generateBooklet } from "../lib/booklet.js";
-import { Button, StatTile, toast } from "../components/ui/index.js";
+import { Button, StatTile } from "../components/ui/index.js";
 import BrickViewer from "../viewer/BrickViewer.jsx";
-import ShelfWall from "../shelf/ShelfWall.jsx";
+import RoomGate from "../room/RoomGate.jsx";
 import TrophyShell from "./trophies/TrophyShell.jsx";
-import TheBox from "./trophies/TheBox.jsx";
-import BoxArt from "./trophies/BoxArt.jsx";
-import ShareCard from "./trophies/ShareCard.jsx";
-import PricedSet from "./trophies/PricedSet.jsx";
+import BoxHub from "./trophies/BoxHub.jsx";
 import Wordmark from "../components/brand/Wordmark.jsx";
 import LogoMark from "../components/brand/LogoMark.jsx";
 
@@ -33,15 +27,10 @@ function Header({ children }) {
 }
 
 function SetDetail({ set, onBack }) {
-  const [trophy, setTrophy] = useState(null);
+  const [open, setOpen] = useState(false);
   const bm = normalizeAdapted(set.brickModel);  // pre-plate saved sets upgrade in place
   const copy = set.setCopy || {};
   const img = set.renderThumb || null;
-
-  function exportLdraw() {
-    download(`${(copy.set_name || "set").replace(/[^\w]+/g, "_")}.ldr`, toLdraw(bm));
-    toast.success("LDraw saved", "Opens in BrickLink Studio.");
-  }
 
   return (
     <div className="mx-auto w-full max-w-[920px] px-5 pb-16">
@@ -64,55 +53,21 @@ function SetDetail({ set, onBack }) {
             <StatTile value={bm.stability.connected ? "Stable" : "Wobbly"} label={`${Math.round(bm.stability.supportRatio * 100)}% supported`} variant={bm.stability.connected ? "ok" : "warn"} />
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            {[
-              [Box, "The Box", () => setTrophy("box")],
-              [Sparkles, "Boxed set", () => setTrophy("boxart")],
-              [FileText, "Instructions", () => { toast.info("Building your manual…", "Rendering pages."); setTimeout(() => generateBooklet(bm, copy), 30); }],
-              [Receipt, "Priced set", () => setTrophy("priced")],
-              [Share2, "Share card", () => setTrophy("share")],
-              [Download, "LDraw", exportLdraw],
-              [Download, "Parts CSV", () => download(`${(copy.set_name || "set").replace(/[^\w]+/g, "_")}_parts.csv`, partsToCsv(bm.parts))],
-            ].map(([Icon, label, onClick]) => (
-              <button key={label} onClick={onClick} className="inline-flex items-center gap-1.5 rounded-full bg-elevated px-3 py-1.5 text-xs font-semibold text-ink shadow-plate-flat hover:brightness-95">
-                <Icon size={13} /> {label}
-              </button>
-            ))}
+          <div className="mt-5">
+            <button
+              onClick={() => setOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-elevated px-4 py-2.5 font-display text-sm font-bold text-ink shadow-plate-flat hover:brightness-95"
+            >
+              <PackageOpen size={16} /> Open your boxed set
+              <span className="text-micro font-normal text-muted">booklet · pieces & prices · downloads</span>
+            </button>
           </div>
         </div>
       </div>
 
-      <TrophyShell open={!!trophy} onClose={() => setTrophy(null)} title={{ box: "The Box", boxart: "The boxed set", share: "Share card", priced: "Priced set" }[trophy] || ""}>
-        {trophy === "box" && <TheBox imageUrl={img} brickModel={bm} setCopy={copy} />}
-        {trophy === "boxart" && <BoxArt imageUrl={img} setCopy={copy} brickModel={bm} />}
-        {trophy === "share" && <ShareCard imageUrl={img} brickModel={bm} setCopy={copy} />}
-        {trophy === "priced" && <PricedSet brickModel={bm} setCopy={copy} />}
+      <TrophyShell open={open} onClose={() => setOpen(false)} title="Your boxed set">
+        {open && <BoxHub imageUrl={img} setCopy={copy} brickModel={bm} glbName={set.glbName} />}
       </TrophyShell>
-    </div>
-  );
-}
-
-// shelf | grid — persisted so the choice survives reloads; shelf is the default.
-const VIEW_KEY = "lEgoarCh.collectionView";
-const loadViewMode = () => {
-  try { return localStorage.getItem(VIEW_KEY) === "grid" ? "grid" : "shelf"; } catch { return "shelf"; }
-};
-
-function ViewToggle({ mode, onPick }) {
-  return (
-    <div className="mx-auto mb-4 flex w-fit items-center gap-1 rounded-pill border border-border-dark bg-black/25 p-1">
-      {[["shelf", "Shelf"], ["grid", "Grid"]].map(([m, label]) => (
-        <button
-          key={m}
-          onClick={() => onPick(m)}
-          className={
-            "rounded-pill px-3.5 py-1 text-xs font-semibold transition-colors " +
-            (mode === m ? "bg-elevated text-ink shadow-plate-flat" : "text-on-dark-muted hover:text-on-dark")
-          }
-        >
-          {label}
-        </button>
-      ))}
     </div>
   );
 }
@@ -122,12 +77,6 @@ export default function Collection() {
   const remove = useCollection((s) => s.remove);
   const show = useView((s) => s.show);
   const [selected, setSelected] = useState(null);
-  const [viewMode, setViewMode] = useState(loadViewMode);
-
-  function pickView(m) {
-    setViewMode(m);
-    try { localStorage.setItem(VIEW_KEY, m); } catch {}
-  }
 
   const current = selected && items.find((i) => i.id === selected);
 
@@ -139,44 +88,14 @@ export default function Collection() {
         <SetDetail set={current} onBack={() => setSelected(null)} />
       ) : items.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-5 pb-20 text-center">
-          <h2 className="font-display text-2xl font-black text-on-dark">Your shelf is empty</h2>
+          <h2 className="font-display text-2xl font-black text-on-dark">Your collector's room is empty</h2>
           <p className="max-w-[360px] text-on-dark-muted">Turn a building into a buildable set and add it here — your collection survives reloads.</p>
           <Button variant="primary" onClick={() => show("hero")}><Sparkles size={15} /> Visualize a set</Button>
         </div>
-      ) : viewMode === "shelf" ? (
-        <div className="flex w-full flex-1 flex-col px-5 pb-8">
-          <ViewToggle mode={viewMode} onPick={pickView} />
-          <div className="mx-auto h-[calc(100dvh-170px)] min-h-[420px] w-full max-w-[1400px]">
-            <ShelfWall items={items} onSelect={(it) => setSelected(it.id)} />
-          </div>
-        </div>
       ) : (
-        <div className="flex w-full flex-col px-5 pb-16">
-          <ViewToggle mode={viewMode} onPick={pickView} />
-          <div className="mx-auto grid w-full max-w-[1000px] grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {items.map((it) => (
-            <motion.div
-              key={it.id}
-              initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
-              className="group relative cursor-pointer overflow-hidden rounded-xl bg-elevated shadow-plate-flat"
-              onClick={() => setSelected(it.id)}
-            >
-              <div className="aspect-square bg-[linear-gradient(#eef3f7,#d7dee5)]">
-                {it.thumb && <img src={it.thumb} alt={it.title} className="h-full w-full object-contain" />}
-              </div>
-              <div className="p-2.5">
-                <p className="truncate font-display text-sm font-bold text-ink">{it.title}</p>
-                <p className="text-micro text-muted">{(it.nBricks || 0).toLocaleString()} pcs{it.setNumber ? ` · ${it.setNumber}` : ""}</p>
-              </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); remove(it.id); }}
-                className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/40 text-white opacity-0 transition group-hover:opacity-100 hover:bg-brand-red"
-                aria-label="Delete set"
-              >
-                <Trash2 size={14} />
-              </button>
-            </motion.div>
-          ))}
+        <div className="flex w-full flex-1 flex-col px-5 pb-8">
+          <div className="mx-auto h-[calc(100dvh-150px)] min-h-[460px] w-full max-w-[1400px]">
+            <RoomGate items={items} onOpenSet={(it) => setSelected(it.id)} onRemove={remove} />
           </div>
         </div>
       )}

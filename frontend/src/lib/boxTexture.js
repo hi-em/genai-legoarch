@@ -2,7 +2,7 @@
 // BoxArt trophy (1280px) and the Shelf Wall dioramas (512px). One painter,
 // one set of box proportions, so the box always reads the same everywhere.
 import * as THREE from "three";
-import { drawWordmark, measureWordmark } from "../components/brand/brand.js";
+import { drawWordmark, drawLogoMark } from "../components/brand/brand.js";
 
 // box proportions (LEGO Architecture-ish landscape box, world units)
 export const BOX = { BW: 3.6, BH: 2.6, BD: 0.78, LID_T: 0.14 };
@@ -57,17 +57,16 @@ export function drawFrontPanel(ctx, W, H, img, setCopy, pieces) {
     ctx.restore();
   }
 
-  // logo chip, top-left — the shared brand painter (colored letters on white base)
-  const chipW = W * 0.18, chipH = H * 0.075, m = W * 0.045;
-  ctx.fillStyle = "#c91a09";
-  ctx.beginPath();
-  ctx.roundRect(m, m, chipW, chipH, 8);
-  ctx.fill();
+  // brand lockup, top-left — the "Plate Stack" mark + wordmark, drawn straight
+  // on the matte-black box like the app header floats on the felt. Colored
+  // letters read on black (the old red chip hid the red 'a'); the mark is the
+  // current logo, so the box now carries it for real.
+  const m = W * 0.045;
+  const markH = H * 0.075;
+  drawLogoMark(ctx, m, m, markH);
   ctx.textBaseline = "middle";
-  let wmPx = chipH * 0.52;
-  while (measureWordmark(ctx, wmPx) > chipW * 0.86 && wmPx > 8) wmPx *= 0.94; // size to fit the chip
-  const wmW = measureWordmark(ctx, wmPx);
-  drawWordmark(ctx, m + (chipW - wmW) / 2, m + chipH / 2 + 1, wmPx, "#ffffff");
+  const wmPx = markH * 0.6;
+  drawWordmark(ctx, m + markH + W * 0.012, m + markH / 2 + 1, wmPx, "#ffffff");
 
   // badges, top-right
   ctx.font = `800 ${H * 0.026}px 'DM Sans', system-ui, sans-serif`;

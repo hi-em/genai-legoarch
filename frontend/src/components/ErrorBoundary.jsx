@@ -14,6 +14,9 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     if (import.meta.env.DEV) console.error("ErrorBoundary caught:", error, info);
+    // let callers recover (e.g. a transition overlay must still hand off even
+    // if its 3D scene throws, or the app strands between views)
+    this.props.onError?.(error);
   }
 
   render() {

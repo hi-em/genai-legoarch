@@ -2,6 +2,7 @@
 // data — a believable lower bound so the buildable fantasy has a number on it.
 // For real prices we link out to BrickLink (OAuth + CORS make live calls a
 // backend job; see docs).
+import { byCode } from "./palette.js";
 
 // avg used price per part by BrickLink id (tiles listed by LDraw id w/ suffix)
 const PART_PRICE = {
@@ -49,12 +50,30 @@ export function unitPrice(part, color) {
   return (PART_PRICE[part] ?? DEFAULT_PRICE) * (COLOR_MULT[color] ?? DEFAULT_MULT);
 }
 
-// parts: [{ part, color, qty }]
+// parts: [{ part, color, qty, name?, hex? }]
+// Every returned line is guaranteed to carry `hex` (swatch) and `name` (color
+// label) by joining the color code against the palette — so callers that pass
+// raw { part, color, qty } still render correct swatches.
 export function estimateCost(parts) {
   if (!parts?.length) return { total: 0, lines: [] };
-  const lines = parts.map((p) => ({ ...p, lineCost: unitPrice(p.part, p.color) * p.qty }));
+  const lines = parts.map((p) => {
+    const c = byCode[p.color];
+    return {
+      ...p,
+      name: p.name ?? c?.name ?? `Color ${p.color}`,
+      hex: p.hex ?? c?.hex ?? "#888888",
+      lineCost: unitPrice(p.part, p.color) * p.qty,
+    };
+  });
   const total = lines.reduce((n, l) => n + l.lineCost, 0);
   return { total, lines };
+}
+
+// Used-condition resale value of a built set — roughly what you'd recoup parting
+// it out at typical used prices. Reused by the trophy/collection views.
+const RESELL_FACTOR = 0.55;
+export function resellEstimate(total) {
+  return (total || 0) * RESELL_FACTOR;
 }
 
 export const fmtUSD = (n) =>

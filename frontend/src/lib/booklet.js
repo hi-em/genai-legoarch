@@ -4,34 +4,24 @@
 // that also drives the assembly animation.
 import { jsPDF } from "jspdf";
 import { isoStepThumb } from "./isoThumb.js";
-import { byCode } from "./palette.js";
-import { courseOf, courseCount } from "./brickModel.js";
+// Single page-model source of truth, shared with the in-app flip view
+// (src/booklet/BookletView.jsx) so the PDF and the on-screen booklet never
+// drift. `partsAddedAt` used to live privately here; it now lives in the shared
+// module and is imported.
+import { buildBookletPages, partsAddedAt } from "../booklet/bookletPages.js";
 
 const INK = [32, 38, 43];
 const MUTED = [110, 118, 112];
-
-function partsAddedAt(bm, course) {
-  const acc = {};
-  for (const b of bm.bricks) {
-    if (courseOf(b) !== course) continue;
-    const k = `${b.part}|${b.color}`;
-    acc[k] = (acc[k] || 0) + 1;
-  }
-  return Object.entries(acc).map(([k, qty]) => {
-    const [part, code] = k.split("|");
-    const c = Number(code);
-    return { part, qty, name: byCode[c]?.name || `#${c}`, hex: byCode[c]?.hex || "#ccc" };
-  });
-}
 
 export function generateBooklet(bm, setCopy = {}) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
-  const nCourses = courseCount(bm);              // build steps = brick courses
-  const nBricks = bm.bricks.length;
-  const name = setCopy.set_name || "Untitled Set";
-  const number = setCopy.set_number || "";
+  const { cover } = buildBookletPages(bm, setCopy);
+  const nCourses = cover.nCourses;               // build steps = brick courses
+  const nBricks = cover.nBricks;
+  const name = cover.name;
+  const number = cover.number;
 
   // ---- cover ----
   doc.setFillColor(20, 22, 20);

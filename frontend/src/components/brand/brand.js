@@ -44,3 +44,31 @@ export function drawWordmark(ctx, x, y, px, baseColor = "#ffffff") {
   ctx.restore();
   return cx - x;
 }
+
+/**
+ * Paint the "Plate Stack" logo mark — three offset plates (one per stage) + a
+ * stud — in a size×size box whose top-left is (x, y). Pixel-for-pixel the same
+ * geometry as components/brand/LogoMark.jsx (64-unit viewBox), so the box and
+ * shelf dioramas carry exactly the mark used in the app chrome. `mono` paints
+ * the whole stack in `color` for single-colour contexts.
+ */
+export function drawLogoMark(ctx, x, y, size, { mono = false, color = "#ffffff" } = {}) {
+  const s = size / 64;
+  const C = mono
+    ? { base: color, mid: color, top: color }
+    : { base: BRAND_HEX.blue, mid: BRAND_HEX.red, top: BRAND_HEX.yellow };
+  const plate = (px, py, w, h, r, fill) => {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.roundRect(x + px * s, y + py * s, w * s, h * s, r * s);
+    ctx.fill();
+  };
+  plate(8, 44, 48, 13, 3, C.base);   // base plate (blue)
+  plate(14, 30, 40, 13, 3, C.mid);   // mid plate (red)
+  plate(20, 16, 30, 13, 3, C.top);   // top plate (yellow)
+  plate(30, 9, 10, 8, 2.5, C.top);   // stud
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  plate(30, 9, 10, 3, 1.5, "#ffffff"); // stud highlight
+  ctx.restore();
+}
