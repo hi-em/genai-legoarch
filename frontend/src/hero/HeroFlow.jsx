@@ -14,8 +14,11 @@ import MeshViewer from "../viewer/MeshViewer.jsx";
 import SpineCompareViewer from "../viewer/SpineCompareViewer.jsx";
 import { EXAMPLES } from "./examples.js";
 import TinkerPanel from "./TinkerPanel.jsx";
-import LoadingTheater from "./LoadingTheater.jsx";
+import LoadingStage from "./LoadingTheater.jsx";
 import VisualizingCanvas from "./VisualizingCanvas.jsx";
+import { MeshStudy } from "./StageSquare.jsx";
+import SolverSprint from "./SolverSprint.jsx";
+import CallSheet, { scoreCalls } from "./CallSheet.jsx";
 import RecipeCard from "./RecipeCard.jsx";
 import { paramsFor, summarizeRun } from "./tinkerParams.js";
 import TrophyShell from "./trophies/TrophyShell.jsx";
@@ -47,6 +50,7 @@ export default function HeroFlow() {
   const saved = useBuild((s) => s.saved);
   const tuning = useBuild((s) => s.tuning);
   const pendingJob = useBuild((s) => s.pendingJob);
+  const calls = useBuild((s) => s.calls);
   const { startJob, finishJob, failJob, cancelJob, dismissPendingJob } = useBuild.getState();
   const [text, setText] = useState(prompt || "");
   const [photo, setPhoto] = useState(null);
@@ -83,6 +87,7 @@ export default function HeroFlow() {
         imageUrl: r1.imageUrl,
         glbUrl: null, glbName: null, brickModel: null, setCopy: null,
         saved: false, tuning: false, assembling: false,
+        calls: null,                // a new render restarts the call sheet
         // reproducibility record grows stage by stage (faculty: prompt, seed,
         // model, params per shown output)
         runRecord: {
@@ -182,6 +187,8 @@ export default function HeroFlow() {
           params: { ...params },
           resolved: { ...rec.resolved, bricks: r.params },
           bricksMs: Date.now() - t0,
+          // the mesh-wait call sheet rides along so saved sets keep it
+          calls: useBuild.getState().calls,
         },
       });
       // fire-and-forget, but gated on jobId so a late reply can't write into
@@ -217,7 +224,9 @@ export default function HeroFlow() {
     const bm = adaptBrickModel(raw);
     const sampleRender = (await import("../dev/sampleRender.png")).default;
     const subj = "Brutalist concrete tower with stepped setbacks";
-    set({ prompt: subj, imageUrl: sampleRender, brickModel: bm, assembling: true, saved: false });
+    // calls cleared: the demo skips the mesh wait, so bets from a previous
+    // real run must not produce a phantom scorecard at the reveal
+    set({ prompt: subj, imageUrl: sampleRender, brickModel: bm, assembling: true, saved: false, calls: null });
     setText(subj);
     getSetCopy(subj, bm).then((c) => set({ setCopy: c })).catch(() => {});
   }
@@ -420,45 +429,44 @@ export default function HeroFlow() {
             </motion.section>
           )}
 
-          {["rendering", "meshing", "legolizing"].includes(phase) && (
+          {/* room 1 (your prompt at work) + room 2 (the collector's lounge) */}
+          {["rendering", "meshing"].includes(phase) && (
             <motion.section
               key="waiting"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="w-full max-w-[880px]"
+              className="w-full max-w-stage"
             >
-              <div className="grid gap-6 sm:grid-cols-2">
-                <div className="overflow-hidden rounded-xl bg-elevated shadow-pop">
-                  {imageUrl && inFlight !== "image" ? (
-                    <motion.img
-                      src={imageUrl} alt="legoarch render"
-                      initial={{ opacity: 0, scale: 1.03 }} animate={{ opacity: 1, scale: 1 }}
-                      className="block aspect-square w-full object-cover"
-                    />
-                  ) : inFlight === "image" ? (
-                    <VisualizingCanvas prompt={text} />
+              <LoadingStage
+                stage={phase === "rendering" ? "image" : "mesh"}
+                solo={phase === "rendering"}
+                prompt={prompt || text}
+                params={params}
+                onStop={cancelJob}
+                square={
+                  inFlight === "image" ? (
+                    // store prompt, not local state — survives HMR remounts mid-wait
+                    <VisualizingCanvas prompt={prompt || text} />
+                  ) : imageUrl ? (
+                    <MeshStudy imageUrl={imageUrl} />
                   ) : (
-                    <div className="grid aspect-square w-full place-items-center"><StudLoader /></div>
-                  )}
-                </div>
-                <div className="flex flex-col justify-center">
-                  <h2 className="mb-4 truncate font-display text-lg font-extrabold text-on-dark" title={text}>
-                    {(text || "").split(",")[0]}
-                  </h2>
-                  <LoadingTheater
-                    stage={{ rendering: "image", meshing: "mesh", legolizing: "bricks" }[phase]}
-                    prompt={text}
-                    params={params}
-                  />
-                  <div className="mt-4">
-                    <Button variant="secondary" onClick={cancelJob}>
-                      <X size={15} /> Stop waiting
-                    </Button>
-                    <p className="mt-1.5 text-xs text-on-dark-muted">
-                      Stops the wait here — the job may keep running on the server.
-                    </p>
-                  </div>
-                </div>
-              </div>
+                    <div className="absolute inset-0 grid place-items-center text-muted">
+                      <StudLoader />
+                    </div>
+                  )
+                }
+                aside={inFlight === "mesh" ? <CallSheet /> : null}
+              />
+            </motion.section>
+          )}
+
+          {/* room 3 is not a room — the deterministic solver sprints */}
+          {phase === "legolizing" && (
+            <motion.section
+              key="legolizing"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="w-full max-w-stage"
+            >
+              <SolverSprint imageUrl={imageUrl} />
             </motion.section>
           )}
 
@@ -588,6 +596,32 @@ export default function HeroFlow() {
                       variant={brickModel.stability.connected ? "ok" : "warn"}
                     />
                   </div>
+
+                  {/* the call sheet from the mesh wait, scored */}
+                  {(() => {
+                    const score = scoreCalls(calls ?? runRecord?.calls, brickModel);
+                    if (!score) return null;
+                    return (
+                      <div className="mt-3 rounded-xl bg-white/5 px-3.5 py-2.5">
+                        <p className="text-nano font-bold uppercase tracking-widest text-on-dark-muted">
+                          call sheet ·{" "}
+                          <span className={score.hits === score.total ? "text-brand-yellow" : undefined}>
+                            you called {score.hits} of {score.total}
+                          </span>
+                        </p>
+                        <div className="mt-1 space-y-0.5">
+                          {score.rows.map((r) => (
+                            <p key={r.key} className="text-micro text-on-dark-muted">
+                              <span className={r.hit ? "text-brand-yellow" : undefined}>
+                                {r.hit ? "✓" : "✗"}
+                              </span>{" "}
+                              {r.label}: you called {r.picked} → {r.actual}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {runRecord && (
                     <button

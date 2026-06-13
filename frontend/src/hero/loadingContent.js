@@ -93,82 +93,154 @@ export function promptAnatomy(prompt) {
   }));
 }
 
-// One card per Tinker dial, personalised with the value THIS run uses.
-// Pass a group ("render" | "shape" | "bricks") to keep the deck on-stage.
-export function dialCards(params, group) {
-  return PARAMS.filter((p) => !group || p.group === group).map((p) => {
-    const v = params?.[p.key] ?? p.def;
-    const isDefault = v === p.def;
-    return {
-      kind: "dial",
-      title: `Dial: ${p.label}`,
-      body: `${p.blurb} You're running ${v}${isDefault ? " — the benchmarked sweet spot." : ` (default ${p.def}) — you tinkered!`}`,
-    };
-  });
+// One card for a single Tinker dial, personalised with the value THIS run
+// uses. The hook (card front) leads with the live value; the body (card back)
+// carries the full blurb.
+export function dialCard(params, key) {
+  const p = PARAMS.find((x) => x.key === key);
+  if (!p) return null;
+  const v = params?.[p.key] ?? p.def;
+  const isDefault = v === p.def;
+  return {
+    kind: "dial",
+    icon: "gauge",
+    title: `Dial: ${p.label}`,
+    hook: `Yours is set to ${v}${isDefault ? " — the benchmarked sweet spot." : " — you tinkered."}`,
+    body: `${p.blurb} You're running ${v}${isDefault ? " — the benchmarked sweet spot." : ` (default ${p.def}) — you tinkered!`}`,
+    // numeric dials get a mini-gauge on the card front (value vs default)
+    gauge: p.kind === "choice" ? null : { min: p.min, max: p.max, def: p.def, value: v },
+  };
 }
 
 // Each fact is tagged with the stage(s) whose wait it belongs to: image =
 // diffusion/prompt craft, mesh = 3D reconstruction, bricks = LEGO science.
-// The one multi-stage card is the closer appended to every deck.
+// `hook` is the one-line front-of-card teaser; `body` is the card back.
 export const FACTS = [
   {
     title: "Why studs are 8 mm",
+    icon: "ruler",
     stages: ["bricks"],
+    hook: "The 1958 patent still rules our grid.",
     body: "LEGO's 1958 patent fixed the stud pitch at 8 mm and the brick height at 9.6 mm — a 5:6 ratio. Our voxel grid uses exactly those proportions.",
   },
   {
     title: "Three plates = one brick",
+    icon: "layers",
     stages: ["bricks"],
+    hook: "The 1:3 ratio behind every fine roofline.",
     body: "A plate is exactly 1/3 of a brick's height. Real LEGO Architecture sets are mostly plates and tiles — that's how they get those fine terraces and rooflines.",
   },
   {
     title: "Tiles: the smooth finish",
+    icon: "layout-grid",
     stages: ["bricks"],
+    hook: "Plates without studs — the pro finish.",
     body: "Tiles are plates without studs. Spot them on every LEGO Architecture roof and plaza — and on the roofs of this set, placed automatically wherever a top face is exposed.",
   },
   {
     title: "The running bond",
+    icon: "blocks",
     stages: ["bricks"],
+    hook: "Why masons — and we — stagger every seam.",
     body: "Masons stagger brick joints so cracks can't travel — and so does our solver: it pays a penalty every time a seam would stack on the seam below.",
   },
   {
     title: "TRELLIS guesses the back",
+    icon: "box",
     stages: ["mesh"],
+    hook: "One photo, infinite possible backs.",
     body: "Image-to-3D is an inverse problem: one photo, infinite possible backs. TRELLIS uses a learned prior over 3D shapes to pick the most plausible one.",
   },
   {
     title: "Prompt strength, in one sentence",
+    icon: "gauge",
     stages: ["image"],
+    hook: "The slider is literally 'how hard to push'.",
     body: "Classifier-free guidance renders your prompt AND an empty prompt, then pushes the image toward the difference — the slider is literally 'how hard to push'.",
   },
   {
     title: "What a LoRA is",
+    icon: "wand",
     stages: ["image"],
+    hook: "A few megabytes steering four billion parameters.",
     body: "A Low-Rank Adaptation is a tiny add-on network (a few MB) that steers a huge model. Ours was trained on LEGO Architecture set photography.",
   },
   {
     title: "Seeds & reproducibility",
+    icon: "dices",
     stages: ["image"],
+    hook: "Fix the seed, replay the magic forever.",
     body: "The 'randomness' in diffusion is pseudo-random: fix the seed and every step replays identically. Pin a seed in Tinker and your set is reproducible forever.",
   },
   {
     title: "Color matching, properly",
-    stages: ["bricks"],
-    body: "We compare your render's colors to the real LEGO palette in CIE Lab space with CIEDE2000 — the same metric print shops use — not naive RGB distance.",
+    icon: "palette",
+    stages: ["mesh", "bricks"],
+    hook: "Print-shop color science, not naive RGB.",
+    body: "We compare your render's colors to the real LEGO palette in CIE Lab space with CIEDE2000 — the same metric print shops use — not naive RGB distance. The pixels being painted right now are the ones we'll match.",
   },
   {
     title: "Why negative prompts work here",
+    icon: "eye-off",
     stages: ["image"],
+    hook: "Telling it what NOT to draw actually works.",
     body: "Our FLUX checkpoint is the undistilled 'base' — real guidance is active, so listing 'trees, people, antennas' as negatives genuinely steers them away.",
   },
   {
     title: "Connectivity check",
+    icon: "link",
     stages: ["bricks"],
+    hook: "No floating islands allowed.",
     body: "Before you see the set, a 6-neighbour flood-fill proves every brick connects to the body — no floating islands allowed in a buildable model.",
+  },
+  // ---- mesh-wait additions: the longest room gets the richest deck ----
+  {
+    title: "Structured latents",
+    icon: "shapes",
+    stages: ["mesh"],
+    hook: "TRELLIS thinks in sparse 3D pixels.",
+    body: "TRELLIS doesn't sculpt triangles directly — it denoises a sparse grid of 'structured latents': packets of shape-and-appearance information only where the building actually is. Empty air costs nothing.",
+  },
+  {
+    title: "Why this takes minutes",
+    icon: "hourglass",
+    stages: ["mesh"],
+    hook: "Diffusion, but cubed.",
+    body: "Your render took 28 denoising passes over a flat image. The mesh needs the same trick in 3D — coarse structure first, then fine surface latents — and every pass touches a volume, not a picture. That's the 4–6 minutes.",
+  },
+  {
+    title: "Half a million teachers",
+    icon: "graduation-cap",
+    stages: ["mesh"],
+    hook: "It has seen ~500,000 shapes before yours.",
+    body: "TRELLIS learned its sense of 'how objects usually go' from roughly 500,000 3D assets. When your photo hides a facade, it doesn't guess randomly — it leans on every building-shaped thing it has ever seen.",
+  },
+  {
+    title: "Texture is its own pass",
+    icon: "paintbrush",
+    stages: ["mesh"],
+    hook: "First the clay, then the paint.",
+    body: "Once the geometry settles, a second generative pass paints color onto the surfaces. Those exact painted pixels are what we later match to real LEGO colors — this stage quietly chooses your palette.",
+  },
+  {
+    title: "Decimation, the quiet step",
+    icon: "scissors",
+    stages: ["mesh"],
+    hook: "A million triangles walk into a voxel grid…",
+    body: "The raw mesh can carry hundreds of thousands of triangles. Before export it's decimated — simplified while keeping the silhouette. Fine by us: the voxelizer only cares about the volume, not the wireframe.",
+  },
+  {
+    title: "What happens after this",
+    icon: "arrow-right",
+    stages: ["mesh"],
+    hook: "The AI's last act.",
+    body: "This is the final AI stage. Next, deterministic code takes over: the mesh is sliced into plate-height voxels and solved into legal bricks in seconds — fully repeatable, no dice.",
   },
   {
     title: "The pipeline in one breath",
+    icon: "workflow",
     stages: ["image", "mesh", "bricks"],
+    hook: "Words to bricks in five moves.",
     body: "Words → FLUX render → TRELLIS mesh → plate-unit voxels → brick solver → stability check → your set. GenAI proposes the form; deterministic computation proves it's buildable.",
   },
 ];
@@ -176,57 +248,90 @@ export const FACTS = [
 export const PIPELINE_CARDS = [
   {
     title: "Meet FLUX.2 Klein",
+    icon: "camera",
     stage: "image",
+    hook: "It photographs sets that never existed.",
     body: "A 4-billion-parameter rectified-flow image model running locally on this machine. With the legoarch LoRA it doesn't draw buildings — it photographs sets that never existed.",
   },
   {
     title: "Meet TRELLIS.2",
+    icon: "boxes",
     stage: "mesh",
+    hook: "It sees one photo and thinks in 3D.",
     body: "Microsoft's image-to-3D model. It generates a sparse 3D latent in stages — silhouette first, then surface detail, then texture — before exporting the mesh we voxelize.",
   },
   {
     title: "Meet the legolizer",
+    icon: "hammer",
     stage: "bricks",
+    hook: "No AI in this stage — on purpose.",
     body: "Our own engine (no AI here, on purpose): voxelize → split-and-merge bricks → CIEDE2000 colors → stability proof. Published algorithms, custom integration — that's the thesis.",
   },
 ];
 
-// which Tinker group is "live" during each stage's wait
-const STAGE_GROUP = { image: "render", mesh: "shape", bricks: "bricks" };
+// Curated deck per stage — sized to the wait, not to what's lying around:
+// image ≈ 35 s → 7 cards, mesh = 4–6 MIN (the long room) → 12 cards,
+// bricks ≈ seconds → 6 cards. Entries: "#title" = pipeline intro,
+// "$key" = live dial card, plain string = fact by title. Deterministic
+// order, no Math.random, so re-renders never reshuffle mid-wait; every deck
+// closes with the all-stage summary card.
+const STAGE_DECKS = {
+  image: [
+    "#Meet FLUX.2 Klein",
+    "Seeds & reproducibility",
+    "$guidance",
+    "What a LoRA is",
+    "$lora_scale",
+    "The pipeline in one breath",
+  ],
+  mesh: [
+    "#Meet TRELLIS.2",
+    "TRELLIS guesses the back",
+    "$shape_guidance",
+    "Structured latents",
+    "Why this takes minutes",
+    "$shape_steps",
+    "Half a million teachers",
+    "Texture is its own pass",
+    "Color matching, properly",
+    "Decimation, the quiet step",
+    "What happens after this",
+    "The pipeline in one breath",
+  ],
+  bricks: [
+    "#Meet the legolizer",
+    "Why studs are 8 mm",
+    "The running bond",
+    "Connectivity check",
+    "Tiles: the smooth finish",
+    "The pipeline in one breath",
+  ],
+};
 
-// alternate a, b, a, b… then drain whichever list runs longer
-function weave(a, b) {
-  const out = [];
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    if (i < a.length) out.push(a[i]);
-    if (i < b.length) out.push(b[i]);
-  }
-  return out;
-}
-
-// Build the rotating deck for ONE stage's wait — each waiting room teaches
-// only its own stage: image = prompt craft + FLUX, mesh = 3D reconstruction,
-// bricks = LEGO science. Deterministic order, no Math.random, so re-renders
-// don't reshuffle mid-wait. Every deck closes with the all-stage summary card.
 export function eduCards({ stage = "image", prompt, params }) {
   const deck = [];
   if (stage === "image") {
     const anatomy = promptAnatomy(prompt);
-    if (anatomy) deck.push({ kind: "anatomy", title: "Anatomy of your prompt", segs: anatomy });
+    if (anatomy)
+      deck.push({
+        kind: "anatomy",
+        icon: "type",
+        title: "Anatomy of your prompt",
+        hook: "Your words, slotted into the grammar.",
+        segs: anatomy,
+      });
   }
-
-  // the stage's pipeline intro ("Meet FLUX / TRELLIS / the legolizer") first
-  deck.push(...PIPELINE_CARDS.filter((c) => c.stage === stage).map((c) => ({ kind: "pipeline", ...c })));
-
-  const facts = FACTS
-    .filter((c) => c.stages.includes(stage) && c.stages.length === 1)
-    .map((c) => ({ kind: "fact", ...c }));
-  const dials = dialCards(params, STAGE_GROUP[stage]);
-  // image leads with prompt-science facts; mesh/bricks lead with the dials the
-  // user just had in hand at the previous stop
-  deck.push(...(stage === "image" ? weave(facts, dials) : weave(dials, facts)));
-
-  // the closer: "The pipeline in one breath" ends every deck
-  deck.push(...FACTS.filter((c) => c.stages.length > 1).map((c) => ({ kind: "fact", ...c })));
+  for (const ref of STAGE_DECKS[stage] ?? []) {
+    if (ref.startsWith("#")) {
+      const c = PIPELINE_CARDS.find((p) => p.title === ref.slice(1));
+      if (c) deck.push({ kind: "pipeline", ...c });
+    } else if (ref.startsWith("$")) {
+      const c = dialCard(params, ref.slice(1));
+      if (c) deck.push(c);
+    } else {
+      const c = FACTS.find((f) => f.title === ref);
+      if (c) deck.push({ kind: "fact", ...c });
+    }
+  }
   return deck;
 }

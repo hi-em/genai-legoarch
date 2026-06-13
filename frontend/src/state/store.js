@@ -80,6 +80,10 @@ export const useBuild = create((set, get) => ({
   params: { ...DEFAULTS },  // Tinker slider values (survive "Visualize another")
   seed: null,         // null = surprise me (backend rolls + echoes the seed)
   runRecord: null,    // reproducibility snapshot of the last successful forge
+  calls: null,        // the mesh-wait call sheet: { pieces, stable, colors }
+                      // option ids (see hero/CallSheet.jsx BETS) — scored at
+                      // reveal; survives re-materialize/re-legolize (the bet
+                      // is on the FINAL set), cleared by a new render + reset()
 
   // ---- flow control: the single source of truth ----
   inFlight: null,     // null | "image" | "mesh" | "bricks"
@@ -130,7 +134,7 @@ export const useBuild = create((set, get) => ({
     clearPendingJob();
     set((s) => ({
       prompt: "", imageUrl: null, glbUrl: null, glbName: null, brickModel: null,
-      setCopy: null, runRecord: null,
+      setCopy: null, runRecord: null, calls: null,
       inFlight: null, abortCtrl: null, tuning: false, assembling: false, saved: false,
       pendingJob: null, jobId: s.jobId + 1,
     }));

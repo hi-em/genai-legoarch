@@ -1,6 +1,7 @@
 // Motion tokens — the single vocabulary every animated component speaks.
 // Durations are in seconds (Framer Motion convention).
-export const DUR = { fast: 0.1, base: 0.18, mod: 0.24, slow: 0.36 };
+export const DUR = { fast: 0.1, base: 0.18, mod: 0.24, slow: 0.36, flip: 0.5 };
+// flip pairs with Tailwind's `duration-flip` (500ms) — the CSS-3D card flip.
 
 export const EASE = {
   standard: [0.2, 0, 0, 1],

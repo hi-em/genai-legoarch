@@ -1,12 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { useBuild, derivePhase } from "../state/store.js";
 import { useReducedMotion } from "../lib/useReducedMotion.js";
 import { cn } from "../lib/cn.js";
 
 // Abstract "brick buddy" — a friendly 2x2 brick with a face. Deliberately NOT a
 // minifigure (trademark-protected).
-const TIP =
-  "Name a building, hit Visualize, and watch it click together — course by course — into a set you could actually build.";
+// Tips follow the pipeline phase so the buddy never tells you to "hit
+// Visualize" while a render is already running.
+const TIPS = {
+  intro:
+    "Name a building, hit Visualize, and watch it click together — course by course — into a set you could actually build.",
+  rendering:
+    "FLUX is sculpting your building out of pure noise — about half a minute. Flip the cards while you wait.",
+  render: "Happy with the photo? Click it to flip — the full recipe is on the back.",
+  meshing:
+    "This is the long one (4–6 min). Try the loupe on the render — and lock in your call sheet.",
+  mesh: "Orbit the raw mesh. Brick dials are cheap — legolizing takes seconds, so experiment.",
+  legolizing: "No AI in this stage — pure geometry. Done before you finish this sentence.",
+  assembling: "Watch it click together, course by course.",
+  reveal: "Add it to your shelf — or tune the bricks and re-solve in seconds.",
+};
 
 function BuddyFace({ size = 52 }) {
   return (
@@ -27,14 +41,23 @@ function BuddyFace({ size = 52 }) {
 }
 
 export default function BrickBuddy() {
+  const phase = useBuild(derivePhase);
   const [open, setOpen] = useState(true);
   const reduced = useReducedMotion();
+
+  // a dismissal silences the CURRENT phase only — a new phase reopens the
+  // bubble with its own tip
+  useEffect(() => {
+    setOpen(true);
+  }, [phase]);
+
+  const tip = TIPS[phase] ?? TIPS.intro;
 
   return (
     <div className="fixed bottom-[18px] right-[18px] z-50 hidden items-end gap-2.5 md:flex">
       {open && (
         <div className="relative max-w-[250px] rounded-[14px] bg-elevated px-3.5 py-3 pr-8 text-sm leading-snug text-ink shadow-pop" role="status">
-          <span>{TIP}</span>
+          <span>{tip}</span>
           <button
             className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-sunken text-muted hover:text-ink"
             aria-label="Dismiss tip"

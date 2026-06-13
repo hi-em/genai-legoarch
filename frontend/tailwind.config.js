@@ -57,6 +57,7 @@ export default {
       maxWidth: {
         plate: "920px",
         "plate-wide": "1120px",
+        stage: "1240px", // waiting-room stage width
       },
       borderRadius: {
         DEFAULT: "6px",
@@ -102,6 +103,7 @@ export default {
         DEFAULT: "180ms",
         moderate: "240ms",
         slow: "360ms",
+        flip: "500ms", // CSS-3D card flip — paired with DUR.flip in lib/motion.js
       },
       keyframes: {
         studpop: {
@@ -113,11 +115,22 @@ export default {
           "0%,100%": { transform: "translateY(0) rotate(-2deg)" },
           "50%": { transform: "translateY(-5px) rotate(2deg)" },
         },
+        // waiting-room square treatments (see hero/StageSquare.jsx)
+        kenburns: {
+          "0%": { transform: "scale(1)" },
+          "100%": { transform: "scale(1.06)" },
+        },
+        sweep: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
       },
       animation: {
         studpop: "studpop .9s infinite ease-in-out",
         shimmer: "shimmer 1.4s infinite",
         bob: "bob 3.5s ease-in-out infinite",
+        kenburns: "kenburns 18s ease-in-out infinite alternate",
+        sweep: "sweep 2.8s linear infinite",
       },
     },
   },
