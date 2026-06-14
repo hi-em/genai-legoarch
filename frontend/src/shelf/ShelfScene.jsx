@@ -105,18 +105,21 @@ function ShelfBox({ item }) {
   return <ClosedCarton frontTex={tex} />;
 }
 
+// A small museum-style name card, tucked into the front-LEFT corner so it
+// clears the box art and the legolized model (which sits front-right at
+// MODEL_X) instead of covering them. Left-anchored text keeps it compact.
 function Plaque({ x, floorY, title, sub }) {
   return (
-    <group position={[x, floorY + 0.6, CELL_D - 0.9]}>
+    <group position={[x - CELL_W / 2 + 2.5, floorY + 0.42, CELL_D - 0.7]}>
       <mesh castShadow>
-        <boxGeometry args={[5.6, 1.15, 0.14]} />
+        <boxGeometry args={[3.8, 0.78, 0.12]} />
         <meshStandardMaterial color={WOOD.plaque} roughness={0.6} metalness={0.1} />
       </mesh>
-      <Text position={[0, sub ? 0.18 : 0, 0.1]} fontSize={0.42} color={PLAQUE_TEXT} anchorX="center" anchorY="middle">
+      <Text position={[-1.7, sub ? 0.12 : 0, 0.08]} fontSize={0.27} maxWidth={3.4} color={PLAQUE_TEXT} anchorX="left" anchorY="middle">
         {title}
       </Text>
       {sub && (
-        <Text position={[0, -0.31, 0.1]} fontSize={0.28} color={PLAQUE_SUB} anchorX="center" anchorY="middle">
+        <Text position={[-1.7, -0.2, 0.08]} fontSize={0.19} color={PLAQUE_SUB} anchorX="left" anchorY="middle">
           {sub}
         </Text>
       )}
@@ -154,7 +157,7 @@ function SetCompartment({ item, center, onSelect, onRemove }) {
   // over-budget sets lose the model, so their box steps up and takes centre stage
   const boxScale = mode === "box-only" ? BOX_SCALE * 1.07 : BOX_SCALE;
   const boxX = mode === "box-only" ? 0 : BOX_X;
-  const title = truncate(item.title || "Untitled set", 24);
+  const title = truncate(item.title || "Untitled set", 16);
   const sub = [item.setNumber, item.nBricks ? `${item.nBricks.toLocaleString()} pcs` : null]
     .filter(Boolean).join(" · ");
 

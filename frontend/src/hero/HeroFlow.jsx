@@ -8,7 +8,7 @@ import { useReducedMotion } from "../lib/useReducedMotion.js";
 import { adaptBrickModel, totalParts, totalColors, courseCount } from "../lib/brickModel.js";
 import { frontElevationThumb } from "../lib/thumb.js";
 import { downscaleDataUrl } from "../lib/image.js";
-import { playSnap, playPop } from "../lib/sound.js";
+import { playSnap, playPop, playWin, playLose } from "../lib/sound.js";
 import ErrorBoundary from "../components/ErrorBoundary.jsx";
 import PackRitual from "../transition/PackRitual.jsx";
 import BoxHub from "./trophies/BoxHub.jsx";
@@ -61,6 +61,23 @@ export default function HeroFlow() {
   // or "Visualize another" clearing it) snaps back to idle.
   const [stage, setStage] = useState("idle"); // "idle" | "packing" | "explore"
   useEffect(() => { setStage("idle"); }, [brickModel]);
+
+  // Score the call-sheet bets once when the reveal lands — a win/lose wink a
+  // beat AFTER the reveal chime (so the two payoff sounds don't collide). The
+  // ref resets when we leave the reveal, so the next build re-fires it; while
+  // tuning (phase stays "reveal") it won't replay.
+  const scoredRef = useRef(false);
+  useEffect(() => {
+    if (phase !== "reveal" || !brickModel) { scoredRef.current = false; return; }
+    if (scoredRef.current) return;
+    const score = scoreCalls(calls ?? runRecord?.calls, brickModel);
+    if (!score) return;
+    scoredRef.current = true;
+    const id = setTimeout(() => {
+      if (score.hits * 2 >= score.total) playWin(); else playLose();
+    }, 650);
+    return () => clearTimeout(id);
+  }, [phase, brickModel, calls, runRecord]);
 
   // One title for the box everywhere — the pack ritual, the explore cover, the
   // booklet and the shelf all read the same name. With no AI persona copy we

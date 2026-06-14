@@ -1,12 +1,12 @@
 // Room 1's whole show: YOUR prompt slotting into the 8-slot grammar, one
 // slot every few seconds — timed to fill the ~35s render. Slots the parser
 // recognizes in your words show them as chips; the rest fill as quiet bars
-// (the enhancer writes those server-side). Each fill clicks like a brick.
+// (the enhancer writes those server-side). Silent on purpose — it fills on a
+// timer, and a beep per slot through the wait reads as a slot machine.
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { GRAMMAR, TONE, parsePromptSlots } from "../lib/promptGrammar.js";
 import { useReducedMotion } from "../lib/useReducedMotion.js";
-import { playSnap } from "../lib/sound.js";
 import { cn } from "../lib/cn.js";
 
 const ROW_MS = 3600; // 9 rows × 3.6s ≈ the ~34s image estimate — duration-matched
@@ -45,7 +45,8 @@ export default function VisualizingCanvas({ prompt }) {
     const t = setInterval(() => {
       n += 1;
       if (n > rows.length) return clearInterval(t);
-      playSnap();
+      // no sound here: this fills on a timer (the machine talking, not the
+      // user) and beeping through the wait reads as a slot machine.
       setFilled(n);
     }, ROW_MS);
     return () => clearInterval(t);

@@ -5,7 +5,7 @@ import { BrickInstances, Baseplate, modelOffset, worldHeight } from "./bricks3d.
 import { VIEWER_BG } from "../lib/tokens.js";
 import { courseOf, courseCount } from "../lib/brickModel.js";
 import { useReducedMotion } from "../lib/useReducedMotion.js";
-import { playSnap, playPop } from "../lib/sound.js";
+import { playSnap, playReveal } from "../lib/sound.js";
 
 const DROP = 7; // how high a course starts before it settles
 
@@ -50,7 +50,7 @@ function Assembly({ brickModel, reduced, skipRef, onDone }) {
     if (revealed >= nz) {
       if (!doneRef.current) {
         doneRef.current = true;
-        if (!reduced) playPop();
+        if (!reduced) playReveal();   // the "set complete" payoff chime
         onDone?.();
       }
       return;

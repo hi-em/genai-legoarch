@@ -7,6 +7,7 @@
 import { Chip } from "../components/ui/index.js";
 import { useBuild } from "../state/store.js";
 import { totalParts, totalColors } from "../lib/brickModel.js";
+import { playSnap } from "../lib/sound.js";
 
 export const BETS = [
   {
@@ -73,8 +74,10 @@ export default function CallSheet() {
   const done = BETS.every((b) => calls?.[b.key]);
   // always merge against the LIVE store value — two quick taps in the same
   // tick would otherwise overwrite each other via the stale render closure
-  const pick = (key, id) =>
+  const pick = (key, id) => {
+    if (id) playSnap();   // a click when you place a call (not when you clear)
     set({ calls: { ...(useBuild.getState().calls || {}), [key]: id } });
+  };
 
   return (
     <div className="mt-3 rounded-xl bg-white/5 px-3.5 py-2">
