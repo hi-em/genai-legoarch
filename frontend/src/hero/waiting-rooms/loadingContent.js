@@ -1,8 +1,8 @@
 // All copy for the loading theater: the step-aware stage tracks (what the
 // pipeline is doing RIGHT NOW) and the rotating educational cards beneath
 // (prompt anatomy, what each dial does, pipeline + LEGO facts).
-import { PARAMS } from "./tinkerParams.js";
-import { parsePromptSlots } from "../lib/promptGrammar.js";
+import { PARAMS } from "../tinkerParams.js";
+import { parsePromptSlots } from "../../lib/promptGrammar.js";
 
 // Stage timelines. estMs values are honest pacing hints, not promises — the
 // progress bar eases toward ~90% of each step and PARKS until the real await

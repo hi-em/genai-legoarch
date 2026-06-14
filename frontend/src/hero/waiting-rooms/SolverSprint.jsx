@@ -6,9 +6,9 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { VoxelSweep } from "./StageSquare.jsx";
-import { useReducedMotion } from "../lib/useReducedMotion.js";
-import { DUR, EASE } from "../lib/motion.js";
-import { cn } from "../lib/cn.js";
+import { useReducedMotion } from "../../lib/useReducedMotion.js";
+import { DUR, EASE } from "../../lib/motion.js";
+import { cn } from "../../lib/cn.js";
 
 // The REAL solver stages (see backend/app/legolizer) — labels, not fake logs.
 const LINES = [

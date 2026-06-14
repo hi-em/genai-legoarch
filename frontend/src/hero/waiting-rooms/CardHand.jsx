@@ -13,11 +13,12 @@ import {
   EyeOff, Link2, Shapes, Hourglass, GraduationCap, Paintbrush, Scissors,
   ArrowRight, Workflow, Camera, Boxes, Hammer, Type, Sparkles,
 } from "lucide-react";
-import { TONE } from "../lib/promptGrammar.js";
+import { TONE } from "../../lib/promptGrammar.js";
 import { DIAGRAMS } from "./CardDiagrams.jsx";
-import { DUR, SPRING } from "../lib/motion.js";
-import { useReducedMotion } from "../lib/useReducedMotion.js";
-import { cn } from "../lib/cn.js";
+import { studDotBg } from "./studGrid.js";
+import { DUR, SPRING } from "../../lib/motion.js";
+import { useReducedMotion } from "../../lib/useReducedMotion.js";
+import { cn } from "../../lib/cn.js";
 
 // card `icon` string (loadingContent.js) → lucide component
 const ICONS = {
@@ -134,16 +135,8 @@ function FaceChrome({ children, className, dark = false }) {
       )}
     >
       {dark && (
-        // the lEgoarCh stud-dot texture — same 22px pitch as the squares
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage: "radial-gradient(circle, #ffffff 1.2px, transparent 1.4px)",
-            backgroundSize: "22px 22px",
-            opacity: 0.05,
-          }}
-        />
+        // the lEgoarCh stud-dot texture — shared pitch with the squares
+        <div aria-hidden className="pointer-events-none absolute inset-0" style={studDotBg(0.05)} />
       )}
       {children}
     </div>

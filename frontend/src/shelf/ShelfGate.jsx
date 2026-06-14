@@ -11,6 +11,7 @@ import { List, Boxes } from "lucide-react";
 import ErrorBoundary from "../components/ErrorBoundary.jsx";
 import { hasWebGL } from "../lib/webgl.js";
 import { normalizeAdapted } from "../lib/brickModel.js";
+import { useBuild, isShelfDupe } from "../state/store.js";
 import ShelfScene from "./ShelfScene.jsx";
 import CollectionList from "../room/CollectionList.jsx";
 import TrophyShell from "../hero/trophies/TrophyShell.jsx";
@@ -31,6 +32,15 @@ export default function ShelfGate({ items, onRemove }) {
     if (!ok) return;
     onRemove(id);
     if (selectedId === id) setSelectedId(null); // closing the modal repaints the demand canvas
+
+    // If the removed set is the build still open on the reveal, clear its stale
+    // `saved` flag so ▶ Pack re-adds it instead of short-circuiting to explore.
+    const b = useBuild.getState();
+    if (it && b.brickModel && b.saved &&
+        isShelfDupe([it], b.setCopy?.set_name || (b.prompt || "Untitled set").split(",")[0],
+                    b.brickModel.stability.nBricks)) {
+      b.set({ saved: false });
+    }
   };
 
   return (

@@ -10,10 +10,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { STAGE_TRACKS, STAGE_META, eduCards } from "./loadingContent.js";
 import CardHand from "./CardHand.jsx";
-import { Button } from "../components/ui/index.js";
-import { DUR, EASE } from "../lib/motion.js";
-import { useReducedMotion } from "../lib/useReducedMotion.js";
-import { cn } from "../lib/cn.js";
+import { Button } from "../../components/ui/index.js";
+import { DUR, EASE } from "../../lib/motion.js";
+import { useReducedMotion } from "../../lib/useReducedMotion.js";
+import { cn } from "../../lib/cn.js";
 
 // ---- progress -------------------------------------------------------------
 

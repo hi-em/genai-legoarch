@@ -5,9 +5,10 @@
 // timer, and a beep per slot through the wait reads as a slot machine.
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { GRAMMAR, TONE, parsePromptSlots } from "../lib/promptGrammar.js";
-import { useReducedMotion } from "../lib/useReducedMotion.js";
-import { cn } from "../lib/cn.js";
+import { GRAMMAR, TONE, parsePromptSlots } from "../../lib/promptGrammar.js";
+import { useReducedMotion } from "../../lib/useReducedMotion.js";
+import { cn } from "../../lib/cn.js";
+import { studDotBg } from "./studGrid.js";
 
 const ROW_MS = 3600; // 9 rows × 3.6s ≈ the ~34s image estimate — duration-matched
 
@@ -55,16 +56,8 @@ export default function VisualizingCanvas({ prompt }) {
   return (
     // fills the LoadingStage square wrapper (which owns aspect, radius, clip)
     <div className="absolute inset-0 flex flex-col justify-center bg-ink p-5">
-      {/* faint stud grid — 22px ≈ on-screen stud pitch (shared with StageSquare) */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage: "radial-gradient(circle, #ffffff 1.2px, transparent 1.4px)",
-          backgroundSize: "22px 22px",
-          opacity: 0.06,
-        }}
-      />
+      {/* faint stud grid — shared on-screen stud pitch (see studGrid.js) */}
+      <div aria-hidden className="pointer-events-none absolute inset-0" style={studDotBg(0.06)} />
 
       <div className="relative flex flex-col gap-1.5">
         {rows.map((row, i) => {

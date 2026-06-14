@@ -6,12 +6,9 @@
 // All children of the LoadingStage square wrapper, which owns aspect-square,
 // rounding and overflow clipping — these fill `absolute inset-0`.
 import Loupe from "./Loupe.jsx";
-import { useReducedMotion } from "../lib/useReducedMotion.js";
-import { cn } from "../lib/cn.js";
-
-// 22px ≈ the on-screen stud pitch — the same intentional pattern as
-// VisualizingCanvas' dot grid, not a magic number.
-const STUD_PITCH = 22;
+import { useReducedMotion } from "../../lib/useReducedMotion.js";
+import { cn } from "../../lib/cn.js";
+import { STUD_PITCH } from "./studGrid.js";
 
 function Caption({ children }) {
   // bg-black/60 + white/95: ≥4.5:1 even over a pure-white render area
