@@ -4,6 +4,12 @@
 // use the brand CSS variables so they stay token-true. Keyed by card title.
 // Decorative (aria-hidden): the body text below each diagram carries the
 // information for screen readers.
+//
+// NOTE on keys: this project's JSX dev transform emits only `jsxDEV` with
+// isStaticChildren:false (no `jsxsDEV`), so React key-validates the children
+// array of every element at its CREATION site. Diagrams with inline SVG
+// children therefore need an explicit `key` on each direct child of <Frame>
+// (the `.map()` diagrams are already keyed). tinyLabel carries its own key too.
 
 const ON = "rgba(233,235,230,"; // on-dark white, append alpha + ")"
 
@@ -21,8 +27,10 @@ function Frame({ children, label }) {
   );
 }
 
+// keyed by x so the multi-label `label={[...]}` arrays a few diagrams pass to
+// Frame don't trip React's "unique key prop" warning (x is unique per frame)
 const tinyLabel = (x, text, anchor = "middle") => (
-  <text x={x} y="69" textAnchor={anchor} fontSize="7.5" fontWeight="600" fill={`${ON}.55)`} style={{ letterSpacing: ".08em", textTransform: "uppercase" }}>
+  <text key={x} x={x} y="69" textAnchor={anchor} fontSize="7.5" fontWeight="600" fill={`${ON}.55)`} style={{ letterSpacing: ".08em", textTransform: "uppercase" }}>
     {text}
   </text>
 );
@@ -62,11 +70,11 @@ const Brick = ({ x, y, w = 34, h = 16 }) => (
 function PhotoToCube() {
   return (
     <Frame label={[tinyLabel(50, "one photo"), tinyLabel(172, "full 3d")]}>
-      <rect x="28" y="12" width="44" height="44" rx="4" fill="none" stroke={`${ON}.5)`} strokeWidth="1.2" />
-      <circle cx="40" cy="24" r="3.5" fill="var(--brand-yellow)" />
-      <path d="M32 48 L45 34 L53 42 L60 33 L68 43 V50 Q68 52 66 52 H34 Q32 52 32 50 Z" fill={`${ON}.22)`} />
-      <Arrow x1={88} x2={120} />
-      <Cube cx={172} topY={14} e={17} />
+      <rect key="photo" x="28" y="12" width="44" height="44" rx="4" fill="none" stroke={`${ON}.5)`} strokeWidth="1.2" />
+      <circle key="sun" cx="40" cy="24" r="3.5" fill="var(--brand-yellow)" />
+      <path key="hill" d="M32 48 L45 34 L53 42 L60 33 L68 43 V50 Q68 52 66 52 H34 Q32 52 32 50 Z" fill={`${ON}.22)`} />
+      <Arrow key="arrow" x1={88} x2={120} />
+      <Cube key="cube" cx={172} topY={14} e={17} />
     </Frame>
   );
 }
@@ -74,9 +82,9 @@ function PhotoToCube() {
 function GuessTheBack() {
   return (
     <Frame label={[tinyLabel(74, "the photo"), tinyLabel(152, "inferred")]}>
-      <rect x="92" y="10" width="56" height="38" rx="3" fill="none" stroke={`${ON}.45)`} strokeWidth="1.2" strokeDasharray="4 3" />
-      <text x="120" y="34" textAnchor="middle" fontSize="17" fontWeight="700" fill={`${ON}.55)`}>?</text>
-      <rect x="64" y="20" width="56" height="38" rx="3" fill="var(--brand-blue)" opacity=".85" />
+      <rect key="ghost" x="92" y="10" width="56" height="38" rx="3" fill="none" stroke={`${ON}.45)`} strokeWidth="1.2" strokeDasharray="4 3" />
+      <text key="q" x="120" y="34" textAnchor="middle" fontSize="17" fontWeight="700" fill={`${ON}.55)`}>?</text>
+      <rect key="front" x="64" y="20" width="56" height="38" rx="3" fill="var(--brand-blue)" opacity=".85" />
     </Frame>
   );
 }
@@ -100,11 +108,11 @@ function SparseLatents() {
 function FlatVsVolume() {
   return (
     <Frame label={[tinyLabel(52, "your render · 2d"), tinyLabel(168, "the mesh · 3d")]}>
-      <rect x="34" y="14" width="36" height="36" rx="3" fill="none" stroke={`${ON}.5)`} strokeWidth="1.2" />
-      <text x="52" y="37" textAnchor="middle" fontSize="9" fontWeight="700" fill={`${ON}.6)`}>×28</text>
-      <Arrow x1={88} x2={118} />
-      <Cube cx={168} topY={12} e={16} />
-      <text x="200" y="40" textAnchor="middle" fontSize="9" fontWeight="700" fill={`${ON}.6)`}>×28³</text>
+      <rect key="flat" x="34" y="14" width="36" height="36" rx="3" fill="none" stroke={`${ON}.5)`} strokeWidth="1.2" />
+      <text key="n2d" x="52" y="37" textAnchor="middle" fontSize="9" fontWeight="700" fill={`${ON}.6)`}>×28</text>
+      <Arrow key="arrow" x1={88} x2={118} />
+      <Cube key="cube" cx={168} topY={12} e={16} />
+      <text key="n3d" x="200" y="40" textAnchor="middle" fontSize="9" fontWeight="700" fill={`${ON}.6)`}>×28³</text>
     </Frame>
   );
 }
@@ -132,9 +140,9 @@ function ManyTeachers() {
 function ClayThenPaint() {
   return (
     <Frame label={[tinyLabel(60, "geometry first"), tinyLabel(170, "then paint")]}>
-      <Cube cx={60} topY={12} e={16} mono />
-      <Arrow x1={96} x2={126} />
-      <g>
+      <Cube key="clay" cx={60} topY={12} e={16} mono />
+      <Arrow key="arrow" x1={96} x2={126} />
+      <g key="painted">
         <path d="M154 28 L170 20 L186 28 L170 36 Z" fill="var(--brand-tan)" opacity=".95" />
         <path d="M154 28 L170 36 V53 L154 45 Z" fill="rgba(228,205,158,.55)" />
         <path d="M186 28 L170 36 V53 L186 45 Z" fill="rgba(228,205,158,.3)" />
@@ -164,14 +172,14 @@ function ColorMatch() {
 function Decimate() {
   return (
     <Frame label={[tinyLabel(56, "raw · ~200k tris"), tinyLabel(168, "kept · ~40k")]}>
-      <g stroke={`${ON}.35)`} strokeWidth=".8" fill="none">
+      <g key="raw" stroke={`${ON}.35)`} strokeWidth=".8" fill="none">
         {[
           "M28 50 L40 16 L52 50 Z", "M40 16 L52 50 L64 20 Z", "M52 50 L64 20 L76 48 Z",
           "M40 16 L48 34 L58 24", "M30 38 L44 40 L40 16", "M58 24 L70 36 L64 20",
         ].map((d, i) => <path key={i} d={d} />)}
       </g>
-      <Arrow x1={94} x2={122} />
-      <g stroke="var(--brand-yellow)" strokeWidth="1.2" fill="none" opacity=".85">
+      <Arrow key="arrow" x1={94} x2={122} />
+      <g key="kept" stroke="var(--brand-yellow)" strokeWidth="1.2" fill="none" opacity=".85">
         <path d="M142 50 L166 14 L190 50 Z" />
         <path d="M154 50 L166 14 L178 50" />
       </g>
@@ -182,16 +190,16 @@ function Decimate() {
 function CodeTakesOver() {
   return (
     <Frame label={[tinyLabel(40, "mesh"), tinyLabel(110, "voxels"), tinyLabel(182, "bricks")]}>
-      <Cube cx={40} topY={14} e={14} mono />
-      <Arrow x1={66} x2={86} />
-      <g stroke={`${ON}.4)`} strokeWidth="1" fill="none">
+      <Cube key="mesh" cx={40} topY={14} e={14} mono />
+      <Arrow key="a1" x1={66} x2={86} />
+      <g key="grid" stroke={`${ON}.4)`} strokeWidth="1" fill="none">
         <rect x="94" y="16" width="32" height="32" rx="2" />
         <path d="M104.6 16 V48 M115.3 16 V48 M94 26.6 H126 M94 37.3 H126" />
       </g>
-      <rect x="95" y="27.6" width="9.6" height="9.7" fill="var(--brand-blue)" opacity=".8" />
-      <rect x="105.6" y="17" width="9.7" height="9.6" fill="var(--brand-blue)" opacity=".55" />
-      <Arrow x1={134} x2={154} />
-      <Brick x={165} y={22} />
+      <rect key="v1" x="95" y="27.6" width="9.6" height="9.7" fill="var(--brand-blue)" opacity=".8" />
+      <rect key="v2" x="105.6" y="17" width="9.7" height="9.6" fill="var(--brand-blue)" opacity=".55" />
+      <Arrow key="a2" x1={134} x2={154} />
+      <Brick key="brick" x={165} y={22} />
     </Frame>
   );
 }
@@ -201,19 +209,19 @@ function OneBreath() {
     <Frame
       label={[tinyLabel(24, "words"), tinyLabel(68, "photo"), tinyLabel(112, "mesh"), tinyLabel(156, "voxels"), tinyLabel(196, "bricks")]}
     >
-      <text x="24" y="38" textAnchor="middle" fontSize="15" fontWeight="800" fill={`${ON}.75)`} fontFamily="Nunito, system-ui">Aa</text>
-      <Arrow x1={36} x2={50} y={33} />
-      <rect x="58" y="20" width="22" height="22" rx="3" fill="none" stroke={`${ON}.5)`} strokeWidth="1.1" />
-      <circle cx="64.5" cy="26.5" r="2" fill="var(--brand-yellow)" />
-      <Arrow x1={86} x2={98} y={33} />
-      <Cube cx={112} topY={19} e={10} />
-      <Arrow x1={128} x2={140} y={33} />
-      <g stroke={`${ON}.45)`} strokeWidth="1" fill="none">
+      <text key="aa" x="24" y="38" textAnchor="middle" fontSize="15" fontWeight="800" fill={`${ON}.75)`} fontFamily="Nunito, system-ui">Aa</text>
+      <Arrow key="a1" x1={36} x2={50} y={33} />
+      <rect key="photo" x="58" y="20" width="22" height="22" rx="3" fill="none" stroke={`${ON}.5)`} strokeWidth="1.1" />
+      <circle key="sun" cx="64.5" cy="26.5" r="2" fill="var(--brand-yellow)" />
+      <Arrow key="a2" x1={86} x2={98} y={33} />
+      <Cube key="cube" cx={112} topY={19} e={10} />
+      <Arrow key="a3" x1={128} x2={140} y={33} />
+      <g key="grid" stroke={`${ON}.45)`} strokeWidth="1" fill="none">
         <rect x="146" y="22" width="19" height="19" rx="2" />
         <path d="M152.3 22 V41 M158.6 22 V41 M146 28.3 H165 M146 34.6 H165" />
       </g>
-      <Arrow x1={171} x2={181} y={33} />
-      <Brick x={186} y={22} w={26} h={12} />
+      <Arrow key="a4" x1={171} x2={181} y={33} />
+      <Brick key="brick" x={186} y={22} w={26} h={12} />
     </Frame>
   );
 }

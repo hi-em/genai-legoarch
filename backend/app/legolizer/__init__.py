@@ -76,13 +76,32 @@ def legolize_voxelgrid(
     tier = str(options.get("palette", _color.DEFAULT_TIER))
     # Quantize colours BEFORE packing so pieces respect colour boundaries
     # (escape hatch: color_strict=False reverts to average-after-pack).
+    #
+    # Track-B colour-consistency defaults, tuned on the docs/benchmarks corpus
+    # via scripts/replay_color.py: the TRELLIS bake leaves high-frequency chroma
+    # speckle that survives exposure matching and shatters the build into
+    # multi-colour confetti. rgb_blur_iters=1 denoises that at the source;
+    # smooth_iters=2 coalesces leftover specks. On the corpus this cut piece
+    # count ~38% and colour count ~40% while perceptual palette agreement (M1)
+    # held within a few percent of baseline — see docs note.
     code = None
     if voxel_rgb is not None and options.get("color_strict", True):
+        smooth_kernel = (3, 3, 3) if options.get("smooth_3d", False) else (3, 3, 1)
         code = _color.quantize_voxels(
             voxel_rgb, tier=tier,
-            smooth_iters=int(options.get("smooth_iters", 1)),
+            smooth_iters=int(options.get("smooth_iters", 2)),
+            smooth_kernel=smooth_kernel,
+            rgb_blur_iters=int(options.get("rgb_blur_iters", 1)),
         )
-    raw_bricks = _bricks.split_and_merge(occ, code=code, seed=seed, options=options)
+    # merge_tol > 0 lets a footprint span near-identical palette codes (heals
+    # texture-noise confetti); needs the palette's code-to-code CIEDE2000 matrix.
+    # 15 is surgical on the classic palette (real colours sit ~38 dE apart).
+    merge_tol = float(options.get("merge_tol", 15.0))
+    code_dist = _color.palette_code_distances(tier) if merge_tol > 0 else None
+    raw_bricks = _bricks.split_and_merge(
+        occ, code=code, seed=seed, options=options,
+        merge_tol=merge_tol, code_dist=code_dist,
+    )
     colors = _color.assign_colors(
         raw_bricks, occ, image_url, seed=seed, voxel_rgb=voxel_rgb, code=code,
         tier=tier,

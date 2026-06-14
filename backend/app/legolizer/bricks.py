@@ -197,17 +197,42 @@ def _code_uniform(box: np.ndarray) -> bool:
     return vals.size == 0 or bool((vals == vals.flat[0]).all())
 
 
+def _code_compatible(box: np.ndarray, code_dist: np.ndarray, tol: float) -> bool:
+    """A piece may span codes within `tol` CIEDE2000 of its dominant code.
+
+    Relaxes _code_uniform: rather than forcing a 1x1 boundary at every
+    quantization speck, a footprint absorbs near-identical neighbours (the
+    piece is later coloured by its dominant code, so no colour is invented).
+    At tol <= 0 this reduces exactly to _code_uniform.
+    """
+    vals = box[box >= 0]
+    if vals.size == 0:
+        return True
+    idx, counts = np.unique(vals, return_counts=True)
+    if idx.size == 1:
+        return True
+    if tol <= 0:
+        return False
+    dom = idx[int(np.argmax(counts))]
+    return bool((code_dist[dom, idx] <= tol).all())
+
+
 def split_and_merge(
     occ: np.ndarray,
     code: Optional[np.ndarray] = None,
     seed: int = 1,
     options: Optional[dict[str, Any]] = None,
+    merge_tol: float = 0.0,
+    code_dist: Optional[np.ndarray] = None,
 ) -> list[tuple[str, int, int, int, int, int, int, int]]:
     """Cover `occ` (plate-unit z) with bricks, plates and top tiles.
 
     `code` is an optional (nx, ny, nz) int grid of quantized palette indices
-    (-1 = unsampled wildcard); pieces never span two different codes, so colour
-    boundaries in the generated model survive into the build.
+    (-1 = unsampled wildcard); by default pieces never span two different codes,
+    so colour boundaries in the generated model survive into the build.
+    `merge_tol` (> 0, with `code_dist` the palette's code-to-code CIEDE2000
+    matrix) lets a piece span codes that close, healing texture-noise confetti
+    without crossing real colour edges.
 
     Returns pieces as (part, x, y, z, rot, w, d, h). Coverage is exact: every
     occupied cell is covered exactly once, none added.
@@ -216,6 +241,8 @@ def split_and_merge(
     p_random = float(options.get("randomness", 0.12))   # controlled randomness
     seam_weight = float(options.get("seam_weight", 1.0))
     tile_tops = bool(options.get("tile_tops", True))
+    merge_tol = float(options.get("merge_tol", merge_tol))
+    use_tol = merge_tol > 0 and code_dist is not None
     rng = random.Random(int(seed) & 0xFFFFFFFF)
 
     occ = occ.astype(bool)
@@ -251,11 +278,14 @@ def split_and_merge(
                 continue
             fits = []
             for part, w, d, rot in candidates:
-                if (
-                    x + w <= nx and y + d <= ny
-                    and mask[x:x + w, y:y + d].all()
-                    and _code_uniform(code[x:x + w, y:y + d, zp:zp + h])
-                ):
+                if not (x + w <= nx and y + d <= ny and mask[x:x + w, y:y + d].all()):
+                    continue
+                box = code[x:x + w, y:y + d, zp:zp + h]
+                code_ok = (
+                    _code_compatible(box, code_dist, merge_tol) if use_tol
+                    else _code_uniform(box)
+                )
+                if code_ok:
                     pen = _seam_penalty(x, y, w, d, xcuts, ycuts)
                     fits.append((part, w, d, rot, w * d, pen))
             if not fits:

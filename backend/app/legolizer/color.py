@@ -116,6 +116,22 @@ DEFAULT_TIER = "classic" if _catalog_palette("classic") else "legacy"
 # Back-compat: the legacy module-level Lab table (tests/poke scripts may use it).
 _PALETTE_LAB = _srgb_to_lab(np.array([p[2] for p in LEGO_PALETTE]))
 
+# code-index -> code-index CIEDE2000 distance, per tier (for the packer's
+# merge_tol: two adjacent palette codes may share a piece if they're this close)
+_CODE_DIST_CACHE: dict[str, np.ndarray] = {}
+
+
+def palette_code_distances(tier: Optional[str] = None) -> np.ndarray:
+    """(n, n) CIEDE2000 matrix between palette entries of a tier (cached)."""
+    name = tier or DEFAULT_TIER
+    hit = _CODE_DIST_CACHE.get(name)
+    if hit is not None:
+        return hit
+    _, lab_tbl = resolve_palette(name)
+    dist = _ciede2000(lab_tbl[:, None, :], lab_tbl[None, :, :])
+    _CODE_DIST_CACHE[name] = dist
+    return dist
+
 
 def nearest_lego_color(rgb: tuple[int, int, int], tier: Optional[str] = None) -> int:
     """Return the LDraw color code nearest to an sRGB value (CIEDE2000)."""
@@ -125,20 +141,56 @@ def nearest_lego_color(rgb: tuple[int, int, int], tier: Optional[str] = None) ->
     return pal[int(np.argmin(d))][0]
 
 
+def _denoise_rgb(
+    voxel_rgb: np.ndarray, iters: int,
+    kernel: tuple[int, int, int] = (3, 3, 3),
+) -> np.ndarray:
+    """Masked spatial mean-blur over SAMPLED voxels (unsampled stay black).
+
+    The TRELLIS bake leaves high-frequency chroma speckle (warm AO dots, stray
+    reds/blues) that survives exposure matching and isn't in the render. A code
+    mode-filter can't clear *dense* multi-colour speckle, and the packer's
+    merge_tol can't either (the speckle codes are far apart in Lab). Diluting
+    each voxel toward its sampled neighbourhood mean BEFORE quantizing collapses
+    those specks onto the local dominant (≈ the render's true colour) while
+    coherent regions survive. `iters` repeats it; 0 = off (legacy behaviour).
+    """
+    if iters <= 0:
+        return voxel_rgb
+    from scipy import ndimage
+
+    rgb = voxel_rgb.astype(np.float32)
+    mask = (rgb.sum(axis=3) > 0).astype(np.float32)
+    kern = np.ones(kernel)
+    for _ in range(int(iters)):
+        wsum = ndimage.convolve(mask, kern, mode="constant")
+        safe = np.maximum(wsum, 1.0)
+        for c in range(3):
+            num = ndimage.convolve(rgb[..., c] * mask, kern, mode="constant")
+            rgb[..., c] = np.where(mask > 0, num / safe, 0.0)
+    return np.clip(rgb, 0, 255).astype(np.uint8)
+
+
 def quantize_voxels(
     voxel_rgb: np.ndarray, smooth: bool = True,
     tier: Optional[str] = None, smooth_iters: int = 1,
+    smooth_kernel: tuple[int, int, int] = (3, 3, 1),
+    rgb_blur_iters: int = 0,
 ) -> np.ndarray:
     """Map every sampled voxel to its nearest palette INDEX (CIEDE2000).
 
     Returns an (nx, ny, nz) int grid; -1 marks unsampled (black) voxels, which
     act as wildcards in the packer's colour-uniformity check. Quantizing BEFORE
     packing lets pieces respect colour boundaries instead of averaging across
-    them. `smooth` applies a 3x3x1 majority filter so texture noise doesn't
-    shatter footprints into 1x1 confetti; `smooth_iters` repeats it (richer
-    palettes draw more boundaries, so they may need a second pass).
+    them. `rgb_blur_iters` first denoises the sampled colour spatially (kills the
+    TRELLIS chroma speckle at its source); then `smooth` applies a majority
+    filter on the resulting codes so leftover noise doesn't shatter footprints
+    into 1x1 confetti (`smooth_iters` repeats it). `smooth_kernel` defaults to a
+    per-layer 3x3x1; a 3x3x3 also couples vertically.
     """
     pal, lab_tbl = resolve_palette(tier)
+    if rgb_blur_iters > 0:
+        voxel_rgb = _denoise_rgb(voxel_rgb, rgb_blur_iters)
     flat = voxel_rgb.reshape(-1, 3).astype(float)
     sampled = flat.sum(axis=1) > 0
     out = np.full(flat.shape[0], -1, dtype=int)
@@ -149,17 +201,23 @@ def quantize_voxels(
     code = out.reshape(voxel_rgb.shape[:3])
     if smooth:
         for _ in range(max(1, int(smooth_iters))):
-            code = _smooth_codes(code, n_classes=len(pal))
+            code = _smooth_codes(code, n_classes=len(pal), kernel=smooth_kernel)
     return code
 
 
-def _smooth_codes(code: np.ndarray, n_classes: Optional[int] = None) -> np.ndarray:
-    """3x3x1 per-layer majority vote over palette indices (wildcards stay -1)."""
+def _smooth_codes(
+    code: np.ndarray, n_classes: Optional[int] = None,
+    kernel: tuple[int, int, int] = (3, 3, 1),
+) -> np.ndarray:
+    """Majority vote over palette indices in `kernel` window (wildcards stay -1).
+
+    Default 3x3x1 is per-layer; pass 3x3x3 to also couple vertically.
+    """
     from scipy import ndimage
 
     if n_classes is None:
         n_classes = len(LEGO_PALETTE)
-    kern = np.ones((3, 3, 1))
+    kern = np.ones(kernel)
     best = np.full(code.shape, -1, dtype=int)
     best_cnt = np.zeros(code.shape)
     # convolve only the classes actually present — a Full-48 palette request

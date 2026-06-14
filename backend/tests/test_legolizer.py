@@ -102,6 +102,48 @@ def test_color_boundary_blocks_vertical_merge():
         assert (vals == vals.flat[0]).all()         # no piece spans two colours
 
 
+def test_merge_tol_zero_matches_strict_uniform():
+    from app.legolizer.bricks import _code_compatible, _code_uniform
+
+    dist = np.array([[0.0, 4.0], [4.0, 0.0]])      # codes 0,1 are 4 dE apart
+    uniform = np.array([[[0, 0]]])
+    mixed = np.array([[[0, 1]]])
+    # tol=0 must reproduce _code_uniform exactly
+    assert _code_compatible(uniform, dist, 0.0) is _code_uniform(uniform) is True
+    assert _code_compatible(mixed, dist, 0.0) == _code_uniform(mixed) == False
+    # a positive tol lets the near pair share a piece, but only within tol
+    assert _code_compatible(mixed, dist, 5.0) is True
+    assert _code_compatible(mixed, dist, 3.0) is False
+
+
+def test_merge_tol_yields_fewer_pieces_on_speckle():
+    # a slab speckled with a near-identical second colour: a tolerant pack must
+    # not shatter into more pieces than the strict pack
+    from app.legolizer import color as _color
+
+    dist = _color.palette_code_distances("classic")
+    near = np.argwhere((dist > 0) & (dist <= 15))
+    a, b = int(near[0][0]), int(near[0][1])        # two codes within 15 dE
+    rng = np.random.default_rng(0)
+    occ = np.ones((8, 8, 3), dtype=bool)
+    code = np.where(rng.random((8, 8, 3)) < 0.25, b, a)
+    strict = split_and_merge(occ, code=code, seed=1, options={"tile_tops": False})
+    tol = split_and_merge(occ, code=code, seed=1, options={"tile_tops": False},
+                          merge_tol=15.0, code_dist=dist)
+    assert len(tol) < len(strict)
+
+
+def test_rgb_blur_collapses_isolated_speckle():
+    # mostly-white slab with a couple isolated far-colour specks: the pre-quantize
+    # blur should dilute them so the build doesn't gain extra palette codes
+    rgb = np.full((7, 7, 3, 3), 255, dtype=np.uint8)   # all White
+    rgb[3, 3, 1] = (200, 20, 10)                         # one Red speck
+    rgb[1, 5, 1] = (30, 90, 168)                         # one Blue speck
+    noisy = quantize_voxels(rgb, smooth=False, rgb_blur_iters=0)
+    blurred = quantize_voxels(rgb, smooth=False, rgb_blur_iters=2)
+    assert len(np.unique(blurred[blurred >= 0])) < len(np.unique(noisy[noisy >= 0]))
+
+
 def test_deterministic_under_fixed_seed():
     occ = _solid_box(6, 6, 8)
     a = legolize_voxelgrid(_occupancy=occ, options={"seed": 42})

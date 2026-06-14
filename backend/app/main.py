@@ -155,18 +155,47 @@ def _voxelize_and_legolize(
     )
     # real colour from the generated model, matched to LEGO colours downstream
     voxel_rgb = None
+    voxel_rgb_pre = None
     if voxel.get("rgb_b64"):
         voxel_rgb = (
             np.frombuffer(base64.b64decode(voxel["rgb_b64"]), dtype=np.uint8)
             .reshape((nz, ny, nx, 3))
             .transpose(2, 1, 0, 3)
         )
+        voxel_rgb_pre = voxel_rgb
         if render_png:
             voxel_rgb = match_exposure(voxel_rgb, render_png)  # tie colours to the render
     model = legolize_voxelgrid(
         _occupancy=occ, options={"seed": seed or 1, **options}, voxel_rgb=voxel_rgb
     )
-    return {"voxel": voxel, "brickModel": model.to_dict()}
+    result = {"voxel": voxel, "brickModel": model.to_dict()}
+    # Track-B instrumentation: objective colour-consistency numbers from a live
+    # forge (M1 perceptual palette agreement + M3 shatter + per-hop drift), so
+    # tuning isn't eyeballed. Off by default; the replay harness is the offline
+    # equivalent on saved (GLB, render) pairs.
+    if options.get("debug_metrics") and render_png:
+        result["colorMetrics"] = _color_metrics(
+            render_png, voxel_rgb_pre, voxel_rgb, model, str(options.get("palette", "")) or None
+        )
+    return result
+
+
+def _color_metrics(render_png, rgb_pre, rgb_post, model, tier):
+    """M1 palette-share + M3 shatter + per-hop dominant-colour drift for a run."""
+    from .legolizer import metrics as _m
+
+    render_h = _m.render_hist(render_png, tier)
+    build_h = _m.build_hist(model.bricks, tier)
+    return {
+        "M1_palette_share": round(_m.palette_share(render_h, build_h, tier), 4),
+        "shatter": _m.shatter_stats(model.bricks),
+        "per_hop": _m.per_hop_delta_e({
+            "render": render_h,
+            "mesh": _m.voxel_hist(rgb_pre, tier) if rgb_pre is not None else None,
+            "post_exp": _m.voxel_hist(rgb_post, tier) if rgb_post is not None else None,
+            "build": build_h,
+        }, tier),
+    }
 
 
 def _mesh_path(name: str):
