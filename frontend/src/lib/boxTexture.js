@@ -116,6 +116,32 @@ export function drawFrontPanel(ctx, W, H, img, setCopy, pieces) {
 }
 
 // ---------------------------------------------------------------------------
+// Same painter, but resolves a PNG data URL instead of a CanvasTexture — for
+// showing the box-front as flat cover art in a 2D <img> (the set-detail view,
+// where the BUILD is the 3D hero and the box is just its packaging). Always
+// resolves; a broken/absent image falls back to the typography-only panel.
+export function buildFrontDataUrl({ imageUrl, setCopy, pieces, width = 720 }) {
+  return new Promise((resolve) => {
+    const W = width;
+    const H = Math.round((width * BOX.BH) / BOX.BW);
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    const finish = (img) => {
+      drawFrontPanel(ctx, W, H, img, setCopy, pieces);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    if (imageUrl) {
+      const img = new Image();
+      img.onload = () => finish(img);
+      img.onerror = () => finish(null);
+      img.src = imageUrl;
+    } else finish(null);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Promise builder: paints the panel at `width` px (height follows the box
 // aspect) and resolves a ready-to-map CanvasTexture. Always resolves — a
 // broken/absent image falls back to the typography-only panel.

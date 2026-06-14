@@ -55,7 +55,7 @@ The backend is the **single source of truth** for the brick layout; the frontend
 
 ## Running it locally
 
-Four processes: two ComfyUI servers (image + 3D), the FastAPI backend, and the Vite frontend. The frontend talks only to the backend (`/api` → `:8000`); the backend drives the two ComfyUIs.
+The app is **four separate processes**, each in its own terminal: two ComfyUI servers (image + 3D), the FastAPI backend, and the Vite frontend. The frontend talks only to the backend (`/api` → `:8000`); the backend drives the two ComfyUIs.
 
 ```
  frontend :5173 ──/api──► backend :8000 ──► ComfyUI FLUX    :8188  (text/img → LEGO render)
@@ -69,20 +69,78 @@ Four processes: two ComfyUI servers (image + 3D), the FastAPI backend, and the V
   - **FLUX** on **:8188** with the FLUX.2 models (`flux-2-klein-base-4b-fp8`, `qwen_3_4b_fp8_mixed`, `flux2-vae`) and the **`legoarch` LoRA** (`references/legoarch.safetensors` → `models/loras/`).
   - **TRELLIS-2** on **:8189** with the [`ComfyUI-TRELLIS2`](https://github.com/PozzettiAndrea/ComfyUI-TRELLIS2) nodes (CUDA wheels, SDPA attention — see the team notes).
 
-### 1 · Start the two ComfyUI servers
-- FLUX ComfyUI → **http://127.0.0.1:8188**
-- TRELLIS-2 ComfyUI → **http://127.0.0.1:8189**
+### What to run in each terminal
 
-### 2 · Backend (FastAPI) — terminal #1
+Open **four terminals**. Terminals 3 & 4 below start at the **repo root** (`genai-legoarch/`); terminals 1 & 2 run from wherever each ComfyUI is installed. Start them top to bottom.
+
+| Terminal | Process | Where | Opens at |
+|---|---|---|---|
+| **1** | ComfyUI **FLUX** | your FLUX ComfyUI install | http://127.0.0.1:8188 |
+| **2** | ComfyUI **TRELLIS-2** | your TRELLIS ComfyUI install | http://127.0.0.1:8189 |
+| **3** | **Backend** (FastAPI) | repo root → `backend/` | http://127.0.0.1:8000 |
+| **4** | **Frontend** (Vite) | repo root → `frontend/` | http://localhost:5173 |
+
+> Use the **frontend URL (http://localhost:5173)** in your browser — that's the app. The other three are services it depends on.
+
+---
+
+### ▶ Every time — just start the app (setup already done)
+
+Once the one-time setup below has been run, this is all you need. **Run the lines one at a time** (don't paste a whole block — pasted comments/continuations cause errors in PowerShell).
+
+**Terminal 1 — ComfyUI FLUX (:8188)** — from your FLUX ComfyUI folder:
+```powershell
+python main.py --port 8188
+```
+
+**Terminal 2 — ComfyUI TRELLIS-2 (:8189)** — from your TRELLIS ComfyUI folder:
+```powershell
+python main.py --port 8189
+```
+
+**Terminal 3 — Backend (:8000)** — from the repo root:
 ```powershell
 cd backend
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1        # bash/macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
+.\.venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload --port 8000
 ```
 
-Optional environment variables (defaults shown):
+**Terminal 4 — Frontend (:5173)** — from the repo root:
+```powershell
+cd frontend
+npm run dev
+```
+
+**Then open http://localhost:5173 in your browser.** (Backend OK check: http://127.0.0.1:8000/health)
+
+To stop any process: `Ctrl+C` in its terminal. To leave the backend venv: `deactivate`.
+
+---
+
+### First-time setup (run once)
+
+You only do this once per machine. After it, use the **"Every time"** steps above.
+
+**Backend venv + dependencies** — from the repo root:
+```powershell
+cd backend
+python -m venv .venv                 # creates .venv (slow in OneDrive — let it finish, ~1-2 min)
+.\.venv\Scripts\Activate.ps1         # bash/macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+**Frontend dependencies** — from the repo root:
+```powershell
+cd frontend
+npm install
+```
+
+> **⚠️ venv gotchas (these bit us — read before re-running setup):**
+> - **Use one Python consistently.** Don't create the venv from a conda `(base)` prompt one time and a plain shell another — mixing Python versions (e.g. 3.13 vs 3.14) corrupts the compiled packages (numpy/pydantic-core fail to import). If imports break with `cp31x` / `No module named '..._core'` errors, **delete `backend\.venv` and recreate it** with a single Python.
+> - **Don't re-run `python -m venv .venv` on an existing, working venv** — if it's already set up, just `Activate.ps1` and run uvicorn.
+> - If `Activate.ps1` is blocked ("running scripts is disabled"), run once: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+
+Optional backend environment variables (defaults shown):
 
 | Var | Default | Purpose |
 |---|---|---|
@@ -92,15 +150,6 @@ Optional environment variables (defaults shown):
 | `ANTHROPIC_API_KEY` | _(unset)_ | optional — richer prompt expansion + wittier box copy via Claude; without it, built-in templates are used |
 | `FLUX_STEPS` | `28` | FLUX sampling steps (Klein is distilled; 28 ≈ stock 50 at ~half the time) |
 | `TRELLIS_*` | see `comfy_client.py` | TRELLIS step / decimation / texture-size overrides |
-
-Health check: **http://127.0.0.1:8000/health**.
-
-### 3 · Frontend (Vite) — terminal #2
-```powershell
-cd frontend
-npm install      # first time only
-npm run dev      # http://localhost:5173
-```
 
 ### Using it
 1. **Name a building** (no need to type `legoarch` — it's added for you), pick a rich example, or attach a reference photo (→ img2img). Hit **Forge the set**.

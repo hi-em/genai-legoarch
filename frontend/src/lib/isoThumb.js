@@ -81,8 +81,14 @@ export function isoStepThumb(bm, uptoCourse, size = 360, bg = "#f4f6f4") {
   const spanX = (nx + ny) * COS30;
   const spanY = (nx + ny) * SIN30 + hWorld;
   const s = (size * 0.82) / Math.max(spanX, spanY);
-  const ox = size / 2;
-  const oy = size * 0.62 + (hWorld * s) / 2;
+  // Centre the model's PROJECTED bounding box in the canvas. project() maps
+  // (x,y,z)->[(x-y)·COS30·s, (x+y)·SIN30·s − z·s], so over x∈[0,nx], y∈[0,ny],
+  // z∈[0,hWorld] the extremes are px∈[−ny·COS30·s, nx·COS30·s] and
+  // py∈[−hWorld·s, (nx+ny)·SIN30·s]. Offsetting by the box centre keeps tall
+  // and non-square models centred instead of clipped low (the old fixed
+  // 0.62·size + hWorld/2 pushed tall builds off the bottom). Shared with the PDF.
+  const ox = size / 2 - ((nx - ny) * COS30 * s) / 2;
+  const oy = size / 2 - (((nx + ny) * SIN30 - hWorld) * s) / 2;
 
   // painter's order: back-to-front, bottom-to-top
   const visible = bm.bricks

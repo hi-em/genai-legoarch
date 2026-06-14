@@ -1,14 +1,17 @@
-// Lazy, windowed renderer for the booklet's isometric step thumbs.
+// Renderer for the booklet's isometric step thumbs — pre-render ALL pages once,
+// then never re-render.
 //
-// `isoStepThumb` is O(visible bricks) — for a 10k-piece set with dozens of
-// courses, rendering every course up front would block the main thread for
-// seconds. Instead we render ONLY the courses near the spread the reader is
-// looking at: [current-1 .. current+windowSize]. Renders happen one course per
-// idle/rAF tick (never a burst), results are cached, and entries that drift far
-// outside the window are evicted to cap memory. The shared `isoStepThumb` is
-// the same renderer the PDF uses, so the flip view is pixel-identical to print.
+// `isoStepThumb` is O(visible bricks), so rendering every course in one burst
+// would freeze the main thread for a 10k-piece set. Instead we queue every
+// course and render ONE per idle/rAF tick (chunked → no freeze), nearest to the
+// page you're on first, and CACHE FOR THE BOOKLET'S LIFETIME (no eviction). The
+// result: the first pass fills in behind a skeleton, and every page turn after
+// that — forward AND back — is instant, because the art was rendered once. The
+// shared `isoStepThumb` is the same renderer the PDF uses, so the flip view is
+// pixel-identical to print.
 import { useEffect, useRef, useState, useCallback } from "react";
 import { isoStepThumb } from "../lib/isoThumb.js";
+import { courseCount } from "../lib/brickModel.js";
 
 // requestIdleCallback isn't in every browser (Safari) — fall back to rAF.
 const ric =
@@ -20,7 +23,7 @@ const cancelRic =
     ? window.cancelIdleCallback.bind(window)
     : (id) => cancelAnimationFrame(id);
 
-export function useStepThumbs(bm, currentSpread, windowSize = 3, sizePx = 520) {
+export function useStepThumbs(bm, currentSpread, _windowSize = 3, sizePx = 520) {
   // course -> dataURL. A ref holds the live cache (no re-render per insert);
   // a version counter triggers re-render once a tick produces something new.
   const cacheRef = useRef(new Map());
@@ -37,32 +40,21 @@ export function useStepThumbs(bm, currentSpread, windowSize = 3, sizePx = 520) {
 
   useEffect(() => {
     if (!bm) return;
-    const lo = Math.max(0, currentSpread - 1);
-    const hi = currentSpread + windowSize;
+    const total = courseCount(bm);   // every page lives in courses 0..total
     const cache = cacheRef.current;
 
-    // evict thumbs well outside the window so memory stays bounded
-    let evicted = false;
-    for (const course of cache.keys()) {
-      if (course < lo - 1 || course > hi + 1) {
-        cache.delete(course);
-        evicted = true;
-      }
-    }
-
-    // queue the in-window courses that aren't cached yet, nearest-first so the
-    // page you're on resolves before its neighbours
+    // queue EVERY not-yet-rendered course (no eviction), nearest-first so the
+    // page you're on resolves before the rest of the pre-render fills in
     const want = [];
-    for (let c = lo; c <= hi; c++) want.push(c);
+    for (let c = 0; c <= total; c++) if (!cache.has(c)) want.push(c);
     want.sort((a, b) => Math.abs(a - currentSpread) - Math.abs(b - currentSpread));
-    queueRef.current = want.filter((c) => !cache.has(c));
-
-    if (evicted) bump((v) => v + 1);
+    queueRef.current = want;
 
     const pump = (deadline) => {
       ricId.current = null;
       let did = false;
-      // render while we have idle budget, but at least one per tick
+      // render while we have idle budget, but at least one per tick (chunked
+      // so the first pass never freezes the main thread)
       while (
         queueRef.current.length &&
         (!did || (deadline && deadline.timeRemaining && deadline.timeRemaining() > 4))
@@ -83,7 +75,7 @@ export function useStepThumbs(bm, currentSpread, windowSize = 3, sizePx = 520) {
       if (ricId.current != null) cancelRic(ricId.current);
       ricId.current = null;
     };
-  }, [bm, currentSpread, windowSize, sizePx]);
+  }, [bm, currentSpread, sizePx]);
 
   // getter: returns the cached dataURL for a course, or null if still pending
   const getThumb = useCallback((course) => cacheRef.current.get(course) ?? null, []);

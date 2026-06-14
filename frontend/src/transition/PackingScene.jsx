@@ -22,10 +22,58 @@ export const easeBack = (t) => {
   return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2);
 };
 
+// Falling bricks share one material per colour across every run (a few dozen
+// at most) — the same module-singleton trick the carton uses for kraft/black,
+// so a replay/remount never rebuilds 34 MeshStandardMaterials.
+const brickMatCache = new Map();
+function brickMaterialFor(hex) {
+  const key = hex || "#c91a09";
+  let m = brickMatCache.get(key);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ color: key, roughness: 0.5 });
+    brickMatCache.set(key, m);
+  }
+  return m;
+}
+
 export const PANEL_T = 0.024;          // cardboard thickness
 export const FLOOR_Y = -1.45;          // studio floor (world)
 export const FLAP_SHORT = BOX.BH * 0.3;    // flaps on the x walls, fold first
 export const FLAP_LONG = BOX.BH * 0.5;     // flaps on the z walls, meet in the middle
+
+// Kraft cardboard, shared so the sealed shelf box and the animated carton use
+// the EXACT same material + colour.
+const CARTON_KRAFT = new THREE.MeshStandardMaterial({ color: "#b08a5e", roughness: 0.95 });
+
+/** The carton in its SEALED state — a static, upright kraft box with the printed
+ *  front panel on +z, built from the same BOX proportions + panel thickness +
+ *  kraft material as the animated PackingScene carton, so the box resting on the
+ *  shelf is the same construction as the one the ritual folds shut. No refs / no
+ *  useFrame (cheap; safe to instance across a shelf of boxes). */
+export function ClosedCarton({ frontTex }) {
+  const art = useMemo(
+    () => new THREE.MeshStandardMaterial({ map: frontTex || null, color: frontTex ? "#ffffff" : "#b08a5e", roughness: 0.5 }),
+    [frontTex]
+  );
+  useEffect(() => () => art.dispose(), [art]);
+  const W = BOX.BW, H = BOX.BH, D = BOX.BD, T = PANEL_T;
+  return (
+    <group>
+      {/* printed front panel (the carton's floor panel) — art on the +z face */}
+      <mesh position={[0, 0, D / 2 - T / 2]} material={[CARTON_KRAFT, CARTON_KRAFT, CARTON_KRAFT, CARTON_KRAFT, art, CARTON_KRAFT]} castShadow receiveShadow>
+        <boxGeometry args={[W, H, T]} />
+      </mesh>
+      {/* the four folded-up walls (kraft) */}
+      <mesh position={[0, H / 2 - T / 2, -T / 2]} material={CARTON_KRAFT} castShadow receiveShadow><boxGeometry args={[W, T, D - T]} /></mesh>
+      <mesh position={[0, -H / 2 + T / 2, -T / 2]} material={CARTON_KRAFT} castShadow><boxGeometry args={[W, T, D - T]} /></mesh>
+      <mesh position={[-W / 2 + T / 2, 0, -T / 2]} material={CARTON_KRAFT} castShadow><boxGeometry args={[T, H - 2 * T, D - T]} /></mesh>
+      <mesh position={[W / 2 - T / 2, 0, -T / 2]} material={CARTON_KRAFT} castShadow><boxGeometry args={[T, H - 2 * T, D - T]} /></mesh>
+      {/* the long closing flaps meeting at the back centre (as when sealed) */}
+      <mesh position={[0, H / 4, -D / 2 + T / 2]} material={CARTON_KRAFT} castShadow><boxGeometry args={[W - 2 * T, H / 2 - T, T]} /></mesh>
+      <mesh position={[0, -H / 4, -D / 2 + T / 2]} material={CARTON_KRAFT} castShadow><boxGeometry args={[W - 2 * T, H / 2 - T, T]} /></mesh>
+    </group>
+  );
+}
 
 // Pack timeline (seconds): die-cut -> walls -> rain -> flaps -> tip-up -> settle
 export const T_WALLS = 0.5, T_WALLS_D = 0.55;     // each wall fold duration
@@ -262,12 +310,12 @@ export function PackingScene({ frontTex, rain, reduced, replayKey, direction = "
               key={`${replayKey}-${i}`}
               ref={(el) => (brickRefs.current[i] = el)}
               geometry={b.geo || undefined}
+              material={brickMaterialFor(b.hex)}
               scale={0.22}
               castShadow
               visible={false}
             >
               {!b.geo && <boxGeometry args={[1, 1.2, 2]} />}
-              <meshStandardMaterial color={b.hex} roughness={0.5} />
             </mesh>
           ))}
         </group>

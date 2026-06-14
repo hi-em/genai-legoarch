@@ -43,34 +43,6 @@ export const useCollection = create((set, get) => ({
   remove: (id) => { const items = saveShelf(get().items.filter((i) => i.id !== id)); set({ items }); },
 }));
 
-// ---------- wishlist — buildings the user wants to legolize next ----------
-// Lives on the collector's-room whiteboard. Its OWN slice + key so the small
-// text list never contends for quota with the heavy saved-set payloads.
-const WISHLIST_KEY = "lEgoarCh.wishlist.v1";
-const WISHLIST_CAP = 40;
-function loadWishlist() {
-  try { return JSON.parse(localStorage.getItem(WISHLIST_KEY)) || []; } catch { return []; }
-}
-function saveWishlist(items) {
-  let list = items.slice(0, WISHLIST_CAP);
-  while (list.length) {
-    try { localStorage.setItem(WISHLIST_KEY, JSON.stringify(list)); return list; }
-    catch { list = list.slice(0, list.length - 1); }
-  }
-  try { localStorage.setItem(WISHLIST_KEY, "[]"); } catch {}
-  return [];
-}
-export const useWishlist = create((set, get) => ({
-  items: loadWishlist(),
-  add: (text) => {
-    const t = (text || "").trim();
-    if (!t) return;
-    const items = saveWishlist([{ id: crypto.randomUUID(), text: t, created_at: new Date().toISOString() }, ...get().items]);
-    set({ items });
-  },
-  remove: (id) => { const items = saveWishlist(get().items.filter((i) => i.id !== id)); set({ items }); },
-}));
-
 // ---------- top-level view switch (hero create flow <-> collection) ----------
 export const useView = create((set) => ({
   view: "hero",

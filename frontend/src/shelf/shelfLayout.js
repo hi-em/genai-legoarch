@@ -40,6 +40,18 @@ export function slotCenter(i, rows) {
 export const displayModeFor = (bm) =>
   (bm?.bricks?.length || 0) <= MODEL_BRICK_BUDGET ? "model" : "box-only";
 
+// Perspective camera distance that frames the whole wall with a small margin.
+// `aspect` defaults wide; ShelfScene refines it with the live canvas aspect on
+// mount. Used both for the Canvas's initial camera and the orbit min/max range.
+export function distFor(rows, fovDeg = 35, aspect = 1.6) {
+  const H = wallHeight(rows);
+  const W = wallWidth();
+  const fov = (fovDeg * Math.PI) / 180;
+  const fitH = (H / 2 + 1.2) / Math.tan(fov / 2);
+  const fitW = (W / 2 + 1.2) / (Math.tan(fov / 2) * aspect);
+  return Math.max(fitH, fitW) + 2;
+}
+
 // Uniform scale that fits a model inside a compartment at the display tilt.
 // Margins leave room for the box peeking past the model's edges and keep the
 // model clear of the plaque at the compartment front.

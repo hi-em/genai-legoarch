@@ -1,9 +1,8 @@
 // Single page-model source of truth for the instruction booklet — consumed by
-// BOTH the in-app flip view (BookletView.jsx) and the PDF builder (lib/booklet.js)
-// so the two can never drift. A build step = one course (z-layer): the new layer
-// is highlighted, prior courses muted (the real LEGO-manual convention). The
-// `partsAddedAt` helper used to live privately inside lib/booklet.js — it now
-// lives here and is shared.
+// the in-app flip view AND its PDF export (both in BookletView.jsx — the PDF is
+// produced by snapshotting the rendered spreads), so the two can never drift. A
+// build step = one course (z-layer): the new layer is highlighted, prior courses
+// muted (the real LEGO-manual convention). `partsAddedAt` is shared from here.
 import { byCode } from "../lib/palette.js";
 import { courseOf, courseCount } from "../lib/brickModel.js";
 

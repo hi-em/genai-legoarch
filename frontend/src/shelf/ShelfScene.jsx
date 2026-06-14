@@ -1,38 +1,43 @@
-// The Shelf Wall — the collection as a collector's bookcase: one canvas, a
-// warm dark wood grid, each saved set displayed as a diorama in its own
-// compartment: the retail box at the back (its painted front panel from
-// lib/boxTexture), the built model in front, a plaque below. Pan/zoom only
-// (MapControls), no orbiting; clicking a compartment pushes the camera in.
+// The Shelf — the collection as a bright, static bookcase you ORBIT around:
+// one canvas, a warm-birch grid, each saved set a diorama in its own
+// compartment (the retail box at the back with its painted front panel, the
+// built model in front, a plaque below). Drag to rotate the camera, scroll to
+// zoom; the shelf itself never moves. Click a compartment to open the set,
+// hover it for a remove control.
 //
-// Performance contract: every 3D set goes through the instanced legacy-box
-// path (BrickInstances studs={false}); sets above MODEL_BRICK_BUDGET bricks
-// show a centred hero box instead of live geometry (see
-// shelfLayout.displayModeFor). frameloop="demand" keeps the wall idle-cheap.
+// Salvaged from the (orphaned) shelf/ShelfWall.jsx: it already solved the hard
+// parts — frameloop="demand" with invalidate() on every control change,
+// module-singleton carton materials, instanced legacy-box geometry, refcounted
+// front textures, an sr-only a11y mirror, and z-fight-safe geometry. The
+// rebuild changes only three things: MapControls(pan, ortho) -> OrbitControls
+// (rotate, perspective), the dark mood -> bright product-shot lighting, and a
+// remove-with-confirm affordance. Idle GPU stays flat (demand frameloop, no
+// per-frame mutation when you're not interacting).
 import { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { Canvas, useThree, invalidate } from "@react-three/fiber";
-import { MapControls, Text } from "@react-three/drei";
-import * as THREE from "three";
+import { OrbitControls, Text, Html } from "@react-three/drei";
+import { Trash2 } from "lucide-react";
+import { ClosedCarton } from "../transition/PackingScene.jsx";
 import { BrickInstances, modelOffset, worldHeight } from "../viewer/bricks3d.jsx";
 import { normalizeAdapted } from "../lib/brickModel.js";
 import { BOX } from "../lib/boxTexture.js";
-import { useReducedMotion } from "../lib/useReducedMotion.js";
 import { useShelfBoxTexture } from "./useShelfBoxTexture.js";
 import {
   COLS, CELL_W, CELL_H, CELL_D, FRAME_T, SET_TILT,
   BOX_SCALE, BOX_X, BOX_Z, BOX_YAW, MODEL_X, MODEL_Z,
-  rowsFor, wallWidth, wallHeight, slotCenter, displayModeFor, fitScale,
+  rowsFor, wallWidth, wallHeight, slotCenter, displayModeFor, fitScale, distFor,
 } from "./shelfLayout.js";
 
-// Warm dark walnut, tuned to sit with the --table felt tokens (#2b2f2c family).
+// Warm birch, lit like a product shot — sits on a bright surface, not felt.
 const WOOD = {
-  frame: "#3b3128",
-  back: "#241f1a",
-  backHover: "#3a3128",
-  plaque: "#1b1713",
-  stud: "#46392c",     // faint stud marks in empty compartments
+  frame: "#cdb78f",
+  back: "#ece2cf",
+  backHover: "#f6efe0",
+  plaque: "#b89a6f",
+  stud: "#dccaa8",     // faint stud marks in empty compartments
 };
-const PLAQUE_TEXT = "#e9ebe6"; // --on-dark
-const PLAQUE_SUB = "#e4cd9e";  // --brand-tan
+const PLAQUE_TEXT = "#2a2620"; // dark ink on the now-light plaque
+const PLAQUE_SUB = "#7c6a4d";  // muted brown sub-line
 
 const truncate = (s, n) => (s && s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s || "");
 
@@ -91,34 +96,13 @@ function EmptySlot({ center }) {
 
 // ------------------------------------------------------------------ content
 
-// Carton materials shared by every box on the wall (module singletons —
-// 20 boxes, 2 materials).
-const KRAFT = new THREE.MeshStandardMaterial({ color: "#b08a5e", roughness: 0.95 });
-const BLACK = new THREE.MeshStandardMaterial({ color: "#101013", roughness: 0.6 });
-
-// The closed retail box at the back of a diorama: kraft sides, black top and
-// bottom, the painted front panel on +z, and a lid lip. Until the texture
-// resolves the front stays plain black — no pop, just a fade-in on paint.
+// The closed retail box at the back of a diorama is the SAME sealed carton the
+// pack ritual folds shut — the shared <ClosedCarton> — so the box on the shelf
+// and the box in the animation are one construction. The painted front fades in
+// once the refcounted texture resolves.
 function ShelfBox({ item }) {
   const tex = useShelfBoxTexture(item);
-  const art = useMemo(
-    () => new THREE.MeshStandardMaterial({ map: tex, color: tex ? "#ffffff" : "#101013", roughness: 0.5 }),
-    [tex]
-  );
-  // dispose the material only — the texture belongs to the refcounted cache
-  useEffect(() => () => art.dispose(), [art]);
-  return (
-    <group>
-      {/* boxGeometry faces: [+x, -x, +y, -y, +z(front art), -z] */}
-      <mesh material={[KRAFT, KRAFT, BLACK, BLACK, art, BLACK]} castShadow receiveShadow>
-        <boxGeometry args={[BOX.BW, BOX.BH, BOX.BD]} />
-      </mesh>
-      {/* lid lip, a hair proud so it never z-fights the box top */}
-      <mesh material={BLACK} position={[0, BOX.BH / 2 - BOX.LID_T / 2 + 0.01, 0]} castShadow>
-        <boxGeometry args={[BOX.BW + 0.05, BOX.LID_T, BOX.BD + 0.05]} />
-      </mesh>
-    </group>
-  );
+  return <ClosedCarton frontTex={tex} />;
 }
 
 function Plaque({ x, floorY, title, sub }) {
@@ -126,7 +110,7 @@ function Plaque({ x, floorY, title, sub }) {
     <group position={[x, floorY + 0.6, CELL_D - 0.9]}>
       <mesh castShadow>
         <boxGeometry args={[5.6, 1.15, 0.14]} />
-        <meshStandardMaterial color={WOOD.plaque} roughness={0.6} metalness={0.15} />
+        <meshStandardMaterial color={WOOD.plaque} roughness={0.6} metalness={0.1} />
       </mesh>
       <Text position={[0, sub ? 0.18 : 0, 0.1]} fontSize={0.42} color={PLAQUE_TEXT} anchorX="center" anchorY="middle">
         {title}
@@ -140,7 +124,7 @@ function Plaque({ x, floorY, title, sub }) {
   );
 }
 
-function SetCompartment({ item, center, onSelect, pushRef }) {
+function SetCompartment({ item, center, onSelect, onRemove }) {
   const [hover, setHover] = useState(false);
   const down = useRef([0, 0]);
   const [cx, cy] = center;
@@ -204,6 +188,25 @@ function SetCompartment({ item, center, onSelect, pushRef }) {
 
       <Plaque x={cx} floorY={floorY} title={title} sub={sub} />
 
+      {/* remove control — DOM affordance, only while hovered */}
+      {hover && (
+        <Html
+          position={[cx + CELL_W / 2 - 1.1, cy + CELL_H / 2 - 1.0, CELL_D / 2 + 0.2]}
+          center
+          distanceFactor={18}
+          zIndexRange={[30, 0]}
+        >
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onRemove(item.id); }}
+            aria-label={`Remove ${title}`}
+            className="grid h-9 w-9 place-items-center rounded-full bg-black/45 text-white shadow-pop transition hover:bg-brand-red"
+          >
+            <Trash2 size={18} />
+          </button>
+        </Html>
+      )}
+
       {/* invisible hit volume: hover + click anywhere in the compartment */}
       <mesh
         position={[cx, cy, CELL_D / 2]}
@@ -211,11 +214,10 @@ function SetCompartment({ item, center, onSelect, pushRef }) {
         onPointerOut={() => setHover(false)}
         onPointerDown={(e) => { down.current = [e.clientX, e.clientY]; }}
         onClick={(e) => {
-          // a left-drag pans the wall and still ends in a click — ignore it
+          // a drag to orbit still ends in a click — ignore it
           if (Math.hypot(e.clientX - down.current[0], e.clientY - down.current[1]) > 6) return;
           e.stopPropagation();
-          if (pushRef?.current) pushRef.current(center, () => onSelect(item));
-          else onSelect(item);
+          onSelect(item);
         }}
       >
         <boxGeometry args={[CELL_W, CELL_H, CELL_D]} />
@@ -225,124 +227,70 @@ function SetCompartment({ item, center, onSelect, pushRef }) {
   );
 }
 
-// ------------------------------------------------------------ camera + pan
+// ------------------------------------------------------------- camera + orbit
 
-function WallControls({ rows }) {
+// Frames the whole wall on mount / resize / row-count change, then lets the
+// user orbit the camera within a pleasant front arc (never behind the shelf).
+// onChange -> invalidate() is REQUIRED under frameloop="demand" or the scene
+// freezes mid-drag.
+function OrbitRig({ rows }) {
   const ref = useRef();
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
-  const W = wallWidth();
-  const H = wallHeight(rows);
 
-  // Fit the whole wall on mount / resize / row-count change.
   useLayoutEffect(() => {
-    const fit = Math.min(size.width / (W + 2.4), size.height / (H + 2.4));
-    camera.zoom = fit;
-    camera.position.set(0, 0, 60);
+    const W = wallWidth();
+    const H = wallHeight(rows);
+    const fov = (camera.fov * Math.PI) / 180;
+    const aspect = size.width / Math.max(1, size.height);
+    const fitH = (H / 2 + 1.2) / Math.tan(fov / 2);
+    const fitW = (W / 2 + 1.2) / (Math.tan(fov / 2) * aspect);
+    const dist = Math.max(fitH, fitW) + 2;
+    camera.position.set(0, 0, dist);
+    camera.near = 0.1;
+    camera.far = dist * 4;
     camera.updateProjectionMatrix();
     const c = ref.current;
     if (c) {
       c.target.set(0, 0, 0);
-      c.minZoom = fit;
-      c.maxZoom = Math.max(fit * 6, 60);
+      c.minDistance = dist * 0.5;
+      c.maxDistance = dist * 1.35;
       c.update();
     }
-  }, [camera, size.width, size.height, W, H]);
-
-  // Clamp the pan target to the wall so you can't wander off into the dark.
-  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  const onChange = () => {
-    const c = ref.current;
-    if (!c) return;
-    const mx = Math.max(0, W / 2 - 6);
-    const my = Math.max(0, H / 2 - 3);
-    const t = c.target;
-    const nx = clamp(t.x, -mx, mx);
-    const ny = clamp(t.y, -my, my);
-    const dx = nx - t.x;
-    const dy = ny - t.y;
-    if (dx || dy) {
-      t.x = nx; t.y = ny;
-      c.object.position.x += dx;
-      c.object.position.y += dy;
-    }
-  };
+    invalidate();
+  }, [camera, size.width, size.height, rows]);
 
   return (
-    <MapControls
+    <OrbitControls
       ref={ref}
       makeDefault
-      screenSpacePanning
-      enableRotate={false}
-      zoomToCursor
-      onChange={onChange}
+      enablePan={false}
+      minPolarAngle={Math.PI * 0.30}
+      maxPolarAngle={Math.PI * 0.62}
+      minAzimuthAngle={-0.55}
+      maxAzimuthAngle={0.55}
+      onChange={() => invalidate()}
     />
   );
 }
 
-// Click transition: a short camera push-in toward the clicked compartment,
-// then the caller swaps to SetDetail. Exposed as an imperative api on
-// `apiRef` so the click handler (deep in the tree) can drive it.
-function PushIn({ apiRef }) {
-  const camera = useThree((s) => s.camera);
-  const controls = useThree((s) => s.controls); // MapControls is makeDefault
-  const reduced = useReducedMotion();
+// ----------------------------------------------------------------- the shelf
 
-  useEffect(() => {
-    apiRef.current = (center, done) => {
-      if (reduced || !controls) { done(); return; }
-      controls.enabled = false;
-      const [tx, ty] = center;
-      const fromZoom = camera.zoom;
-      const toZoom = fromZoom * 1.9;
-      const fromX = camera.position.x, fromY = camera.position.y;
-      const fromTX = controls.target.x, fromTY = controls.target.y;
-      const t0 = performance.now();
-      const easeOut = (t) => 1 - Math.pow(1 - t, 3);
-      const tick = (now) => {
-        const p = Math.min(1, (now - t0) / 280);
-        const e = easeOut(p);
-        camera.zoom = fromZoom + (toZoom - fromZoom) * e;
-        camera.position.x = fromX + (tx - fromX) * e;
-        camera.position.y = fromY + (ty - fromY) * e;
-        controls.target.x = fromTX + (tx - fromTX) * e;
-        controls.target.y = fromTY + (ty - fromTY) * e;
-        camera.updateProjectionMatrix();
-        invalidate(); // demand frameloop: paint this animation frame
-        if (p >= 1) done();
-        else requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    };
-    return () => { apiRef.current = null; };
-  }, [apiRef, camera, controls, reduced]);
-
-  return null;
-}
-
-// ----------------------------------------------------------------- the wall
-
-export default function ShelfWall({ items, onSelect }) {
+export default function ShelfScene({ items, onSelect, onRemove }) {
   const list = (items || []).slice(0, 20);
   const rows = rowsFor(list.length);
   const W = wallWidth();
   const H = wallHeight(rows);
   const slots = rows * COLS;
-  const pushRef = useRef(null); // PushIn's imperative api, threaded to compartments
 
-  if (list.length === 0) {
-    return (
-      <div className="grid h-full w-full place-items-center rounded-xl border border-border-dark bg-table-deep text-sm text-on-dark-muted">
-        No sets on the shelf yet.
-      </div>
-    );
-  }
+  // Items changing (e.g. a remove) re-renders the tree; R3F auto-invalidates a
+  // frame on commit, so the demand canvas repaints without manual nudging.
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-xl border border-border-dark bg-table-deep">
-      {/* a11y mirror: the canvas is invisible to keyboards and screen
-          readers, so the same sets exist as real buttons. Tab reveals them
-          visibly (focus:not-sr-only); Enter opens the same detail view. */}
+    <div className="relative h-full w-full overflow-hidden rounded-xl border border-border bg-[linear-gradient(180deg,#fbfbf9,#e9ebe5)]">
+      {/* a11y mirror: the canvas is invisible to keyboards and screen readers,
+          so the same sets exist as real buttons. Tab reveals them visibly
+          (focus:not-sr-only); Enter opens, the second button removes. */}
       <ul aria-label="Saved sets" className="sr-only">
         {list.map((it) => (
           <li key={it.id}>
@@ -356,43 +304,53 @@ export default function ShelfWall({ items, onSelect }) {
               {it.setNumber ? `, set ${it.setNumber}` : ""}
               {it.nBricks ? `, ${it.nBricks.toLocaleString()} pieces` : ""}
             </button>
+            <button
+              type="button"
+              onClick={() => onRemove(it.id)}
+              className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-14 focus:z-10
+                         focus:rounded focus:bg-elevated focus:px-3 focus:py-1.5 focus:text-sm focus:text-brand-red"
+            >
+              Remove {it.title || "Untitled set"}
+            </button>
           </li>
         ))}
       </ul>
       <Canvas
         aria-hidden="true"
         shadows
-        orthographic
         frameloop="demand"
         dpr={[1, 1.75]}
-        camera={{ position: [0, 0, 60], zoom: 12, near: 0.1, far: 200 }}
+        camera={{ position: [0, 0, distFor(rows)], fov: 35, near: 0.1, far: 500 }}
       >
-        <ambientLight intensity={0.55} />
+        {/* bright product-shot light: a hemisphere fill + one soft key with a
+            small (1024) shadow map, tight to the wall. No network HDRI (offline-
+            safe); no 2048² room map (that was the always-on room's cost). */}
+        <hemisphereLight args={["#ffffff", "#d9dbe1", 1.0]} />
+        <ambientLight intensity={0.35} />
         <directionalLight
-          position={[-W * 0.2, H * 0.55 + 6, 24]}
-          intensity={1.4}
+          position={[-W * 0.18, H * 0.5 + 8, 26]}
+          intensity={1.15}
           castShadow
-          shadow-mapSize={[2048, 2048]}
-          shadow-camera-left={-(W / 2 + 5)}
-          shadow-camera-right={W / 2 + 5}
-          shadow-camera-top={H / 2 + 6}
-          shadow-camera-bottom={-(H / 2 + 6)}
+          shadow-mapSize={[1024, 1024]}
+          shadow-camera-left={-(W / 2 + 4)}
+          shadow-camera-right={W / 2 + 4}
+          shadow-camera-top={H / 2 + 5}
+          shadow-camera-bottom={-(H / 2 + 5)}
           shadow-camera-near={1}
           shadow-camera-far={120}
           shadow-bias={-0.0004}
         />
-        <directionalLight position={[W * 0.3, -4, 18]} intensity={0.25} />
+        <directionalLight position={[W * 0.3, -2, 22]} intensity={0.3} />
 
         <Frame rows={rows} />
         {list.map((it, i) => (
-          <SetCompartment key={it.id} item={it} center={slotCenter(i, rows)} onSelect={onSelect} pushRef={pushRef} />
+          <SetCompartment key={it.id} item={it} center={slotCenter(i, rows)} onSelect={onSelect} onRemove={onRemove} />
         ))}
         {Array.from({ length: slots - list.length }, (_, k) => (
           <EmptySlot key={`empty-${k}`} center={slotCenter(list.length + k, rows)} />
         ))}
 
-        <WallControls rows={rows} />
-        <PushIn apiRef={pushRef} />
+        <OrbitRig rows={rows} />
       </Canvas>
     </div>
   );

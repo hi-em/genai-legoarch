@@ -1,14 +1,17 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Upload, X, Box, Star, RotateCcw, Volume2, VolumeX, Copy, SlidersHorizontal } from "lucide-react";
+import { Sparkles, Upload, X, Box, Star, RotateCcw, Volume2, VolumeX, Copy, SlidersHorizontal, Play, Boxes } from "lucide-react";
 import { generate, generateMesh, legolizeMesh, getSetCopy, latestMesh } from "../api.js";
 import { useBuild, useCollection, useView, useUI, derivePhase, isShelfDupe } from "../state/store.js";
 import { hasWebGL } from "../lib/webgl.js";
-import { useRoomStage } from "../room/useRoomStage.js";
+import { useReducedMotion } from "../lib/useReducedMotion.js";
 import { adaptBrickModel, totalParts, totalColors, courseCount } from "../lib/brickModel.js";
 import { frontElevationThumb } from "../lib/thumb.js";
 import { downscaleDataUrl } from "../lib/image.js";
 import { playSnap, playPop } from "../lib/sound.js";
+import ErrorBoundary from "../components/ErrorBoundary.jsx";
+import PackRitual from "../transition/PackRitual.jsx";
+import BoxHub from "./trophies/BoxHub.jsx";
 import { Button, Chip, Textarea, StudLoader, StatTile, toast } from "../components/ui/index.js";
 import AssemblyViewer from "../viewer/AssemblyViewer.jsx";
 import BrickViewer from "../viewer/BrickViewer.jsx";
@@ -43,14 +46,29 @@ export default function HeroFlow() {
   // `inFlight` lives in the store too.
   const phase = useBuild(derivePhase);
   const inFlight = useBuild((s) => s.inFlight);
-  const saved = useBuild((s) => s.saved);
   const tuning = useBuild((s) => s.tuning);
   const pendingJob = useBuild((s) => s.pendingJob);
   const calls = useBuild((s) => s.calls);
   const { startJob, finishJob, failJob, cancelJob, dismissPendingJob } = useBuild.getState();
+  const reduced = useReducedMotion();
   const [text, setText] = useState(prompt || "");
   const [photo, setPhoto] = useState(null);
   const fileRef = useRef(null);
+
+  // The reveal's own little machine: idle (show ▶ Pack) -> packing (ritual) ->
+  // explore (open the boxed set). Local, not global — the durable truth is
+  // `saved` in the store + the persisted shelf. A fresh build (new brickModel,
+  // or "Visualize another" clearing it) snaps back to idle.
+  const [stage, setStage] = useState("idle"); // "idle" | "packing" | "explore"
+  useEffect(() => { setStage("idle"); }, [brickModel]);
+
+  // One title for the box everywhere — the pack ritual, the explore cover, the
+  // booklet and the shelf all read the same name. With no AI persona copy we
+  // fall back to the prompt-derived title (the same fallback the saved shelf
+  // item and its box texture use), so the box never says "Untitled" in one
+  // place and the real name in another.
+  const displayTitle = setCopy?.set_name || (prompt || "Untitled set").split(",")[0];
+  const displayCopy = setCopy || { set_name: displayTitle, set_number: "" };
 
   function onPhoto(e) {
     const file = e.target.files?.[0];
@@ -226,45 +244,58 @@ export default function HeroFlow() {
     getSetCopy(subj, bm).then((c) => set({ setCopy: c })).catch(() => {});
   }
 
-  async function onAddToShelf() {
-    if (!brickModel || useBuild.getState().saved) return;
+  // ▶ Pack: AUTO-SAVES the set, then plays the pack ritual in place. The save
+  // is the point of the button; the animation is just its confirmation. After
+  // the ritual (or immediately, if motion/WebGL is off) the explore actions
+  // appear — "Go to shelf" routes to the collection, it doesn't save again.
+  function onPack() {
+    const s = useBuild.getState();
+    if (!brickModel) return;
+    if (s.saved) { setStage("explore"); return; }   // already packed — just open explore
+
     const title = setCopy?.set_name || (prompt || "Untitled set").split(",")[0];
-    if (isShelfDupe(useCollection.getState().items, title, brickModel.stability.nBricks)) {
-      toast.info("Already on your shelf", "This exact set is on display in your Collection.");
-      return;
-    }
+    const dupe = isShelfDupe(useCollection.getState().items, title, brickModel.stability.nBricks);
     set({ saved: true });        // synchronous: a double-click can't add twice
     playPop();
-    const renderThumb = await downscaleDataUrl(imageUrl, 360, 0.72);
-    const item = {
-      id: crypto.randomUUID(),
-      title,
-      setNumber: setCopy?.set_number || "",
-      thumb: frontElevationThumb(brickModel, 240),
-      renderThumb,
-      nBricks: brickModel.stability.nBricks,
-      brickModel,
-      setCopy,
-      prompt,
-      runRecord,         // tiny JSON — full reproducibility for every saved set
-      glbName: glbName || null,   // lets the saved set export its .stl later
-      created_at: new Date().toISOString(),
-    };
-    // Persist up-front: reserves the set's wall slot (index 0), survives a
-    // refresh mid-staging, and lets the quota toast be honest.
-    const dropped = addToShelf(item);
-    if (dropped > 0) {
-      toast.info(
-        "Added — oldest sets removed",
-        `Your browser's storage is full: the ${dropped} oldest set${dropped > 1 ? "s were" : " was"} deleted to make room.`
-      );
-    } else {
-      toast.success("Packed onto your shelf", "Find it in your collector's room.");
+
+    if (dupe) {
+      toast.info("Already on your shelf", "This exact set is on display in your collection.");
+      setStage("explore");
+      return;
     }
-    // Enter the room: it packs on the central plinth, you inspect it, then slide
-    // it to its slot. With no WebGL we skip staging and just land on the list.
-    if (hasWebGL()) useRoomStage.getState().beginStaging({ id: item.id, item });
-    showView("collection");
+
+    // Persist up-front (the thumbnail downscale is async, but the save is
+    // committed the moment addToShelf runs). Survives a refresh; honest quota toast.
+    (async () => {
+      const renderThumb = await downscaleDataUrl(imageUrl, 360, 0.72);
+      const item = {
+        id: crypto.randomUUID(),
+        title,
+        setNumber: setCopy?.set_number || "",
+        thumb: frontElevationThumb(brickModel, 240),
+        renderThumb,
+        nBricks: brickModel.stability.nBricks,
+        brickModel,
+        setCopy,
+        prompt,
+        runRecord,         // tiny JSON — full reproducibility for every saved set
+        glbName: glbName || null,   // lets the saved set export its .stl later
+        created_at: new Date().toISOString(),
+      };
+      const dropped = addToShelf(item);
+      if (dropped > 0) {
+        toast.info(
+          "Saved — oldest sets removed",
+          `Your browser's storage is full: the ${dropped} oldest set${dropped > 1 ? "s were" : " was"} deleted to make room.`
+        );
+      } else {
+        toast.success("Saved to your shelf", "It's in your collection — open it any time.");
+      }
+    })();
+
+    // Play the ritual when we can; otherwise jump straight to explore (the save
+    // already happened, so this collapse is lossless).
+    setStage(hasWebGL() && !reduced ? "packing" : "explore");
   }
 
   function onForgeAnother() {
@@ -562,8 +593,49 @@ export default function HeroFlow() {
               initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
               className="w-full max-w-[860px]"
             >
+              {stage === "explore" ? (
+                /* EXPLORE the boxed set: the set is already saved; open the
+                   booklet / pieces & prices / downloads, then go to the shelf. */
+                <div className="mx-auto w-full">
+                  <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-brand-yellow">
+                        lEgoarCh · {setCopy?.series || "Architecture"}{setCopy?.set_number ? ` · ${setCopy.set_number}` : ""}
+                      </p>
+                      <h2 className="mt-1 font-display text-2xl font-black leading-tight text-on-dark">
+                        {setCopy?.set_name || (prompt || "Untitled").split(",")[0]}
+                      </h2>
+                    </div>
+                    <div className="flex flex-wrap gap-2.5">
+                      <Button variant="primary" onClick={() => showView("collection")}>
+                        <Boxes size={15} /> Go to shelf
+                      </Button>
+                      <Button variant="secondary" onClick={onForgeAnother}>
+                        <RotateCcw size={15} /> Visualize another
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-elevated p-5 shadow-pop">
+                    <BoxHub imageUrl={imageUrl} setCopy={displayCopy} brickModel={brickModel} glbName={glbName} />
+                  </div>
+                  {glbUrl && (
+                    <button
+                      onClick={() => set({ tuning: true })}
+                      title="Back to the brick settings — re-legolizing takes seconds"
+                      className="mt-3 inline-flex items-center gap-1.5 text-sm text-on-dark-muted underline-offset-2 hover:text-on-dark hover:underline"
+                    >
+                      <SlidersHorizontal size={14} /> Tune bricks
+                    </button>
+                  )}
+                </div>
+              ) : (
               <div className="grid gap-6 md:grid-cols-[1.3fr_1fr] md:items-center">
-                {glbUrl ? (
+                {stage === "packing" ? (
+                  /* the pack ritual plays in place; if its 3D throws, sever to explore */
+                  <ErrorBoundary silent onError={() => setStage("explore")}>
+                    <PackRitual imageUrl={imageUrl} setCopy={displayCopy} brickModel={brickModel} reduced={reduced} onDone={() => setStage("explore")} />
+                  </ErrorBoundary>
+                ) : glbUrl ? (
                   <SpineCompareViewer glbUrl={glbUrl} brickModel={brickModel} height={420} />
                 ) : (
                   <BrickViewer brickModel={brickModel} height={420} />
@@ -637,8 +709,8 @@ export default function HeroFlow() {
                   )}
 
                   <div className="mt-5 flex flex-wrap gap-2.5">
-                    <Button variant="primary" onClick={onAddToShelf} disabled={saved}>
-                      <Star size={15} /> {saved ? "On your shelf" : "Pack & add to shelf"}
+                    <Button variant="primary" onClick={onPack} disabled={stage === "packing"}>
+                      <Play size={15} /> Pack
                     </Button>
                     <Button variant="secondary" onClick={onForgeAnother}><RotateCcw size={15} /> Visualize another</Button>
                   </div>
@@ -653,6 +725,7 @@ export default function HeroFlow() {
                   )}
                 </div>
               </div>
+              )}
             </motion.section>
           )}
         </AnimatePresence>

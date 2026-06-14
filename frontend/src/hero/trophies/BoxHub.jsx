@@ -7,7 +7,7 @@ import { useState } from "react";
 import { ArrowLeft, BookOpen, Receipt, Download } from "lucide-react";
 import { toast } from "../../components/ui/index.js";
 import ErrorBoundary from "../../components/ErrorBoundary.jsx";
-import BoxArt from "./BoxArt.jsx";
+import SetShowcase from "./SetShowcase.jsx";
 import PricedSet from "./PricedSet.jsx";
 import BookletView from "../../booklet/BookletView.jsx";
 import { toLdraw, download, partsToCsv } from "../../lib/ldraw.js";
@@ -78,7 +78,7 @@ export default function BoxHub({ imageUrl, setCopy, brickModel, glbName }) {
     return (
       <BackBar onBack={() => setPanel("box")}>
         <ErrorBoundary silent>
-          <BookletView brickModel={brickModel} setCopy={setCopy} />
+          <BookletView brickModel={brickModel} setCopy={setCopy} imageUrl={imageUrl} />
         </ErrorBoundary>
       </BackBar>
     );
@@ -93,7 +93,7 @@ export default function BoxHub({ imageUrl, setCopy, brickModel, glbName }) {
 
   return (
     <div>
-      <BoxArt imageUrl={imageUrl} setCopy={setCopy} brickModel={brickModel} />
+      <SetShowcase imageUrl={imageUrl} setCopy={setCopy} brickModel={brickModel} />
 
       <p className="mt-5 text-nano uppercase tracking-widest text-muted">Open the box</p>
       <div className="mt-1.5 grid gap-2.5 sm:grid-cols-2">
@@ -117,7 +117,7 @@ export default function BoxHub({ imageUrl, setCopy, brickModel, glbName }) {
         </button>
       </div>
       <p className="mt-1.5 text-micro text-muted-faint">
-        Use “Download packshot” above for a photo of the box. The .stl is the AI mesh; the .ldr is the buildable LEGO file.
+        Tap the box art to enlarge and save a photo of the box. The .stl is the AI mesh; the .ldr is the buildable LEGO file.
       </p>
     </div>
   );
