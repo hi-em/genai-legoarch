@@ -8,13 +8,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, ContactShadows } from "@react-three/drei";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Maximize2, Download } from "lucide-react";
 import { BrickInstances, Baseplate, modelOffset, worldHeight } from "./bricks3d.jsx";
 import BrickViewer from "./BrickViewer.jsx";
+import CaptureBridge from "./CaptureBridge.jsx";
 import { useDataUrlGLB } from "./useDataUrlGLB.js";
 import { useReducedMotion } from "../lib/useReducedMotion.js";
 import { playSnap } from "../lib/sound.js";
 import { VIEWER_BG } from "../lib/tokens.js";
+import { Lightbox } from "../components/ui/index.js";
+import { downloadDataUrl } from "../hero/trophies/downloadImage.js";
 import { cn } from "../lib/cn.js";
 
 // Per-frame: turn the divider's screen-x fraction into a world-space plane
@@ -176,12 +179,17 @@ function SpineHandle({ dividerRef, onFirstDrag }) {
   );
 }
 
-export default function SpineCompareViewer({ glbUrl, brickModel, height = 420 }) {
+export default function SpineCompareViewer({
+  glbUrl, brickModel, height = 420,
+  expandable = false, title = "Mesh ↔ build", filename = "compare.png", onCaptureReady,
+}) {
   const reduced = useReducedMotion();
   const { scene, error } = useDataUrlGLB(glbUrl);
   const [spin, setSpin] = useState(!reduced);
   const dividerRef = useRef(0.35);
   const snapped = useRef(false);
+  const [expanded, setExpanded] = useState(false);
+  const fullCap = useRef(null);
 
   // mutated in place by ClipRig each frame; shared by every clipped material
   const planeRight = useMemo(() => new THREE.Plane(new THREE.Vector3(1, 0, 0), 0), []);
@@ -201,8 +209,9 @@ export default function SpineCompareViewer({ glbUrl, brickModel, height = 420 })
     return () => cancelAnimationFrame(raf);
   }, [scene, reduced]);
 
-  // any failure -> the plain viewer, no UI difference beyond the handle
-  if (!glbUrl || error) return <BrickViewer brickModel={brickModel} height={height} />;
+  // any failure -> the plain viewer, no UI difference beyond the handle (still
+  // expandable + exportable so the build can be inspected/saved)
+  if (!glbUrl || error) return <BrickViewer brickModel={brickModel} height={height} expandable={expandable} title="LEGO build" filename={filename} />;
   if (!brickModel) return <div style={{ height, background: VIEWER_BG }} className="rounded-lg" />;
 
   const [nx, ny, nz] = brickModel.grid;
@@ -213,7 +222,7 @@ export default function SpineCompareViewer({ glbUrl, brickModel, height = 420 })
     <div style={{ height, background: VIEWER_BG }} className="relative overflow-hidden rounded-lg">
       <Canvas
         shadows
-        gl={{ localClippingEnabled: true }}   // without this, clipping silently no-ops
+        gl={{ localClippingEnabled: true, preserveDrawingBuffer: true }}   // clipping + PNG capture
         camera={{ position: [span * 1.5, span * 1.25, span * 1.7], fov: 40 }}
       >
         <ambientLight intensity={0.65} />
@@ -236,6 +245,7 @@ export default function SpineCompareViewer({ glbUrl, brickModel, height = 420 })
           minDistance={4}
           maxDistance={span * 5}
         />
+        <CaptureBridge onReady={onCaptureReady} />
       </Canvas>
       <SpineHandle
         dividerRef={dividerRef}
@@ -243,6 +253,41 @@ export default function SpineCompareViewer({ glbUrl, brickModel, height = 420 })
           if (!snapped.current) { snapped.current = true; playSnap(); }
         }}
       />
+
+      {expandable && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          aria-label={`Expand ${title} to full screen`}
+          className="absolute bottom-2 right-2 inline-flex h-9 items-center gap-1.5 rounded-full bg-black/55 px-3 text-xs font-semibold text-white backdrop-blur transition hover:bg-black/70"
+        >
+          <Maximize2 size={13} /> Expand
+        </button>
+      )}
+
+      {expandable && (
+        <Lightbox open={expanded} onClose={() => setExpanded(false)} label={`${title} — full screen`}>
+          <div className="overflow-hidden rounded-xl shadow-pop">
+            {expanded && (
+              <SpineCompareViewer
+                glbUrl={glbUrl}
+                brickModel={brickModel}
+                height={Math.min(680, Math.round((typeof window !== "undefined" ? window.innerHeight : 800) * 0.7))}
+                onCaptureReady={(fn) => (fullCap.current = fn)}
+              />
+            )}
+          </div>
+          <div className="mt-3 flex justify-center">
+            <button
+              onClick={() => { const u = fullCap.current?.(); if (u) downloadDataUrl(filename, u); }}
+              className="inline-flex h-11 items-center gap-1.5 rounded-full bg-brand-red px-4 font-display text-sm font-bold text-white hover:brightness-110"
+            >
+              <Download size={15} /> Save PNG
+            </button>
+          </div>
+          <p className="mt-2 text-center text-micro text-white/70">Drag the spine to wipe · drag to orbit</p>
+        </Lightbox>
+      )}
     </div>
   );
 }

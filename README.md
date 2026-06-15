@@ -86,7 +86,20 @@ Open **four terminals**. Terminals 3 & 4 below start at the **repo root** (`gena
 
 ### ▶ Every time — just start the app (setup already done)
 
-Once the one-time setup below has been run, this is all you need. **Run the lines one at a time** (don't paste a whole block — pasted comments/continuations cause errors in PowerShell).
+Once the one-time setup below has been run, this is all you need.
+
+**Shortcut (backend + frontend in one command)** — from the repo root:
+```powershell
+.\start-app.ps1
+```
+Opens the backend (:8000) and frontend (:5173) each in its own window and launches the browser
+at http://localhost:5173. It uses the venv's Python directly (so a conda `(base)` prompt is fine).
+If scripts are blocked, run `powershell -ExecutionPolicy Bypass -File .\start-app.ps1` once, or
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. This does **not** start ComfyUI — fine for
+screenshots / slides / the pre-baked shelf; start ComfyUI FLUX (:8188) + TRELLIS (:8189) yourself
+only to render a brand-new building live.
+
+Or start each process by hand (below). **Run the lines one at a time** (don't paste a whole block — pasted comments/continuations cause errors in PowerShell).
 
 **Terminal 1 — ComfyUI FLUX (:8188)** — from your FLUX ComfyUI folder:
 ```powershell

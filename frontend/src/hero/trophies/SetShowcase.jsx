@@ -4,10 +4,12 @@
 // the reveal). The retail box rides alongside as a small COVER-ART thumbnail
 // (its packaging) that expands to a lightbox you can download from — so it reads
 // as "this is the product" without stealing space from the build, and without a
-// second WebGL canvas or a sealed-box-vs-built contradiction.
+// second WebGL canvas or a sealed-box-vs-built contradiction. The build viewer
+// is itself expandable + PNG-exportable, like the render and the mesh.
 import { useEffect, useState } from "react";
-import { Download, Maximize2, X } from "lucide-react";
+import { Download, Maximize2 } from "lucide-react";
 import BrickViewer from "../../viewer/BrickViewer.jsx";
+import { Lightbox } from "../../components/ui/index.js";
 import { buildFrontDataUrl } from "../../lib/boxTexture.js";
 import { downloadDataUrl } from "./downloadImage.js";
 
@@ -31,10 +33,10 @@ export default function SetShowcase({ imageUrl, setCopy, brickModel }) {
   return (
     <>
       <div className="grid gap-5 sm:grid-cols-[1fr_auto] sm:items-start">
-        {/* the build — the thing you actually made */}
+        {/* the build — the thing you actually made (expand + save a PNG) */}
         <div>
-          <BrickViewer brickModel={brickModel} height={380} />
-          <p className="mt-1.5 text-center text-micro text-muted">Drag to rotate your build.</p>
+          <BrickViewer brickModel={brickModel} height={380} expandable title="LEGO build" filename={`${safe}_build.png`} />
+          <p className="mt-1.5 text-center text-micro text-muted">Drag to rotate · expand to inspect &amp; save a PNG.</p>
         </div>
 
         {/* the box — its packaging, as a small expandable cover thumbnail */}
@@ -59,31 +61,22 @@ export default function SetShowcase({ imageUrl, setCopy, brickModel }) {
         </div>
       </div>
 
-      {/* lightbox */}
-      {expanded && coverUrl && (
-        <div
-          className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-6"
-          onClick={() => setExpanded(false)}
-        >
-          <div className="relative w-full max-w-[760px]" onClick={(e) => e.stopPropagation()}>
-            <img src={coverUrl} alt={`${setCopy?.set_name || "Your set"} retail box`} className="w-full rounded-xl shadow-pop" />
-            <div className="mt-3 flex items-center justify-center gap-2.5">
-              <button
-                onClick={save}
-                className="inline-flex items-center gap-1.5 rounded-full bg-brand-red px-4 py-2 font-display text-sm font-bold text-white hover:brightness-110"
-              >
-                <Download size={15} /> Save box art
-              </button>
-              <button
-                onClick={() => setExpanded(false)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 font-display text-sm font-bold text-ink hover:brightness-95"
-              >
-                <X size={15} /> Close
-              </button>
-            </div>
-          </div>
+      {/* box-art lightbox — shared, accessible (Esc / focus trap / backdrop close) */}
+      <Lightbox
+        open={expanded && !!coverUrl}
+        onClose={() => setExpanded(false)}
+        label={`${setCopy?.set_name || "Set"} box art — full screen`}
+      >
+        <img src={coverUrl} alt={`${setCopy?.set_name || "Your set"} retail box`} className="w-full rounded-xl shadow-pop" />
+        <div className="mt-3 flex justify-center">
+          <button
+            onClick={save}
+            className="inline-flex h-11 items-center gap-1.5 rounded-full bg-brand-red px-4 font-display text-sm font-bold text-white hover:brightness-110"
+          >
+            <Download size={15} /> Save box art
+          </button>
         </div>
-      )}
+      </Lightbox>
     </>
   );
 }

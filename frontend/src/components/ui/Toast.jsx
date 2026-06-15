@@ -15,6 +15,10 @@ export const toast = {
   success: (title, description) => useToasts.getState().push({ variant: "success", title, description }),
   error: (title, description) => useToasts.getState().push({ variant: "error", title, description }),
   info: (title, description) => useToasts.getState().push({ variant: "info", title, description }),
+  // info toast with an action button (e.g. Undo); gets a longer dwell so it's
+  // actionable. onAction fires on click and the toast closes.
+  action: (title, description, label, onAction) =>
+    useToasts.getState().push({ variant: "info", title, description, action: { label, onAction } }),
 };
 
 const META = {
@@ -34,8 +38,8 @@ export default function Toaster() {
         return (
           <RToast.Root
             key={t.id}
-            type={t.variant === "error" ? "foreground" : "background"}
-            duration={t.variant === "error" ? 6000 : 3500}
+            type={t.variant === "error" || t.action ? "foreground" : "background"}
+            duration={t.action ? 7000 : t.variant === "error" ? 6000 : 3500}
             onOpenChange={(open) => { if (!open) dismiss(t.id); }}
             className={cn(
               "relative flex items-start gap-3 rounded-lg bg-elevated shadow-pop border-l-4 p-3 pr-9",
@@ -51,6 +55,16 @@ export default function Toaster() {
                 <RToast.Description className="text-sm text-muted mt-0.5 break-words">
                   {t.description}
                 </RToast.Description>
+              )}
+              {t.action && (
+                <RToast.Action altText={t.action.label} asChild>
+                  <button
+                    onClick={t.action.onAction}
+                    className="mt-2 inline-flex h-8 items-center rounded-full bg-ink px-3 text-xs font-bold text-white hover:brightness-110"
+                  >
+                    {t.action.label}
+                  </button>
+                </RToast.Action>
               )}
             </div>
             <RToast.Close

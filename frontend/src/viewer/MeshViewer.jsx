@@ -1,7 +1,9 @@
 // Standalone viewer for the RAW TRELLIS mesh — the staged flow's "mesh stop":
 // the user orbits the generated 3D before deciding how to legolize it.
 // Same shell, camera grammar and lighting as BrickViewer so the handoff from
-// mesh -> bricks feels like one continuous object.
+// mesh -> bricks feels like one continuous object. When `expandable`, it gains a
+// fullscreen view + PNG export (ArtifactFrame) so the mesh is inspectable on its
+// own, like the render and the box art.
 import { useMemo, useState } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
@@ -10,6 +12,8 @@ import { useDataUrlGLB } from "./useDataUrlGLB.js";
 import { useReducedMotion } from "../lib/useReducedMotion.js";
 import { StudLoader } from "../components/ui/index.js";
 import { VIEWER_BG } from "../lib/tokens.js";
+import CaptureBridge from "./CaptureBridge.jsx";
+import ArtifactFrame from "./ArtifactFrame.jsx";
 
 const TARGET_H = 14; // world height the mesh is normalised to (≈ a brick model)
 
@@ -40,23 +44,25 @@ function NormalizedMesh({ scene }) {
   return <primitive object={ready} />;
 }
 
-export default function MeshViewer({ glbUrl, height = 380 }) {
+// The actual scene — reused inline and (larger) inside the expand lightbox.
+function MeshScene({ glbUrl, registerCapture }) {
   const reduced = useReducedMotion();
   const { scene, error } = useDataUrlGLB(glbUrl);
   const [spin, setSpin] = useState(!reduced);
 
-  if (!glbUrl || error) {
-    return <div style={{ height, background: VIEWER_BG }} className="rounded-lg" />;
-  }
-
+  if (error) return null;
   return (
-    <div style={{ height, background: VIEWER_BG }} className="relative overflow-hidden rounded-lg">
+    <>
       {!scene && (
         <div className="absolute inset-0 grid place-items-center">
           <StudLoader />
         </div>
       )}
-      <Canvas camera={{ position: [TARGET_H * 1.5, TARGET_H * 1.25, TARGET_H * 1.7], fov: 40 }}>
+      {/* preserveDrawingBuffer lets CaptureBridge read the frame for PNG export */}
+      <Canvas
+        gl={{ preserveDrawingBuffer: true }}
+        camera={{ position: [TARGET_H * 1.5, TARGET_H * 1.25, TARGET_H * 1.7], fov: 40 }}
+      >
         <ambientLight intensity={0.75} />
         <directionalLight position={[12, 20, 9]} intensity={1.4} />
         <directionalLight position={[-8, 6, -6]} intensity={0.35} />
@@ -70,7 +76,30 @@ export default function MeshViewer({ glbUrl, height = 380 }) {
           minDistance={4}
           maxDistance={TARGET_H * 5}
         />
+        <CaptureBridge onReady={registerCapture} />
       </Canvas>
-    </div>
+    </>
+  );
+}
+
+export default function MeshViewer({ glbUrl, height = 380, expandable = false, title = "3D mesh", filename = "mesh.png" }) {
+  if (!glbUrl) {
+    return <div style={{ height, background: VIEWER_BG }} className="rounded-lg" />;
+  }
+  if (!expandable) {
+    return (
+      <div style={{ height, background: VIEWER_BG }} className="relative overflow-hidden rounded-lg">
+        <MeshScene glbUrl={glbUrl} />
+      </div>
+    );
+  }
+  return (
+    <ArtifactFrame
+      height={height}
+      title={title}
+      filename={filename}
+      hint="Drag to orbit · scroll to zoom"
+      renderScene={(register) => <MeshScene glbUrl={glbUrl} registerCapture={register} />}
+    />
   );
 }

@@ -5,17 +5,21 @@
 // the corner pill is just a hint. Pure CSS 3D flip — under reduced motion
 // the rotation becomes an opacity crossfade.
 import { useMemo, useState } from "react";
-import { FlipHorizontal } from "lucide-react";
+import { FlipHorizontal, Maximize2, Download } from "lucide-react";
 import { parsePromptSlots, TONE } from "../lib/promptGrammar.js";
 import { useReducedMotion } from "../lib/useReducedMotion.js";
+import { Lightbox } from "../components/ui/index.js";
+import { downloadDataUrl } from "./trophies/downloadImage.js";
 import { cn } from "../lib/cn.js";
 
 const DEFAULT_HINT = "Hover a chip — each one is a slot in the prompt grammar.";
+const slug = (s) => (s || "legoarch").split(",")[0].replace(/[^\w]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 48) || "legoarch";
 
 export default function RecipeCard({ imageUrl, runRecord }) {
   const reduced = useReducedMotion();
   const [flipped, setFlipped] = useState(false);
   const [hint, setHint] = useState(null);
+  const [zoom, setZoom] = useState(false);
 
   const slots = useMemo(
     () => parsePromptSlots(runRecord?.enhancedPrompt),
@@ -67,6 +71,15 @@ export default function RecipeCard({ imageUrl, runRecord }) {
             alt="legoarch render"
             className="block h-full w-full rounded-xl object-cover shadow-pop"
           />
+          {/* expand the render on its own — separate from the card flip */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setZoom(true); }}
+            aria-label="Expand the render to full screen"
+            className="absolute bottom-3 left-3 inline-flex h-9 items-center gap-1.5 rounded-full bg-black/55 px-3 text-micro font-semibold text-white backdrop-blur transition hover:bg-black/70"
+          >
+            <Maximize2 size={12} /> Expand
+          </button>
           {/* passive hint — the whole card is the button */}
           <span className="pointer-events-none absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-micro font-semibold text-white">
             <FlipHorizontal size={12} /> see the recipe
@@ -134,6 +147,19 @@ export default function RecipeCard({ imageUrl, runRecord }) {
           </button>
         </div>
       </div>
+
+      {/* the render on its own — expand + save the FLUX image (already a data URL) */}
+      <Lightbox open={zoom} onClose={() => setZoom(false)} label="Render — full screen">
+        <img src={imageUrl} alt="legoarch render" className="w-full rounded-xl shadow-pop" />
+        <div className="mt-3 flex justify-center">
+          <button
+            onClick={(e) => { e.stopPropagation(); downloadDataUrl(`${slug(runRecord?.prompt)}_render.png`, imageUrl); }}
+            className="inline-flex h-11 items-center gap-1.5 rounded-full bg-brand-red px-4 font-display text-sm font-bold text-white hover:brightness-110"
+          >
+            <Download size={15} /> Save render
+          </button>
+        </div>
+      </Lightbox>
     </div>
   );
 }

@@ -4,14 +4,15 @@
 // A visible "List view" toggle lets anyone drop to the grid on purpose. This
 // layer also owns selection: clicking a set (in either view) opens the shared
 // explore surface (BoxHub: booklet · pieces & prices · downloads), and removing
-// a set is confirmed here so the 3D affordance, the list trash, and the sr-only
-// button all funnel through one guard.
+// a set is reversible — every remove affordance (3D trash, list trash) funnels
+// through one path that removes immediately and offers Undo (no blocking confirm).
 import { useMemo, useState } from "react";
 import { List, Boxes } from "lucide-react";
 import ErrorBoundary from "../components/ErrorBoundary.jsx";
 import { hasWebGL } from "../lib/webgl.js";
 import { normalizeAdapted } from "../lib/brickModel.js";
-import { useBuild, isShelfDupe } from "../state/store.js";
+import { useBuild, useCollection, isShelfDupe } from "../state/store.js";
+import { toast } from "../components/ui/index.js";
 import ShelfScene from "./ShelfScene.jsx";
 import CollectionList from "../room/CollectionList.jsx";
 import TrophyShell from "../hero/trophies/TrophyShell.jsx";
@@ -25,22 +26,33 @@ export default function ShelfGate({ items, onRemove }) {
   const selected = selectedId ? items.find((i) => i.id === selectedId) : null;
   const use3D = webgl && !forceList;
 
-  // One confirm path for every remove affordance (3D trash, list trash, sr-only).
+  // One path for every remove affordance (3D trash, list trash): remove now,
+  // offer Undo — no irreversible native confirm.
   const askRemove = (id) => {
     const it = items.find((i) => i.id === id);
-    const ok = window.confirm(`Remove “${it?.title || "this set"}” from your shelf? This can’t be undone.`);
-    if (!ok) return;
+    if (!it) return;
     onRemove(id);
     if (selectedId === id) setSelectedId(null); // closing the modal repaints the demand canvas
 
-    // If the removed set is the build still open on the reveal, clear its stale
-    // `saved` flag so ▶ Pack re-adds it instead of short-circuiting to explore.
+    // If the removed set is the build still open on the reveal, removing it
+    // effectively UN-packs it: clear `saved` and re-arm `relegolizedSincePack`
+    // so ▶ Pack re-adds the very set you just removed (without the gate forcing
+    // a re-legolize first, and without short-circuiting to explore).
     const b = useBuild.getState();
-    if (it && b.brickModel && b.saved &&
+    if (b.brickModel && b.saved &&
         isShelfDupe([it], b.setCopy?.set_name || (b.prompt || "Untitled set").split(",")[0],
                     b.brickModel.stability.nBricks)) {
-      b.set({ saved: false });
+      b.set({ saved: false, relegolizedSincePack: true });
     }
+
+    // Reversible: put it back exactly as it was if the user changes their mind.
+    const name = it.title || "set";
+    toast.action(
+      "Removed from your shelf",
+      `“${name.length > 32 ? name.slice(0, 31) + "…" : name}” is gone — Undo to put it back.`,
+      "Undo",
+      () => useCollection.getState().add(it)
+    );
   };
 
   return (

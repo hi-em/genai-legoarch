@@ -39,7 +39,9 @@ export function useDataUrlGLB(dataUrl) {
           const mats = Array.isArray(o.material) ? o.material : [o.material];
           for (const m of mats) {
             if (!m) continue;
-            m.map?.dispose?.();
+            // dispose EVERY texture slot (normalMap/roughnessMap/emissiveMap/…),
+            // not just the base-color map, so no GPU texture leaks on unmount
+            for (const v of Object.values(m)) if (v && v.isTexture) v.dispose();
             m.dispose?.();
           }
         });

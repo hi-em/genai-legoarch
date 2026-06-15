@@ -14,8 +14,13 @@ import * as THREE from "three";
 import { SkipForward } from "lucide-react";
 import {
   PackingScene, useFrontTexture, usePackingRain,
-  easeOut, clamp01, FLOOR_Y,
+  easeOut, clamp01, FLOOR_Y, T_END, T_HOLD,
 } from "./PackingScene.jsx";
+
+// The reveal seal plays slower than 1× so the fold reads and the cover art lands
+// as its own beat (PackingScene stretches its whole timeline by this factor).
+const PLAYBACK = 0.7;
+const BOOKLET_DUR = 0.65;   // booklet slide, real seconds (unscaled)
 import { BOX } from "../lib/boxTexture.js";
 import { playSnap } from "../lib/sound.js";
 
@@ -76,8 +81,10 @@ export default function PackRitual({ imageUrl, setCopy, brickModel, reduced = fa
   const finish = () => { if (!doneRef.current) { doneRef.current = true; onDone?.(); } };
 
   // Hard failsafe: never strand the user in the cutscene if a beat stalls.
+  // Derived from the (slowed) pack timeline so it always clears a clean run.
   useEffect(() => {
-    const ms = reduced ? 0 : 11000;
+    const packMs = ((T_END + T_HOLD) / PLAYBACK + BOOKLET_DUR + 2.0) * 1000;
+    const ms = reduced ? 0 : packMs;
     const id = setTimeout(finish, ms);
     return () => clearTimeout(id);
   }, [reduced]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -99,6 +106,7 @@ export default function PackRitual({ imageUrl, setCopy, brickModel, reduced = fa
             reduced={reduced}
             replayKey={0}
             direction="pack"
+            playbackScale={PLAYBACK}
             onDone={() => setPhase("booklet")}
           />
         )}

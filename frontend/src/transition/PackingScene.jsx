@@ -81,6 +81,10 @@ export const T_RAIN = 1.5, T_RAIN_END = 3.1;
 export const T_FLAP_S = 3.2, T_FLAP_L = 3.7;
 export const T_FLIP = 4.5, T_FLIP_D = 1.1;
 export const T_END = T_FLIP + T_FLIP_D + 0.9;     // packshot has settled ~6.5s
+// After the box settles, hold on the finished packshot (box alone, gently
+// swaying) before handing off — a beat to actually read the cover art. In
+// timeline seconds; real-time hold = T_HOLD / playbackScale.
+export const T_HOLD = 1.5;
 
 // the z the carton settles to once tipped upright (matches the pack tip-up lerp)
 const Z_SEALED = -BOX.BH / 2 + 0.55 * (BOX.BH + 0.1);
@@ -169,7 +173,7 @@ function Side({ axis, sign, wallLen, flapDepth, mats, wallRef, flapRef }) {
 }
 
 // ---------------------------------------------------------------------------
-export function PackingScene({ frontTex, rain, reduced, replayKey, direction = "pack", onDone, showFloor = true }) {
+export function PackingScene({ frontTex, rain, reduced, replayKey, direction = "pack", onDone, showFloor = true, playbackScale = 1 }) {
   const t0 = useRef(null);
   const swayRef = useRef();
   const flipRef = useRef();
@@ -218,7 +222,8 @@ export function PackingScene({ frontTex, rain, reduced, replayKey, direction = "
 
   useFrame((state) => {
     if (t0.current == null) t0.current = state.clock.elapsedTime;
-    const t = reduced ? 1e3 : state.clock.elapsedTime - t0.current;
+    // playbackScale < 1 stretches the whole timeline (slower, more readable).
+    const t = reduced ? 1e3 : (state.clock.elapsedTime - t0.current) * playbackScale;
 
     // ----- OPEN: a sealed box tips down, flaps fall open, bricks rest inside -
     if (direction === "open") {
@@ -288,7 +293,7 @@ export function PackingScene({ frontTex, rain, reduced, replayKey, direction = "
       const settled = clamp01((t - (T_FLIP + T_FLIP_D)) / 1);
       swayRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.25) * 0.14 * settled;
     }
-    if ((reduced || t >= T_END) && !fired.current) { fired.current = true; onDone?.(); }
+    if ((reduced || t >= T_END + T_HOLD) && !fired.current) { fired.current = true; onDone?.(); }
   });
 
   return (

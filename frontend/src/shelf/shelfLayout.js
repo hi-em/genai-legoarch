@@ -9,7 +9,13 @@ export const CELL_H = 8.5;         // compartment inner height
 export const CELL_D = 7;           // compartment depth (back panel -> front edge)
 export const FRAME_T = 0.7;        // shelf board / divider thickness
 export const SET_TILT = -0.4;      // display angle of a set on its shelf (rad, about Y)
-export const MODEL_BRICK_BUDGET = 12000; // models above this show as a hero box only
+// Sanity valve on live shelf geometry, not a product limit. The old 12k ceiling
+// silently hid the model of every high-detail flagship — Sagrada 15k, Muralla
+// 22k, Bilbao 16k at the "large" brick-detail (voxel_target 48) — leaving just
+// the box on the shelf. The brick-detail dial tops out at voxel_target 64
+// (≈40–50k pieces on the densest building), so this covers the full reachable
+// range with headroom; only a pathological/corrupt model exceeds it.
+export const MODEL_BRICK_BUDGET = 60000;
 
 // Diorama composition: the retail box sits at the back of the compartment
 // (slightly left, yawed toward the viewer), the built model stands in front.
@@ -34,11 +40,15 @@ export function slotCenter(i, rows) {
   return [x, yTop - CELL_H / 2];
 }
 
-// One canvas holds up to 20 sets, so huge models can't all be live geometry:
-// sets within the budget show the full diorama (box + instanced 3D model),
-// anything above it shows a centred hero box instead.
-export const displayModeFor = (bm) =>
-  (bm?.bricks?.length || 0) <= MODEL_BRICK_BUDGET ? "model" : "box-only";
+// One canvas holds up to 20 sets: sets within the budget show the full diorama
+// (box + instanced 3D model), anything above it shows a centred hero box only.
+// A model with no bricks (malformed / lost layout) also shows the box only —
+// never a phantom "model" mode that renders nothing in front of the box.
+export const displayModeFor = (bm) => {
+  const n = bm?.bricks?.length || 0;
+  if (n === 0) return "box-only";
+  return n <= MODEL_BRICK_BUDGET ? "model" : "box-only";
+};
 
 // Perspective camera distance that frames the whole wall with a small margin.
 // `aspect` defaults wide; ShelfScene refines it with the live canvas aspect on

@@ -23,22 +23,29 @@ function loadShelf() {
 }
 function saveShelf(items) {
   let list = items.slice(0, SHELF_CAP);
+  if (list.length === 0) {                 // legitimately empty (e.g. removed the last set)
+    try { localStorage.setItem(SHELF_KEY, "[]"); } catch {}
+    return [];
+  }
   while (list.length) {
     try { localStorage.setItem(SHELF_KEY, JSON.stringify(list)); return list; }
-    catch { list = list.slice(0, list.length - 1); }   // drop oldest on quota error
+    catch { list = list.slice(0, list.length - 1); }   // drop oldest on quota pressure
   }
-  try { localStorage.setItem(SHELF_KEY, "[]"); } catch {}
-  return [];
+  // A single set alone exceeds the quota — DON'T wipe the shelf to "[]". Keep the
+  // last good persisted collection; the caller reports the add as rejected.
+  return loadShelf();
 }
 export const useCollection = create((set, get) => ({
   items: loadShelf(),
-  // returns how many OLDER sets quota-pressure dropped, so callers can be
-  // honest instead of toasting success while sets silently vanish
+  // Returns { savedNew, dropped }: whether the NEW set actually persisted, and how
+  // many OLDER sets quota-pressure evicted to make room — so the caller can be
+  // honest (never claim "saved" when storage rejected it, never wipe the shelf).
   add: (item) => {
     const wanted = [item, ...get().items];
     const items = saveShelf(wanted);
     set({ items });
-    return Math.max(0, wanted.length - items.length);
+    const savedNew = items.some((i) => i.id === item.id);
+    return { savedNew, dropped: savedNew ? Math.max(0, wanted.length - items.length) : 0 };
   },
   remove: (id) => { const items = saveShelf(get().items.filter((i) => i.id !== id)); set({ items }); },
 }));
@@ -92,6 +99,10 @@ export const useBuild = create((set, get) => ({
   tuning: false,      // user backed from reveal to the mesh stop ("Tune bricks")
   assembling: false,  // between legolize success and AssemblyViewer onComplete
   saved: false,       // current brickModel has been added to the shelf
+  relegolizedSincePack: false, // a fresh, un-packed build is ready to Pack; true
+                      // after a legolize/render/mesh, false on Pack + on entering
+                      // "Tune bricks" — so Pack re-enables only after re-tune AND
+                      // re-legolize (see HeroFlow onPack / the Pack button)
   pendingJob: loadPendingJob(), // recovery banner: {stage, prompt, startedAt, glbName?, imageThumb?}
 
   set: (patch) => set(patch),
@@ -136,6 +147,7 @@ export const useBuild = create((set, get) => ({
       prompt: "", imageUrl: null, glbUrl: null, glbName: null, brickModel: null,
       setCopy: null, runRecord: null, calls: null,
       inFlight: null, abortCtrl: null, tuning: false, assembling: false, saved: false,
+      relegolizedSincePack: false,
       pendingJob: null, jobId: s.jobId + 1,
     }));
   },

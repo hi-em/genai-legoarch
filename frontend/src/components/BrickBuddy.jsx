@@ -19,7 +19,7 @@ const TIPS = {
   mesh: "Orbit the raw mesh. Brick dials are cheap — legolizing takes seconds, so experiment.",
   legolizing: "No AI in this stage — pure geometry. Done before you finish this sentence.",
   assembling: "Watch it click together, course by course.",
-  reveal: "Add it to your shelf — or tune the bricks and re-solve in seconds.",
+  reveal: "Hit Pack to seal it onto your shelf. Want changes? Tune the bricks and re-legolize — then Pack the new version.",
 };
 
 function BuddyFace({ size = 52 }) {

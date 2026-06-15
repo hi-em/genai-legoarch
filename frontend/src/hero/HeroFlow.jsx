@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Upload, X, Box, Star, RotateCcw, Volume2, VolumeX, Copy, SlidersHorizontal, Play, Boxes } from "lucide-react";
+import { Sparkles, Upload, X, Box, Star, RotateCcw, Volume2, VolumeX, Copy, SlidersHorizontal, Play, Boxes, CheckCircle2 } from "lucide-react";
 import { generate, generateMesh, legolizeMesh, getSetCopy, latestMesh } from "../api.js";
 import { useBuild, useCollection, useView, useUI, derivePhase, isShelfDupe } from "../state/store.js";
 import { hasWebGL } from "../lib/webgl.js";
@@ -29,6 +29,10 @@ import { paramsFor, summarizeRun } from "./tinkerParams.js";
 import Wordmark from "../components/brand/Wordmark.jsx";
 import LogoMark from "../components/brand/LogoMark.jsx";
 
+// Consistent, filesystem-safe stem for artifact PNG exports (render / mesh /
+// build), e.g. "Sagrada Família" -> "Sagrada_Familia".
+const artifactSlug = (s) => (s || "legoarch").split(",")[0].replace(/[^\w]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 48) || "legoarch";
+
 // Staged pipeline with a user stop after every expensive step:
 //   intro -> rendering -> render (image stop: shape dials, re-render)
 //         -> meshing  -> mesh   (mesh stop: brick dials, re-mesh; CPU-cheap re-legolize)
@@ -49,6 +53,10 @@ export default function HeroFlow() {
   const tuning = useBuild((s) => s.tuning);
   const pendingJob = useBuild((s) => s.pendingJob);
   const calls = useBuild((s) => s.calls);
+  const saved = useBuild((s) => s.saved);
+  // Pack re-enables only after a fresh legolize; packing locks it until the user
+  // re-tunes AND re-legolizes (see the Pack button + onPack).
+  const relegolizedSincePack = useBuild((s) => s.relegolizedSincePack);
   const { startJob, finishJob, failJob, cancelJob, dismissPendingJob } = useBuild.getState();
   const reduced = useReducedMotion();
   const [text, setText] = useState(prompt || "");
@@ -61,6 +69,14 @@ export default function HeroFlow() {
   // or "Visualize another" clearing it) snaps back to idle.
   const [stage, setStage] = useState("idle"); // "idle" | "packing" | "explore"
   useEffect(() => { setStage("idle"); }, [brickModel]);
+
+  // Navigating away (HeroFlow unmounts on the hero↔collection switch) aborts an
+  // in-flight render/mesh — don't keep a multi-minute GPU job running for a
+  // screen that's gone. cancelJob aborts the fetch + bumps jobId (late replies
+  // are discarded) + clears the recovery banner.
+  useEffect(() => () => {
+    if (useBuild.getState().inFlight) useBuild.getState().cancelJob();
+  }, []);
 
   // Score the call-sheet bets once when the reveal lands — a win/lose wink a
   // beat AFTER the reveal chime (so the two payoff sounds don't collide). The
@@ -116,7 +132,7 @@ export default function HeroFlow() {
       finishJob(jobId, {
         imageUrl: r1.imageUrl,
         glbUrl: null, glbName: null, brickModel: null, setCopy: null,
-        saved: false, tuning: false, assembling: false,
+        saved: false, tuning: false, assembling: false, relegolizedSincePack: true,
         calls: null,                // a new render restarts the call sheet
         // reproducibility record grows stage by stage (faculty: prompt, seed,
         // model, params per shown output)
@@ -164,7 +180,7 @@ export default function HeroFlow() {
         glbName: r.glbName,
         brickModel: null,                       // a new mesh invalidates old bricks
         setCopy: null,
-        saved: false, tuning: false,
+        saved: false, tuning: false, relegolizedSincePack: true,
         runRecord: {
           ...rec,
           params: { ...params },
@@ -210,7 +226,7 @@ export default function HeroFlow() {
       if (!r.brickModel) throw new Error("No brick layout returned.");
       finishJob(jobId, {
         brickModel: r.brickModel,
-        saved: false, tuning: false, assembling: true,
+        saved: false, tuning: false, assembling: true, relegolizedSincePack: true,
         setCopy: null,                          // stale persona copy never pairs with new bricks
         runRecord: {
           ...rec,
@@ -256,7 +272,7 @@ export default function HeroFlow() {
     const subj = "Brutalist concrete tower with stepped setbacks";
     // calls cleared: the demo skips the mesh wait, so bets from a previous
     // real run must not produce a phantom scorecard at the reveal
-    set({ prompt: subj, imageUrl: sampleRender, brickModel: bm, assembling: true, saved: false, calls: null });
+    set({ prompt: subj, imageUrl: sampleRender, brickModel: bm, assembling: true, saved: false, relegolizedSincePack: true, calls: null });
     setText(subj);
     getSetCopy(subj, bm).then((c) => set({ setCopy: c })).catch(() => {});
   }
@@ -269,10 +285,12 @@ export default function HeroFlow() {
     const s = useBuild.getState();
     if (!brickModel) return;
     if (s.saved) { setStage("explore"); return; }   // already packed — just open explore
+    if (!s.relegolizedSincePack) return;            // nothing new since the last pack (Pack is disabled)
 
     const title = setCopy?.set_name || (prompt || "Untitled set").split(",")[0];
     const dupe = isShelfDupe(useCollection.getState().items, title, brickModel.stability.nBricks);
-    set({ saved: true });        // synchronous: a double-click can't add twice
+    // sync: a double-click can't add twice; Pack now locks until a re-tune + re-legolize
+    set({ saved: true, relegolizedSincePack: false });
     playPop();
 
     if (dupe) {
@@ -299,8 +317,16 @@ export default function HeroFlow() {
         glbName: glbName || null,   // lets the saved set export its .stl later
         created_at: new Date().toISOString(),
       };
-      const dropped = addToShelf(item);
-      if (dropped > 0) {
+      const { savedNew, dropped } = addToShelf(item);
+      if (!savedNew) {
+        // This one build alone exceeds the storage budget — the rest of the
+        // shelf is untouched. Un-mark it so ▶ Pack can retry after they free room.
+        set({ saved: false, relegolizedSincePack: true });
+        toast.error(
+          "Too large to save",
+          "This build exceeds your browser's storage limit — your other sets are safe. Remove a set or lower the brick detail, then pack again."
+        );
+      } else if (dropped > 0) {
         toast.info(
           "Saved — oldest sets removed",
           `Your browser's storage is full: the ${dropped} oldest set${dropped > 1 ? "s were" : " was"} deleted to make room.`
@@ -560,7 +586,13 @@ export default function HeroFlow() {
               className="w-full max-w-[880px]"
             >
               <div className="grid gap-6 sm:grid-cols-2 sm:items-center">
-                <MeshViewer glbUrl={glbUrl} height={400} />
+                <MeshViewer
+                  glbUrl={glbUrl}
+                  height={400}
+                  expandable
+                  title="Raw 3D mesh"
+                  filename={`${artifactSlug(setCopy?.set_name || prompt)}_mesh.png`}
+                />
                 <div>
                   <p className="text-xs font-bold uppercase tracking-widest text-brand-yellow">step 3 of 3 · legolize</p>
                   <h2 className="mt-1 font-display text-2xl font-black leading-tight text-on-dark">
@@ -600,7 +632,12 @@ export default function HeroFlow() {
               <p className="mb-2 text-center text-sm font-semibold uppercase tracking-wide text-on-dark-muted">
                 Snapping {courseCount(brickModel)} courses into place…
               </p>
-              <AssemblyViewer brickModel={brickModel} height={520} onComplete={() => set({ assembling: false })} />
+              {/* if the assembly canvas throws, don't strand the user on this
+                  screen — fall through to the reveal (AssemblyViewer also has a
+                  timeout failsafe for a silent WebGL-context loss) */}
+              <ErrorBoundary silent onError={() => set({ assembling: false })}>
+                <AssemblyViewer brickModel={brickModel} height={520} onComplete={() => set({ assembling: false })} />
+              </ErrorBoundary>
             </motion.section>
           )}
 
@@ -637,7 +674,7 @@ export default function HeroFlow() {
                   </div>
                   {glbUrl && (
                     <button
-                      onClick={() => set({ tuning: true })}
+                      onClick={() => set({ tuning: true, relegolizedSincePack: false })}
                       title="Back to the brick settings — re-legolizing takes seconds"
                       className="mt-3 inline-flex items-center gap-1.5 text-sm text-on-dark-muted underline-offset-2 hover:text-on-dark hover:underline"
                     >
@@ -653,9 +690,22 @@ export default function HeroFlow() {
                     <PackRitual imageUrl={imageUrl} setCopy={displayCopy} brickModel={brickModel} reduced={reduced} onDone={() => setStage("explore")} />
                   </ErrorBoundary>
                 ) : glbUrl ? (
-                  <SpineCompareViewer glbUrl={glbUrl} brickModel={brickModel} height={420} />
+                  <SpineCompareViewer
+                    glbUrl={glbUrl}
+                    brickModel={brickModel}
+                    height={420}
+                    expandable
+                    title="Mesh ↔ build"
+                    filename={`${artifactSlug(setCopy?.set_name || prompt)}_compare.png`}
+                  />
                 ) : (
-                  <BrickViewer brickModel={brickModel} height={420} />
+                  <BrickViewer
+                    brickModel={brickModel}
+                    height={420}
+                    expandable
+                    title="LEGO build"
+                    filename={`${artifactSlug(setCopy?.set_name || prompt)}_build.png`}
+                  />
                 )}
                 <div>
                   <p className="text-xs font-bold uppercase tracking-widest text-brand-yellow">
@@ -726,14 +776,42 @@ export default function HeroFlow() {
                   )}
 
                   <div className="mt-5 flex flex-wrap gap-2.5">
-                    <Button variant="primary" onClick={onPack} disabled={stage === "packing"}>
+                    <Button
+                      variant="primary"
+                      onClick={onPack}
+                      disabled={stage === "packing" || !relegolizedSincePack}
+                      title={
+                        stage === "packing"
+                          ? "Packing…"
+                          : relegolizedSincePack
+                          ? "Pack this set onto your shelf"
+                          : saved
+                          ? "Already packed — tune the bricks and re-legolize to pack a new version"
+                          : "Re-legolize your tuned bricks to pack"
+                      }
+                    >
                       <Play size={15} /> Pack
                     </Button>
                     <Button variant="secondary" onClick={onForgeAnother}><RotateCcw size={15} /> Visualize another</Button>
                   </div>
+                  {!relegolizedSincePack && stage !== "packing" && (
+                    <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1.5 text-micro text-on-dark-muted">
+                      {saved ? (
+                        <>
+                          <CheckCircle2 size={13} className="shrink-0 text-brand-yellow" />
+                          Packed to your shelf. Tune the bricks and re-legolize to pack a new version.
+                        </>
+                      ) : (
+                        <>
+                          <SlidersHorizontal size={13} className="shrink-0" />
+                          Tune the bricks and re-legolize to enable Pack.
+                        </>
+                      )}
+                    </p>
+                  )}
                   {glbUrl && (
                     <button
-                      onClick={() => set({ tuning: true })}
+                      onClick={() => set({ tuning: true, relegolizedSincePack: false })}
                       title="Back to the brick settings — re-legolizing takes seconds"
                       className="mt-3 inline-flex items-center gap-1.5 text-sm text-on-dark-muted underline-offset-2 hover:text-on-dark hover:underline"
                     >

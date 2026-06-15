@@ -81,6 +81,22 @@ function Assembly({ brickModel, reduced, skipRef, onDone }) {
 export default function AssemblyViewer({ brickModel, onComplete, height = 460 }) {
   const reduced = useReducedMotion();
   const skipRef = useRef(false);
+
+  // Failsafe: the build advances inside useFrame, which stops SILENTLY if the
+  // WebGL context is lost — never strand the user on "Snapping courses…". Fire
+  // onComplete after the expected duration + margin if the canvas hasn't yet.
+  // (kept in a ref so an inline onComplete prop doesn't restart the timer.)
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  useEffect(() => {
+    if (!brickModel) return;
+    const courses = courseCount(brickModel);
+    const layerMs = Math.max(130, Math.min(420, Math.round(5500 / Math.max(1, courses))));
+    const ms = reduced ? 1200 : layerMs * courses + 4000;
+    const id = setTimeout(() => onCompleteRef.current?.(), ms);
+    return () => clearTimeout(id);
+  }, [brickModel, reduced]);
+
   if (!brickModel) return null;
 
   const [nx, ny, nz] = brickModel.grid;            // nz is in PLATE layers
