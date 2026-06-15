@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 600" font-family="'Helvetica Neue', Arial, sans-serif" role="img" aria-labelledby="ttl desc">
+  <title id="ttl">lEgoarCh pipeline</title>
+  <desc id="desc">A building's name becomes a buildable LEGO set in three beats: GenAI proposes the form (FLUX render to TRELLIS mesh), deterministic computation proves it is buildable (voxelize, split-and-merge legolize, stability), and a real Rebrickable catalog proves it is real (real parts and CIEDE2000 colour clamp). The FastAPI backend is the single source of truth.</desc>
+
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#20262b"/>
+    </marker>
+    <marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c39e00"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1300" height="600" fill="#ffffff"/>
+
+  <!-- header -->
+  <text x="40" y="40" font-size="26" font-weight="700" fill="#20262b">lEgoarCh — the pipeline</text>
+  <text x="40" y="66" font-size="15" fill="#5a6168">A building's name → a buildable LEGO set. The FastAPI backend is the single source of truth for every brick.</text>
+
+  <!-- ===== beat bands (the thesis spine) ===== -->
+  <!-- Beat 1 -->
+  <rect x="40" y="96" width="406" height="40" rx="20" fill="#e3eefc" stroke="#1e5aa8"/>
+  <circle cx="66" cy="116" r="13" fill="#1e5aa8"/><text x="66" y="121" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">1</text>
+  <text x="90" y="121" font-size="15" font-weight="700" fill="#16324f">GenAI proposes the form</text>
+  <!-- Beat 2 -->
+  <rect x="454" y="96" width="412" height="40" rx="20" fill="#e7f3ea" stroke="#237a3c"/>
+  <circle cx="480" cy="116" r="13" fill="#237a3c"/><text x="480" y="121" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">2</text>
+  <text x="504" y="121" font-size="15" font-weight="700" fill="#143a22">Computation proves it's buildable</text>
+  <!-- Beat 3 -->
+  <rect x="874" y="96" width="386" height="40" rx="20" fill="#fdf3cf" stroke="#c39e00"/>
+  <circle cx="900" cy="116" r="13" fill="#c39e00"/><text x="900" y="121" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">3</text>
+  <text x="924" y="121" font-size="15" font-weight="700" fill="#5a4a00">A real catalog proves it's real</text>
+
+  <!-- ===== main flow chips (y 202..298, cy 250) ===== -->
+  <!-- Beat 1: prompt, render, mesh -->
+  <g>
+    <rect x="40" y="202" width="118" height="96" rx="10" fill="#eef0ee" stroke="#6c6e68"/>
+    <text x="99" y="244" font-size="14" font-weight="700" fill="#20262b" text-anchor="middle">Building name</text>
+    <text x="99" y="266" font-size="12" fill="#5a6168" text-anchor="middle">prompt / photo</text>
+
+    <rect x="184" y="202" width="118" height="96" rx="10" fill="#eef5fd" stroke="#1e5aa8"/>
+    <text x="243" y="238" font-size="14" font-weight="700" fill="#16324f" text-anchor="middle">FLUX.2 + LoRA</text>
+    <text x="243" y="259" font-size="12" fill="#5a6168" text-anchor="middle">LEGO render</text>
+    <text x="243" y="276" font-size="11" fill="#8a9099" text-anchor="middle">:8188</text>
+
+    <rect x="328" y="202" width="118" height="96" rx="10" fill="#eef5fd" stroke="#1e5aa8"/>
+    <text x="387" y="238" font-size="14" font-weight="700" fill="#16324f" text-anchor="middle">TRELLIS-2</text>
+    <text x="387" y="259" font-size="12" fill="#5a6168" text-anchor="middle">textured 3D mesh</text>
+    <text x="387" y="276" font-size="11" fill="#8a9099" text-anchor="middle">:8189</text>
+  </g>
+
+  <!-- Beat 2: voxelize, legolize -->
+  <g>
+    <rect x="454" y="202" width="190" height="96" rx="10" fill="#eef7f0" stroke="#237a3c"/>
+    <text x="549" y="238" font-size="14" font-weight="700" fill="#143a22" text-anchor="middle">Voxelize + colour</text>
+    <text x="549" y="259" font-size="12" fill="#5a6168" text-anchor="middle">exposure-match</text>
+    <text x="549" y="276" font-size="12" fill="#5a6168" text-anchor="middle">+ speckle denoise</text>
+
+    <rect x="676" y="202" width="190" height="96" rx="10" fill="#eef7f0" stroke="#237a3c"/>
+    <text x="771" y="238" font-size="14" font-weight="700" fill="#143a22" text-anchor="middle">Split-and-merge</text>
+    <text x="771" y="259" font-size="12" fill="#5a6168" text-anchor="middle">legal bricks + slopes</text>
+    <text x="771" y="276" font-size="12" fill="#5a6168" text-anchor="middle">stability: connected · supported</text>
+  </g>
+
+  <!-- Beat 3: output set -->
+  <g>
+    <rect x="950" y="202" width="236" height="96" rx="10" fill="#fdf8e6" stroke="#c39e00"/>
+    <text x="1068" y="244" font-size="15" font-weight="700" fill="#5a4a00" text-anchor="middle">Buildable brick set</text>
+    <text x="1068" y="267" font-size="12" fill="#7a6a1a" text-anchor="middle">LDraw .ldr · instructions PDF · parts CSV</text>
+  </g>
+
+  <!-- ===== catalog feeder (beat 3, informs legolize) ===== -->
+  <rect x="950" y="372" width="236" height="92" rx="10" fill="#fdf8e6" stroke="#c39e00"/>
+  <text x="1068" y="404" font-size="14" font-weight="700" fill="#5a4a00" text-anchor="middle">Rebrickable catalog</text>
+  <text x="1068" y="425" font-size="12" fill="#7a6a1a" text-anchor="middle">real parts + CIEDE2000</text>
+  <text x="1068" y="442" font-size="12" fill="#7a6a1a" text-anchor="middle">buildable-colour clamp</text>
+  <!-- elbow arrow: catalog -> legolize -->
+  <path d="M950,418 L908,418 L908,298" fill="none" stroke="#c39e00" stroke-width="2.5" marker-end="url(#ahg)"/>
+  <text x="900" y="352" font-size="11" fill="#7a6a1a" text-anchor="end">makes the bricks real</text>
+
+  <!-- ===== flow arrows ===== -->
+  <g stroke="#20262b" stroke-width="2.5" fill="none">
+    <line x1="158" y1="250" x2="182" y2="250" marker-end="url(#ah)"/>
+    <line x1="302" y1="250" x2="326" y2="250" marker-end="url(#ah)"/>
+    <line x1="446" y1="250" x2="452" y2="250" marker-end="url(#ah)"/>
+    <line x1="644" y1="250" x2="674" y2="250" marker-end="url(#ah)"/>
+    <line x1="866" y1="250" x2="948" y2="250" marker-end="url(#ah)"/>
+  </g>
+
+  <!-- ===== backend single-source-of-truth ribbon ===== -->
+  <rect x="454" y="494" width="732" height="46" rx="10" fill="#2b2f2c"/>
+  <circle cx="482" cy="517" r="6" fill="#c91a09"/>
+  <text x="500" y="515" font-size="14" font-weight="700" fill="#e9ebe6">Backend (FastAPI) — single source of truth</text>
+  <text x="500" y="532" font-size="12" fill="#aab0a8">deterministic legolizer · the frontend renders only what the backend returns, never invents geometry</text>
+
+  <!-- evidence ↔ slide note (footer) -->
+  <text x="40" y="572" font-size="12" fill="#8a9099">Generative output is disciplined into a provably-buildable spec: % supported · single connected component · real part ids · validated colours.</text>
+</svg>

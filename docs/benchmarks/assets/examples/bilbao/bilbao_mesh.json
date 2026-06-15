@@ -1,0 +1,16 @@
+{
+  "building": "Guggenheim Bilbao",
+  "key": "bilbao",
+  "seed": 1001,
+  "preset": "fast",
+  "time_s": 182.6,
+  "voxel_count": 17844,
+  "grid": [
+    33,
+    27,
+    49
+  ],
+  "n_bricks": 5755,
+  "connected": true,
+  "support_ratio": 0.931
+}

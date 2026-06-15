@@ -1,0 +1,14 @@
+{
+  "building": "Guggenheim Bilbao",
+  "key": "bilbao",
+  "seed": 2002,
+  "preset": "fast",
+  "grid": [
+    33,
+    31,
+    53
+  ],
+  "n_bricks": 6105,
+  "connected": true,
+  "support_ratio": 0.906
+}

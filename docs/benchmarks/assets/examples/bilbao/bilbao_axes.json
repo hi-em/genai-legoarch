@@ -1,0 +1,76 @@
+{
+  "building": "Guggenheim Bilbao",
+  "key": "bilbao",
+  "colour": {
+    "baseline": {
+      "pieces": 8168,
+      "n_colors": 16,
+      "frac_1x1": 0.7362,
+      "M1": 0.7816
+    },
+    "recommended": {
+      "pieces": 5830,
+      "n_colors": 15,
+      "frac_1x1": 0.7125,
+      "M1": 0.8025
+    },
+    "delta_pieces_pct": -28.6
+  },
+  "fill": {
+    "surface": {
+      "pieces": 5858,
+      "connected": true,
+      "support": 0.875,
+      "n_colors": 15
+    },
+    "solid": {
+      "pieces": 5830,
+      "connected": true,
+      "support": 0.931,
+      "n_colors": 15
+    },
+    "delta_pieces_pct": -0.5
+  },
+  "scale": {
+    "24": {
+      "pieces": 2723,
+      "n_colors": 13,
+      "grid": [
+        25,
+        21,
+        37
+      ],
+      "connected": true,
+      "support": 0.938
+    },
+    "32": {
+      "pieces": 5830,
+      "n_colors": 15,
+      "grid": [
+        33,
+        27,
+        49
+      ],
+      "connected": true,
+      "support": 0.931
+    },
+    "48": {
+      "pieces": 16370,
+      "n_colors": 18,
+      "grid": [
+        49,
+        41,
+        75
+      ],
+      "connected": true,
+      "support": 0.92
+    }
+  },
+  "grid": [
+    33,
+    27,
+    49
+  ],
+  "support": 0.931,
+  "connected": true
+}

@@ -198,7 +198,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("meshes", nargs="*", help="specific mesh_*.glb names (default: representative)")
     ap.add_argument("--all", action="store_true", help="every mesh_*.glb in the corpus")
-    ap.add_argument("--dump", action="store_true", help="write an elevation montage per mesh (baseline + best M1)")
+    ap.add_argument("--dump", action="store_true", help="write baseline + recommended elevation montages per mesh")
     ap.add_argument("--full", action="store_true", help="also sweep the full (48) palette tier")
     args = ap.parse_args()
 
@@ -242,17 +242,26 @@ def main():
             if best is None or r["M1_palette_share"] > best[1]["M1_palette_share"]:
                 best = (cell, r)
 
-        if args.dump and best is not None:
-            baseline = next(c for c in cells
-                            if c["merge_tol"] == 0 and c["smooth_iters"] == 1
-                            and c["rgb_blur_iters"] == 0 and not c["smooth_3d"]
-                            and c["palette"] == grid["palette"][0])
-            b_model = _run_cell(occ, rgb_post, render_png,
-                                render_hists[baseline["palette"]], rgb_pre, baseline)["model"]
+        if args.dump:
+            # Two slide-ready elevations: the strict per-voxel "before" (confetti)
+            # and the production-default "after". NB the M1-maximising cell is the
+            # confetti itself (naive palette-share rewards over-segmentation), so it
+            # is a teaching foil, not the pick — the default is chosen on M3/shatter.
+            tier0 = grid["palette"][0]
+
+            def _cell(blur, it, mtol):
+                return next(c for c in cells
+                            if c["rgb_blur_iters"] == blur and c["smooth_iters"] == it
+                            and c["merge_tol"] == mtol and not c["smooth_3d"]
+                            and c["palette"] == tier0)
+
             subj = glb.stem.split("_", 2)[1]
-            p1 = _dump_montage(f"{subj}_baseline", occ, rgb_pre, rgb_post, render_png, b_model, baseline["palette"])
-            p2 = _dump_montage(f"{subj}_best_m1", occ, rgb_pre, rgb_post, render_png, best[1]["model"], best[0]["palette"])
-            print(f"  montage: {p1.name}, {p2.name}  (best: {best[0]})")
+            for tag, cell in (("baseline", _cell(0, 1, 0.0)),        # strict quantize
+                              ("recommended", _cell(1, 2, 15.0))):   # production defaults
+                m = _run_cell(occ, rgb_post, render_png,
+                              render_hists[cell["palette"]], rgb_pre, cell)["model"]
+                p = _dump_montage(f"{subj}_{tag}", occ, rgb_pre, rgb_post, render_png, m, cell["palette"])
+                print(f"  montage: {p.name}")
 
     if rows:
         csv_path = OUT / "sweep.csv"

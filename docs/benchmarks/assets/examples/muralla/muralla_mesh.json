@@ -1,0 +1,16 @@
+{
+  "building": "La Muralla Roja",
+  "key": "muralla",
+  "seed": 1001,
+  "preset": "fast",
+  "time_s": 213.2,
+  "voxel_count": 22070,
+  "grid": [
+    29,
+    33,
+    39
+  ],
+  "n_bricks": 7327,
+  "connected": true,
+  "support_ratio": 0.954
+}

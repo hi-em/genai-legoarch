@@ -1,0 +1,76 @@
+{
+  "building": "La Muralla Roja",
+  "key": "muralla",
+  "colour": {
+    "baseline": {
+      "pieces": 9043,
+      "n_colors": 21,
+      "frac_1x1": 0.7829,
+      "M1": 0.925
+    },
+    "recommended": {
+      "pieces": 7343,
+      "n_colors": 19,
+      "frac_1x1": 0.7425,
+      "M1": 0.8863
+    },
+    "delta_pieces_pct": -18.8
+  },
+  "fill": {
+    "surface": {
+      "pieces": 6916,
+      "connected": true,
+      "support": 0.877,
+      "n_colors": 19
+    },
+    "solid": {
+      "pieces": 7343,
+      "connected": true,
+      "support": 0.954,
+      "n_colors": 19
+    },
+    "delta_pieces_pct": 6.2
+  },
+  "scale": {
+    "24": {
+      "pieces": 3553,
+      "n_colors": 19,
+      "grid": [
+        21,
+        25,
+        29
+      ],
+      "connected": true,
+      "support": 0.998
+    },
+    "32": {
+      "pieces": 7343,
+      "n_colors": 19,
+      "grid": [
+        29,
+        33,
+        39
+      ],
+      "connected": true,
+      "support": 0.954
+    },
+    "48": {
+      "pieces": 21675,
+      "n_colors": 20,
+      "grid": [
+        43,
+        49,
+        57
+      ],
+      "connected": true,
+      "support": 0.978
+    }
+  },
+  "grid": [
+    29,
+    33,
+    39
+  ],
+  "support": 0.954,
+  "connected": true
+}

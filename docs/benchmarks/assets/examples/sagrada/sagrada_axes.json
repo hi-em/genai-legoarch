@@ -1,0 +1,76 @@
+{
+  "building": "Sagrada Fam\u00edlia",
+  "key": "sagrada",
+  "colour": {
+    "baseline": {
+      "pieces": 8627,
+      "n_colors": 20,
+      "frac_1x1": 0.7678,
+      "M1": 0.8112
+    },
+    "recommended": {
+      "pieces": 4682,
+      "n_colors": 21,
+      "frac_1x1": 0.6933,
+      "M1": 0.8162
+    },
+    "delta_pieces_pct": -45.7
+  },
+  "fill": {
+    "surface": {
+      "pieces": 4859,
+      "connected": true,
+      "support": 0.936,
+      "n_colors": 21
+    },
+    "solid": {
+      "pieces": 4682,
+      "connected": true,
+      "support": 0.95,
+      "n_colors": 21
+    },
+    "delta_pieces_pct": -3.6
+  },
+  "scale": {
+    "24": {
+      "pieces": 2189,
+      "n_colors": 19,
+      "grid": [
+        17,
+        25,
+        55
+      ],
+      "connected": true,
+      "support": 0.942
+    },
+    "32": {
+      "pieces": 4682,
+      "n_colors": 21,
+      "grid": [
+        23,
+        33,
+        73
+      ],
+      "connected": true,
+      "support": 0.95
+    },
+    "48": {
+      "pieces": 15089,
+      "n_colors": 21,
+      "grid": [
+        33,
+        49,
+        111
+      ],
+      "connected": true,
+      "support": 0.952
+    }
+  },
+  "grid": [
+    23,
+    33,
+    73
+  ],
+  "support": 0.95,
+  "connected": true
+}

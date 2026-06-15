@@ -1,0 +1,14 @@
+{
+  "building": "La Muralla Roja",
+  "key": "muralla",
+  "seed": 2002,
+  "preset": "fast",
+  "grid": [
+    33,
+    25,
+    39
+  ],
+  "n_bricks": 5250,
+  "connected": true,
+  "support_ratio": 0.997
+}

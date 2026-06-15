@@ -1,0 +1,16 @@
+{
+  "building": "Sagrada Fam\u00edlia",
+  "key": "sagrada",
+  "seed": 1001,
+  "preset": "fast",
+  "time_s": 151.8,
+  "voxel_count": 15189,
+  "grid": [
+    23,
+    33,
+    73
+  ],
+  "n_bricks": 4709,
+  "connected": true,
+  "support_ratio": 0.95
+}

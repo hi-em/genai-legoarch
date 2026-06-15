@@ -1,0 +1,13 @@
+{
+  "building": "Sagrada Fam\u00edlia",
+  "cell": "st40_cfg4",
+  "seed": 1001,
+  "steps": 40,
+  "cfg": 4.0,
+  "lora": 1.0,
+  "negative": "",
+  "time_s": 42.5,
+  "guidance": 4.0,
+  "lora_strength": 1.0,
+  "prompt": "Sagrada Fam\u00edlia Barcelona Antoni Gaud\u00ed, LEGO Architecture set, longitudinal basilica with eighteen clustered tapering openwork towers fused into the nave body, four-tower clusters over three sculpted facades and a taller central tower group, smooth tan and dark tan plastic bricks, intricate carved-stone filigree texture with deep portal recesses, stepped apse and solid podium base, tan stone throughout, dark tan shadow details, translucent crystal pinnacle tips, stained-glass color accents, standalone model on dark display base, white background, elevated 3/4 angle, product photography, studio lighting, official LEGO set photography"
+}

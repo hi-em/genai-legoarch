@@ -1,0 +1,13 @@
+{
+  "building": "La Muralla Roja",
+  "cell": "st28_cfg5",
+  "seed": 1001,
+  "steps": 28,
+  "cfg": 5.0,
+  "lora": 1.0,
+  "negative": "",
+  "time_s": 31.3,
+  "guidance": 5.0,
+  "lora_strength": 1.0,
+  "prompt": "La Muralla Roja Calpe Ricardo Bofill, LEGO Architecture set, interlocking Greek-cross towers forming a stepped casbah-like fortress around inner courtyards, rooftop terraces with external staircases descending between volumes, smooth dark red and coral plastic bricks, repeating vertical slot openings and crisp parapet edges, monolithic interlocked massing on a solid plinth, dark red outer walls, coral pink courtyards, medium lavender and sand blue stairwells, standalone model on dark display base, white background, elevated 3/4 angle, product photography, studio lighting, official LEGO set photography"
+}

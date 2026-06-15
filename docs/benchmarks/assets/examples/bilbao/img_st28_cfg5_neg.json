@@ -1,0 +1,13 @@
+{
+  "building": "Guggenheim Bilbao",
+  "cell": "st28_cfg5_neg",
+  "seed": 1001,
+  "steps": 28,
+  "cfg": 5.0,
+  "lora": 1.0,
+  "negative": "people, trees, cars, vehicles, text, watermark, photograph of real building, landscape, cluttered background, thin spires, antennas",
+  "time_s": 34.8,
+  "guidance": 5.0,
+  "lora_strength": 1.0,
+  "prompt": "Guggenheim Museum Bilbao Frank Gehry, LEGO Architecture set, interconnected swirling titanium-clad volumes fused around a tall central glass atrium, overlapping curved ship-like masses merging into one continuous sculptural body, smooth metallic silver and light bluish grey plastic bricks, rippling overlapping metallic panel cladding with soft curved reflective folds, long stepped limestone plinth along the waterfront, metallic silver titanium curves, light bluish grey shadow folds, tan limestone base, trans-clear glazed atrium, standalone model on dark display base, white background, elevated 3/4 angle, product photography, studio lighting, official LEGO set photography"
+}

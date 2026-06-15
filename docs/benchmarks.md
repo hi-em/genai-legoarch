@@ -1,232 +1,223 @@
 # lEgoarCh — Generation benchmarks
 
-**Date:** 2026-06-11 · **Base commit:** `e27ec48` · **GPU:** NVIDIA GeForce RTX 4090 Laptop (16 GB)
-**ComfyUI:** 0.20.1 (image, :8188) / 0.22.0 (3D, :8189)
+**Date:** 2026-06-15 · **GPU:** NVIDIA GeForce RTX 4090 Laptop (16 GB)
+**ComfyUI:** FLUX image (:8188) / TRELLIS 3D (:8189)
 
-Every output shown in this project carries its full recipe: each thumbnail
-below has a sibling `.json` in [benchmarks/assets/](benchmarks/assets/)
-recording the model, prompt, seed, and every parameter — produced by
-[scripts/benchmark_runs.py](../scripts/benchmark_runs.py), which drives the
-exact production code path (`backend/app/comfy_client.py` → ComfyUI).
+Every axis below is measured on the **same three example buildings**, so each
+result is directly comparable across the pipeline:
+
+- **Sagrada Família** — fame + the real LEGO set #21065; fused openwork towers.
+- **La Muralla Roja** — the colour-led case (dark red / coral / lavender).
+- **Guggenheim Bilbao** — the **honest boundary**: Gehry's freeform curves
+  reconstruct as a recognizable-but-abstract metallic blob.
+
+Every output carries its full recipe: each forge writes a sibling `.json`
+(model, prompt, seed, every parameter) in
+[benchmarks/assets/examples/](benchmarks/assets/examples/), produced by
+`scripts/bench_buildings.py` / `bench_seed.py` (GPU) and analysed offline by
+`bench_axes.py` / `bench_figures.py`, all driving the production code path.
 
 ## 1. Fixed configuration
 
 | Component | Value |
 |---|---|
-| Image model | `flux-2-klein-base-4b-fp8` (FLUX.2 Klein 4B, **base/undistilled** — real CFG applies, negative prompts active) |
+| Image model | `flux-2-klein-base-4b-fp8` (FLUX.2 Klein 4B, **base/undistilled** — real CFG, negative prompts active) |
 | Text encoder / VAE | `qwen_3_4b_fp8_mixed` / `flux2-vae` |
-| LoRA | `FLUX.2/legoarch.safetensors` — custom fine-tune on LEGO Architecture set photography; trigger word `legoarch` prepended in-graph |
+| LoRA | `FLUX.2/legoarch.safetensors` — custom fine-tune on LEGO Architecture set photography; trigger `legoarch` |
 | Sampler / scheduler | `euler` + `Flux2Scheduler`, 1024×1024 |
-| 3D model | TRELLIS.2-4B (visualbruno ComfyUI wrapper), background removal on |
-| Voxelizer | trimesh, anisotropic plate-unit grid (8 mm stud pitch / 3.2 mm plate), default 32 studs on the longest horizontal axis |
-| Legolizer | three-pass split-and-merge (bricks → plates → top tiles), CIEDE2000 colour quantization, seam-stagger penalty 1.0, randomness 0.12 |
+| 3D model | TRELLIS.2-4B (visualbruno ComfyUI wrapper), background removal on, **fast preset** (ss 20 / shape 25 / tex 18, 40k decimation, 512 texture) |
+| Voxelizer | trimesh, anisotropic plate-unit grid (8 mm stud / 3.2 mm plate), **solid fill**, default 32 studs on the longest horizontal axis |
+| Legolizer | three-pass split-and-merge (bricks → plates → tiles) + slopes, CIEDE2000 colour, **Track-B colour denoise**, seam-stagger 1.0, randomness 0.12 |
 
 ## 2. Method
 
-Three canonical prompts (full text in [scripts/benchmark_runs.py](../scripts/benchmark_runs.py)):
+The three building prompts are the production example chips
+([frontend/src/hero/examples.js](../frontend/src/hero/examples.js)), forged at
+**fixed seed 1001** (seed 2002 used for the robustness check, §8). FLUX settings
+are swept **one axis at a time**, the winner of each carried into the next; the
+3D preset, fill, colour and scale axes are then measured on the resulting mesh.
+Buildability is judged on the thesis metrics — **single connected component, %
+supported, piece count, validated colours** — not FID/CLIP.
 
-- **P1 `brutalist`** — Brutalist tower with stepped setbacks: the prismatic best case.
-- **P2 `flv`** — Fondation Louis Vuitton: the documented **stress case** (curved, translucent sails — great render, hostile to 3D reconstruction + voxelization; this is why it was removed from the UI example chips).
-- **P3 `habitat`** — Habitat 67: terraced/stacked, the target aesthetic and the new prompt-enhancement reference.
+## 3. Generative — FLUX defaults (the A/B that chose them)
 
-Fixed seeds 1001 (primary) and 2002 (robustness). One axis swept at a time,
-sequentially — the winner of each stage is carried into the next (19 image
-runs total instead of a 108-run factorial). Judged on four criteria (0–2):
-**silhouette cleanliness**, **LEGO-ness** (stud/seam read, plastic material),
-**colour fidelity** (named palette appears and separates), **voxelization
-survival** (clean massing at ~32 studs). Ties break toward faster settings.
+Each grid: rows = the three buildings, columns = the swept setting, **winner
+ringed**. Negative prompt is possible only because Klein **base** is undistilled
+(CFG > 1 is real).
 
-## 3. Image parameter sweep (FLUX.2 Klein base + legoarch LoRA)
+**Steps — winner 28** (saturates early; 40 costs +40 % time for nothing the
+pipeline can use):
+![](benchmarks/assets/examples/ab_steps.png)
 
-### Stage A — steps (cfg 4.0, LoRA 1.0, seed 1001)
+**CFG — winner 5.0** (sharpest massing + best-separated named colours, which the
+CIEDE2000 matcher converts into more faithful brick palettes):
+![](benchmarks/assets/examples/ab_cfg.png)
 
-| steps | time | P1 | P3 | notes |
-|---|---|---|---|---|
-| 20 | ~25–44 s | ![](benchmarks/assets/img_brutalist_seed1001_st20_cfg4p0_lora1p0.png) | ![](benchmarks/assets/img_habitat_seed1001_st20_cfg4p0_lora1p0.png) | fine stud detail slightly soft |
-| **28** ✓ | ~34 s | ![](benchmarks/assets/img_brutalist_seed1001_st28_cfg4p0_lora1p0.png) | ![](benchmarks/assets/img_habitat_seed1001_st28_cfg4p0_lora1p0.png) | crisp; indistinguishable from 40 |
-| 40 | ~48 s | ![](benchmarks/assets/img_brutalist_seed1001_st40_cfg4p0_lora1p0.png) | ![](benchmarks/assets/img_habitat_seed1001_st40_cfg4p0_lora1p0.png) | +14 s for no visible gain |
+**LoRA strength — winner 1.0** (at 0.75 studs/seams fade — the LEGO-ness lives in
+the LoRA):
+![](benchmarks/assets/examples/ab_lora.png)
 
-**Winner: 28.** Klein base converges early; composition is essentially fixed
-by step 20, micro-detail saturates by 28. (P2 FLV runs are in assets/ —
-beautiful sails, and exactly the thin translucent geometry that shreds
-downstream, confirming its demotion to stress case.)
-
-### Stage B — CFG (steps 28, LoRA 1.0)
-
-| cfg | P1 | P3 | notes |
-|---|---|---|---|
-| 3.0 | ![](benchmarks/assets/img_brutalist_seed1001_st28_cfg3p0_lora1p0.png) | ![](benchmarks/assets/img_habitat_seed1001_st28_cfg3p0_lora1p0.png) | softer, slightly washed palette |
-| 4.0 | ![](benchmarks/assets/img_brutalist_seed1001_st28_cfg4p0_lora1p0.png) | ![](benchmarks/assets/img_habitat_seed1001_st28_cfg4p0_lora1p0.png) | solid |
-| **5.0** ✓ | ![](benchmarks/assets/img_brutalist_seed1001_st28_cfg5p0_lora1p0.png) | ![](benchmarks/assets/img_habitat_seed1001_st28_cfg5p0_lora1p0.png) | crispest geometry, cleanest grey/tan separation, no overcooking |
-
-**Winner: 5.0.** Stronger palette separation directly improves the CIEDE2000
-brick-colour matching downstream.
-
-### Stage C — LoRA strength (steps 28, cfg 5.0)
-
-| lora | P1 | P3 | notes |
-|---|---|---|---|
-| 0.75 | ![](benchmarks/assets/img_brutalist_seed1001_st28_cfg5p0_lora0p75.png) | ![](benchmarks/assets/img_habitat_seed1001_st28_cfg5p0_lora0p75.png) | surfaces smooth out — stud/seam texture fades |
-| **1.0** ✓ | ![](benchmarks/assets/img_brutalist_seed1001_st28_cfg5p0_lora1p0.png) | ![](benchmarks/assets/img_habitat_seed1001_st28_cfg5p0_lora1p0.png) | full set-photography look, no artifacts |
-
-**Winner: 1.0.** The LEGO-ness lives in the LoRA; 0.75 trades it for nothing.
-
-### Stage D — negative prompt (steps 28, cfg 5.0, LoRA 1.0)
+**Negative prompt — winner on** (chunkier single-mass massing — the best input
+for image-to-3D):
+![](benchmarks/assets/examples/ab_negative.png)
 
 Negative: `people, trees, cars, vehicles, text, watermark, photograph of real
-building, landscape, cluttered background, thin spires, antennas` — possible
-at all because Klein **base** is undistilled (CFG > 1 is real).
+building, landscape, cluttered background, thin spires, antennas`.
 
-| neg | P1 | P3 | notes |
+**Locked defaults: steps 28 · CFG 5.0 · LoRA 1.0 · negative on.**
+
+## 4. Generative outcome — the three buildings, end to end
+
+The winning config forged through the full pipeline
+(render → TRELLIS mesh → voxel colour → bricks). Montage panels:
+**render | TRELLIS voxel colour | exposure-matched | brick build**.
+
+| Building | render | pieces (detail 32) | colours | connected | support |
+|---|---|---|---|---|---|
+| Sagrada Família | ✅ instantly recognizable | 4,682 | 21 | ✓ | 0.95 |
+| La Muralla Roja | ✅ recognizable | 7,343 | 19 | ✓ | 0.95 |
+| Guggenheim Bilbao | ⚠️ **honest boundary** | 5,830 | 15 | ✓ | 0.93 |
+
+![](benchmarks/assets/examples/sagrada/sagrada_montage.png)
+![](benchmarks/assets/examples/muralla/muralla_montage.png)
+![](benchmarks/assets/examples/bilbao/bilbao_montage.png)
+
+**Bilbao is kept on purpose.** Its render is striking but abstract and its build
+is a metallic-grey mass with a green atrium stripe — *recognizable as a blob, not
+as Bilbao*. Smooth, curvature-dominated forms are the **predicted boundary** of
+voxel-based legolization: structurally sound (connected, 93 % supported) but not
+legible. Showing it demonstrates we know where the method ends — and the
+Sagrada/Muralla cases show where it works.
+
+## 5. Computation — colour consistency (Track B denoise)
+
+TRELLIS bakes high-frequency **chroma speckle** that survives exposure-matching;
+because the packer forces a seam at every palette-code change, that speckle
+shatters the build into a 1×1 confetti. A masked spatial blur (`rgb_blur_iters=1`)
+before quantization dilutes isolated specks onto the local dominant — the render's
+true colour — while coherent regions survive. The win is read off **M3/shatter**
+(piece & colour counts); **M1** (perceptual palette-share, CIEDE2000 kernel) is a
+floor confirming colours don't drift wrong. Method:
+[scripts/replay_color.py](../scripts/replay_color.py) +
+[metrics.py](../backend/app/legolizer/metrics.py).
+
+| Building | strict quantize | denoised default | Δ pieces | Δ colours | M1 (floor) |
+|---|---|---|---|---|---|
+| Sagrada Família | 8,627 pc / 20 col | **4,682 pc / 21 col** | **−46 %** | +1 | 0.81 → 0.82 |
+| Guggenheim Bilbao | 8,168 pc / 16 col | **5,830 pc / 15 col** | **−29 %** | −1 | 0.78 → 0.80 |
+| La Muralla Roja | 9,043 pc / 21 col | **7,343 pc / 19 col** | **−19 %** | −2 | 0.93 → 0.89 |
+
+"strict" = `rgb_blur 0 / smooth 1 / merge_tol 0`; "default" =
+`rgb_blur 1 / smooth 2 / merge_tol 15`. The denoise cuts **19–46 % of pieces**
+with **no loss of connectivity or support** and M1 held within ~0.04 (no colour
+regression). Before/after elevations (top = strict confetti, bottom = denoised):
+
+![](benchmarks/assets/examples/sagrada/sagrada_color.png)
+![](benchmarks/assets/examples/muralla/muralla_color.png)
+
+Muralla is the hardest case (genuinely multicolour → least to merge, −19 %) and
+still cleans up without washing the red/coral/lavender story.
+
+## 6. Computation — fill / void (buildability robustness)
+
+The voxelizer fills the reconstruction **solid** by default. Comparison of the
+raw hollow `surface` voxelization vs the `solid` fill, per building:
+
+| Building | hollow (surface) | solid (fill) | Δ pieces | connected (both) |
+|---|---|---|---|---|
+| Sagrada Família | 4,859 ✓ | 4,682 ✓ | −3.6 % | ✓ → ✓ |
+| Guggenheim Bilbao | 5,858 ✓ | 5,830 ✓ | −0.5 % | ✓ → ✓ |
+| La Muralla Roja | 6,916 ✓ | 7,343 ✓ | +6.2 % | ✓ → ✓ |
+
+**All three reconstruct as a single connected, ~93–95 %-supported mass with or
+without fill** — these are well-formed massings, so fill is near piece-neutral
+and connectivity is never at risk. Fill stays **on by default** as a guarantee:
+it is the connectivity safety net for pathological *hollow-shell* reconstructions
+(thin offset volumes that would otherwise sever), where its effect is large; on
+solid massings like these it is a harmless no-op. Exterior-connected voids
+(courtyards, Muralla's interior) survive by construction (outside-air flood
+fill); floating fragments are re-grounded by the Testuz-style repair pass.
+
+## 7. Computation — scale (detail per set)
+
+Voxel target sets the brick budget. Same mesh, three detail levels — pieces scale
+~quadratically while the silhouette resolves from blocky to crisp:
+
+| Building | detail 24 (small) | detail 32 (default) | detail 48 (large) |
 |---|---|---|---|
-| off | ![](benchmarks/assets/img_brutalist_seed1001_st28_cfg5p0_lora1p0.png) | ![](benchmarks/assets/img_habitat_seed1001_st28_cfg5p0_lora1p0.png) | |
-| **on** ✓ | ![](benchmarks/assets/img_brutalist_seed1001_st28_cfg5p0_lora1p0_neg.png) | ![](benchmarks/assets/img_habitat_seed1001_st28_cfg5p0_lora1p0_neg.png) | chunkier, cleaner massing; stronger courses; best voxelization survival |
+| Sagrada Família | 2,189 | 4,682 | 15,089 |
+| La Muralla Roja | 3,553 | 7,343 | 21,675 |
+| Guggenheim Bilbao | 2,723 | 5,830 | 16,370 |
 
-**Winner: on.**
+Build elevations at detail 24 | 32 | 48:
 
-### Stage E — seed robustness (winner config, seed 2002)
+![](benchmarks/assets/examples/sagrada/sagrada_scale.png)
+![](benchmarks/assets/examples/muralla/muralla_scale.png)
+![](benchmarks/assets/examples/bilbao/bilbao_scale.png)
 
-![](benchmarks/assets/img_brutalist_seed2002_st28_cfg5p0_lora1p0_neg.png)
-![](benchmarks/assets/img_habitat_seed2002_st28_cfg5p0_lora1p0_neg.png)
-![](benchmarks/assets/img_flv_seed2002_st28_cfg5p0_lora1p0_neg.png)
+Detail 32 (4.7–7.3k pieces) is the default — a buildable set size; 48 reaches
+15–22k (a flagship); 24 a quick 2–3.5k draft.
 
-All three subjects hold style and quality on a fresh seed — the config is
-robust, not a single-seed fluke.
+## 8. Robustness — seed consistency
 
-## 4. TRELLIS.2 sweep (image → 3D → voxels → bricks)
+The winning config re-forged at a second seed (2002) to confirm the output is
+stable, not a single-seed fluke. Per building, seed 1001 vs 2002:
 
-Input: the Stage-D winning renders. Each run goes through the REAL
-`/generate-3d` path, so the table includes voxelization survival and the
-brick solve (plate engine, detail 32). Per-run JSON + GLB + voxel elevations
-in assets/.
+| Building | seed 1001 (pieces / support) | seed 2002 (pieces / support) | connected (both) | recognizable (both) |
+|---|---|---|---|---|
+| Sagrada Família | 4,682 / 0.95 | 3,051 / 0.94 | ✓ / ✓ | ✓ / ✓ |
+| La Muralla Roja | 7,343 / 0.95 | 5,134 / 1.00 | ✓ / ✓ | ✓ / ✓ |
+| Guggenheim Bilbao | 5,830 / 0.93 | 6,074 / 0.91 | ✓ / ✓ | ⚠ / ⚠ (blob, consistently) |
 
-| run | preset | ss/shape/tex steps | guidance | max_tokens | decim/tex | time | voxels | bricks | connected | support |
-|---|---|---|---|---|---|---|---|---|---|---|
-| T1 P1 | fast | 20/25/18 | 7.5 | 49152 | 40k/512 | 155 s¹ | — | 6655 | ✓ | 0.93 |
-| T2 P1 | stock | 25/35/25 | 7.5 | 49152 | 200k/1024 | 123 s | — | 5548 | ✓ | — |
-| T3 P3 | fast | 20/25/18 | 7.5 | 49152 | 40k/512 | 289 s² | 19 949 | 10 297 | **✗** | 0.82 |
-| T4 P3 | stock | 25/35/25 | 7.5 | 49152 | 200k/1024 | 340 s² | 23 907 | 12 387 | ✓ | **0.99** |
-| T5 P3 | low-guidance | 20/25/18 | 5.0 | 49152 | 40k/512 | 251 s² | — | 10 746 | **✗** | — |
-| T6 P3 | half-tokens | 20/25/18 | 7.5 | 24576 | 40k/512 | 665 s² | — | 10 348 | **✗** | — |
-| T7 P2 | fast (stress) | 20/25/18 | 7.5 | 49152 | 40k/512 | — | 16 913 | 7806 | **✗** (sails) | 0.83 |
-| T8 P3 | hybrid (steps test) | 25/35/20 | 7.5 | 49152 | 40k/512 | 395 s | 20 204 | 10 100 | **✗** | 0.88 |
-| T9 P3 | fullmesh (decimation test) | 20/25/18 | 7.5 | 49152 | **200k**/512 | 340 s | 24 836 | 12 555 | ✓ | 0.994 |
-| T10 P3 | **fast + voxel `fill`** ✓ | 20/25/18 | 7.5 | 49152 | 40k/512 | = T3 + ~1 s CPU | 24 832 | **2 722** | ✓ | **0.996** |
-| T11 P3 | stock + voxel `fill` (control) | 25/35/25 | 7.5 | 49152 | 200k/1024 | = T4 + ~1 s CPU | 24 033 | 2 728 | ✓ | 0.993 |
+The right invariant is **buildability, not piece count.** A different seed is a
+different generation — render, mesh and therefore part count naturally vary
+(Sagrada 4.7k vs 3.0k) — but **both seeds yield a single connected, ~0.9–1.0
+supported, recognizable set**, and Bilbao is *consistently* the same metallic
+blob. The result is the method, not the seed. Per building, seed 1001 over 2002,
+render → build:
 
-¹ includes model load/warm-up. ² ran contended with a concurrent FLUX job on
-the same GPU — timings inflated, quality metrics unaffected.
+![](benchmarks/assets/examples/sagrada/sagrada_seedcmp.png)
+![](benchmarks/assets/examples/muralla/muralla_seedcmp.png)
+![](benchmarks/assets/examples/bilbao/bilbao_seedcmp.png)
 
-**The decisive signal is connectivity, not looks.** Habitat's fast/stock
-*silhouettes* are pixel-identical at 32 studs, but only stock's pipeline
-yielded a connected build. The ablation chain:
+## 9. Final defaults
 
-- **T8 (stock steps, lean export): still disconnected** → sampling steps are
-  NOT the lever.
-- **T9 (fast steps, full 200k-face budget): connected** → the 40k-face
-  simplification was severing the thin links between Habitat's offset cubes
-  before voxelization. But fixing it mesh-side costs ~2 min and a 13 MB GLB.
-- **T10/T11 (voxel-level `fill`): the dominant fix.** The voxelizer had
-  always produced a hollow SHELL; filling the interior (instant CPU, no GPU)
-  seals connectivity at any preset, lifts support to ~0.996, and — the
-  surprise — **cuts pieces 73 %** (10.3k → 2.7k): a hollow shell forces thin
-  1×1 skin everywhere, a solid core packs into big interior bricks, exactly
-  like a real set. Adopted: **fast preset + fill=True** — fastest, smallest
-  GLB (matters for the in-browser mesh/bricks compare slider), buildable.
+Env-overridable in [backend/app/comfy_client.py](../backend/app/comfy_client.py);
+UI ranges in [frontend/src/hero/tinkerParams.js](../frontend/src/hero/tinkerParams.js).
 
-Lower guidance (T5) and halved tokens (T6) rescue nothing. T7 documents why
-Fondation Louis Vuitton was demoted from the example chips: the reconstructed
-sails voxelize into disconnected fragments by nature, at any setting.
-Trade-off accepted with `fill`: interior bricks are invisible but counted in
-the parts list/pricing (as in real sets) and default to white.
-
-## 5. Decisions (the "explain your data and workflows" narrative)
-
-- **Steps 28** — Klein base saturates visually before 28; 40 costs 40 % more
-  time for nothing the pipeline can use.
-- **CFG 5.0** — the undistilled base rewards real guidance: sharper massing
-  and better-separated named colours, which the CIEDE2000 matcher converts
-  into more faithful brick palettes.
-- **LoRA 1.0** — at 0.75 the model "un-LEGOs": studs and mortar seams fade.
-  The fine-tune carries the entire product-photography look; run it at full.
-- **Negative prompt on by default** — a free lever that only exists because
-  the checkpoint is undistilled. It removes context clutter AND biases toward
-  chunkier single-mass compositions — the best input for image-to-3D.
-- **Prompt structure** — subject → "LEGO Architecture set" → massing →
-  materials → named LEGO colours → studio tail. The tail (white background,
-  3/4 elevated product shot) doubles as TRELLIS input conditioning. Prismatic
-  subjects only in the UI chips; curved/translucent icons are stress cases.
-- **TRELLIS preset: fast, with solid voxel fill** — buildability (connectivity)
-  is the thesis metric. The ablations (T8–T11) showed it isn't bought with
-  sampling steps or export budget at all, but at the voxel layer: a solid core
-  instead of a hollow shell. That keeps the fast preset's ~3-minute runtime
-  and 3 MB GLB while guaranteeing a connected, ~0.99-supported, 70 %-leaner
-  brick model.
-- **Colour matching: quantile, not mean** — TRELLIS textures bake shading and
-  read dark + bimodal; mean-gain exposure matching let 57 % of a grey tower
-  quantize to Black. Per-channel quantile matching of the voxel foreground
-  onto the render foreground restored the true palette
-  (`match_exposure`, backend/app/mesh_voxelize.py). Before/after on the
-  brutalist model:
-  ![](benchmarks/assets/color_meangain_elevation.png)
-  ![](benchmarks/assets/color_quantile_elevation.png)
-
-## 6. Final defaults
-
-Encoded as env-overridable defaults in
-[backend/app/comfy_client.py](../backend/app/comfy_client.py); UI ranges in
-[frontend/src/hero/tinkerParams.js](../frontend/src/hero/tinkerParams.js).
-
-| Parameter | Default | UI slider range |
+| Parameter | Default | UI range |
 |---|---|---|
 | FLUX steps | 28 | 8–50 |
 | FLUX CFG | 5.0 | 1–8 |
 | LoRA strength | 1.0 | 0–1.5 |
-| Negative prompt | on (env `FLUX_NEGATIVE`) | not exposed |
+| Negative prompt | on | not exposed |
 | TRELLIS ss/shape/tex steps | 20 / 25 / 18 | shape 15–40 |
 | TRELLIS shape guidance | 7.5 | 3–10 |
 | TRELLIS max_tokens / decimation / texture | 49152 / 40k / 512 | env only |
-| Voxel target (brick detail) | 32 studs | 16–64 |
-| Voxel fill (solid core) | **on** (`fill=True`, main.py) | not exposed |
+| Voxel target (detail) | 32 studs | 16–64 |
+| Voxel fill (solid core) | on (`fill=True`) | not exposed |
+| Colour denoise `rgb_blur_iters` | 1 | 0–2 |
+| Colour-code smoothing `smooth_iters` | 2 | 0–3 |
+| Palette merge tol `merge_tol` (ΔE2000) | 15 | 0–30 |
 | Legolizer randomness / seam weight | 0.12 / 1.0 | 0–0.5 / 0–2 |
 
-## 6. Catalog-era engine A/B (2026-06-12 — Sprints 1A/1B/2)
+## 10. Catalog & novelty (the rigor claims)
 
-Engine upgrades benchmarked on existing TRELLIS meshes via the production
-`/legolize-mesh` path (CPU-only loop, ~2-4 s per run, seed 7, voxel 32).
-
-### 6.1 Fill modes (solid vs hollow shell, wall 2 studs / 5 plates)
-
-| Mesh | solid pieces | shell t=2 | shell t=3 | notes |
-|---|---|---|---|---|
-| quality 12.8 MB (chunky massing) | 10,355 | **6,728 (−35%)** | 8,652 | connected ✓ both, support 0.996→0.956, shell is also ~25% faster |
-| draft 2.7 MB (terraced) | 9,526 | 8,374 (−12%) | 8,983 | terraces have little interior |
-| quality 10.9 MB (thin towers) | 4,482 | 4,449 (−1%) | 4,482 | walls thinner than 2 studs everywhere — already a shell |
-
-Verdict: shell is a clear win on chunky massing, harmless elsewhere.
-Exterior-connected voids (courtyards, window reveals) survive both modes by
-construction (outside-air flood fill). Floating fragments are re-grounded by
-the Testuz-style repair pass (hidden colour-matched 1×1 pillars, count
-reported honestly in the stability panel). UI default stays **solid**; the
-Structure dial exposes Hollow at the mesh stop.
-
-### 6.2 Slope pass (Pass 1.5) + real catalog, live API run
-
-Quality 12.8 MB mesh, shell t=2, classic palette (23 validated colours):
-
-| metric | value |
-|---|---|
-| pieces | 6,123 |
-| slope bricks (3037/3038/3039/3040b) | **268, all four orientations** |
-| connected / pillars added | ✓ / 0 |
-| distinct colours used | 10 (every part+colour combo verified against elements.csv) |
-
-Palette expansion 12 → 23 colours produced **no measurable merge shattering**
-(piece counts within noise of the old hardcoded palette); the 3×3×1 majority
-filter absorbs the extra colour boundaries. `smooth_iters` exists as a dial
-if the Full-48 tier ever needs a second pass.
-
-Catalog provenance: Rebrickable CSV dumps (colors/parts/elements, daily,
-attribution required) cross-validated against LDraw `LDConfig.ldr` — colour
-ids are accepted only when the Rebrickable and LDraw names agree, which
-caught Olive Green (326≠330) and Nougat as non-identity mappings.
+- **Real catalog.** Every emitted part is a real BrickLink/LDraw id, and every
+  brick's colour is clamped to a colour that mould actually exists in
+  (`elements.csv`), matched by CIEDE2000. Catalog from Rebrickable CSV dumps
+  cross-validated against LDraw `LDConfig.ldr` (accepted only when the names
+  agree — caught Olive Green 326≠330, Nougat as non-identity): **48 colours,
+  44 parts, 1,598 validated part+colour combos**. This is the thesis's third
+  leg — buildable means *orderable*.
+- **Slopes — first open implementation.** Pass-1.5 course-space staircase
+  detection places the 45° family (3037/3038/3039/3040b) in all four
+  orientations. Zhou & Chen 2019 (CGF) describe slope-aware legolization but
+  release no code; this is the first open implementation. Slopes are active in
+  every build above.
+- **Connectivity repair** (Testuz 2013): floating fragments re-grounded by hidden
+  colour-matched 1×1 pillar columns, count reported honestly in the stability
+  panel.
+- **Baseline beaten by construction:** BrickLink Studio's Sculpture tool is 1×1
+  studs only with no stability; the split-and-merge engine produces legal
+  multi-stud footprints with measured connectivity and support.
