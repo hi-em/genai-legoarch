@@ -22,17 +22,19 @@ import { STYLE_SUFFIX as TAIL } from "../lib/promptGrammar.js";
 export const EXAMPLES = [
   {
     // LEGO's own 21065 (12,060 pcs, the largest set ever) is the fun benchmark:
-    // completed basilica, all 18 towers, deliberately unified tan stone.
+    // completed basilica, all 18 towers, deliberately unified tan stone. This
+    // wording (the "v6a" forge) foregrounds the tallest central Tower of Jesus
+    // Christ crowned with a cross — owner-selected after a render exploration.
     label: "Sagrada Família",
     prompt:
-      "Sagrada Família Barcelona Antoni Gaudí, LEGO Architecture set, " +
-      "longitudinal basilica with eighteen clustered tapering openwork towers " +
-      "fused into the nave body, four-tower clusters over three sculpted " +
-      "facades and a taller central tower group, smooth tan and dark tan " +
-      "plastic bricks, intricate carved-stone filigree texture with deep " +
-      "portal recesses, stepped apse and solid podium base, tan stone " +
-      "throughout, dark tan shadow details, translucent crystal pinnacle " +
-      "tips, stained-glass color accents, " + TAIL,
+      "Sagrada Família Barcelona Antoni Gaudí, LEGO Architecture set, the " +
+      "completed basilica as one unified tan-stone massing of eighteen fused " +
+      "tapering openwork towers in a dense vertical cluster, the tallest " +
+      "central Tower of Jesus Christ a stout fused spire rising far above the " +
+      "others and crowned with a cross, smooth tan and dark tan plastic " +
+      "bricks, vertical lacework stone with pointed pinnacles and tracery, " +
+      "stepped apse on a solid display podium, warm tan sandstone throughout, " +
+      "dark tan recess shadows, pearl-gold pinnacle tips, " + TAIL,
   },
   {
     // The organic-form showcase. Shells are segments of ONE 75.2 m sphere in

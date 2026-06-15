@@ -89,6 +89,29 @@ voxel-based legolization: structurally sound (connected, 93 % supported) but not
 legible. Showing it demonstrates we know where the method ends — and the
 Sagrada/Muralla cases show where it works.
 
+### 4.1 In-app 3D renders (the app's visual identity)
+
+The figures above are fast elevation projections. These are the **real
+three.js viewers** as the app ships them — the raw TRELLIS mesh (`MeshViewer`)
+and the legolized build with **real LDraw part geometries, studs, materials and
+lighting** (`BrickViewer`) — captured from the running app. Per building, raw
+mesh → buildable LEGO set:
+
+![](benchmarks/assets/examples/sagrada/sagrada_mesh_app.png)
+![](benchmarks/assets/examples/sagrada/sagrada_build_app.png)
+![](benchmarks/assets/examples/muralla/muralla_mesh_app.png)
+![](benchmarks/assets/examples/muralla/muralla_build_app.png)
+![](benchmarks/assets/examples/bilbao/bilbao_mesh_app.png)
+![](benchmarks/assets/examples/bilbao/bilbao_build_app.png)
+
+The Sagrada render here is the owner-selected **"v6a"** chip wording (the
+shipping example in [examples.js](../frontend/src/hero/examples.js)): a unified
+tan massing with the central **Tower of Jesus Christ crowned with a cross** —
+the cross survives voxelization onto the build. (It postdates the §3–§8 forge
+run above, which used the prior Sagrada wording; the dated benchmark is left as a
+consistent snapshot.) Muralla and Bilbao match their §4 builds exactly
+(7,343 / 19 col and 5,830 / 15 col).
+
 ## 5. Computation — colour consistency (Track B denoise)
 
 TRELLIS bakes high-frequency **chroma speckle** that survives exposure-matching;
