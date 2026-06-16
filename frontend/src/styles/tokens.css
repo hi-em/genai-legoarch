@@ -11,10 +11,10 @@
   --elevated: #ffffff;         /* inner cards / inputs */
   --sunken: #e7e9e4;           /* stat tiles, inset, code (was --c-pearl) */
 
-  /* the dark WORLD (table / felt) the plates sit on */
-  --table: #2b2f2c;
-  --table-deep: #20241f;       /* vignette edge */
-  --table-line: #3a3f39;       /* faint grid line on the felt */
+  /* the dark WORLD (table / felt) the plates sit on — pure black to match the deck */
+  --table: #000000;
+  --table-deep: #000000;       /* vignette edge */
+  --table-line: #2a2e2a;       /* faint grid line on the felt */
 
   /* ink + text */
   --ink: #20262b;              /* primary text (was --c-ink) */

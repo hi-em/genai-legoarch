@@ -7,13 +7,12 @@
 // second WebGL canvas or a sealed-box-vs-built contradiction. The build viewer
 // is itself expandable + PNG-exportable, like the render and the mesh.
 import { useEffect, useState } from "react";
-import { Download, Maximize2 } from "lucide-react";
+import { Maximize2 } from "lucide-react";
 import BrickViewer from "../../viewer/BrickViewer.jsx";
-import { Lightbox } from "../../components/ui/index.js";
+import SetInspector from "./SetInspector.jsx";
 import { buildFrontDataUrl } from "../../lib/boxTexture.js";
-import { downloadDataUrl } from "./downloadImage.js";
 
-export default function SetShowcase({ imageUrl, setCopy, brickModel }) {
+export default function SetShowcase({ imageUrl, setCopy, brickModel, glbName }) {
   const pieces = brickModel?.stability?.nBricks ?? brickModel?.bricks?.length;
   const [coverUrl, setCoverUrl] = useState(null);
   const [expanded, setExpanded] = useState(false);
@@ -28,7 +27,6 @@ export default function SetShowcase({ imageUrl, setCopy, brickModel }) {
   }, [imageUrl, setCopy, pieces]);
 
   const safe = (setCopy?.set_name || "set").replace(/[^\w]+/g, "_");
-  const save = () => coverUrl && downloadDataUrl(`${safe}_box.png`, coverUrl);
 
   return (
     <>
@@ -57,26 +55,19 @@ export default function SetShowcase({ imageUrl, setCopy, brickModel }) {
               <Maximize2 size={10} /> Expand
             </span>
           </button>
-          <span className="text-micro text-muted">Tap to enlarge &amp; download</span>
+          <span className="text-micro text-muted">Tap to inspect: box · render · mesh · booklet</span>
         </div>
       </div>
 
-      {/* box-art lightbox — shared, accessible (Esc / focus trap / backdrop close) */}
-      <Lightbox
-        open={expanded && !!coverUrl}
+      {/* multi-view inspector — box 3D / render / mesh / closed booklet 3D */}
+      <SetInspector
+        open={expanded}
         onClose={() => setExpanded(false)}
-        label={`${setCopy?.set_name || "Set"} box art — full screen`}
-      >
-        <img src={coverUrl} alt={`${setCopy?.set_name || "Your set"} retail box`} className="w-full rounded-xl shadow-pop" />
-        <div className="mt-3 flex justify-center">
-          <button
-            onClick={save}
-            className="inline-flex h-11 items-center gap-1.5 rounded-full bg-brand-red px-4 font-display text-sm font-bold text-white hover:brightness-110"
-          >
-            <Download size={15} /> Save box art
-          </button>
-        </div>
-      </Lightbox>
+        imageUrl={imageUrl}
+        setCopy={setCopy}
+        brickModel={brickModel}
+        glbName={glbName}
+      />
     </>
   );
 }

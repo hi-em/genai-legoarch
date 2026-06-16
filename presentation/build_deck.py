@@ -768,15 +768,223 @@ def render(elements, do_text=True, do_art=True):
         elif e["k"] == "text" and do_text: draw_text(d, e)
     return base
 
+# =============================================================================
+#  editable-text PDF: the ARTWORK is a background image, but every text run is
+#  drawn as REAL, selectable, correctly-weighted vector text — so Canva (and any
+#  PDF reader) imports the copy as editable text, not a flat picture. Reuses the
+#  exact Pillow layout (_wrap/_glyph_font/tracking) so the text lands where the
+#  design intends. Variable fonts are instanced to each static weight so bold
+#  headings stay bold.
+# =============================================================================
+_MEAS = None
+def _meas():
+    global _MEAS
+    if _MEAS is None: _MEAS = ImageDraw.Draw(Image.new("RGB", (8, 8)))
+    return _MEAS
+
+_PDF_W = [400, 500, 600, 700, 800]
+_PDF_READY = False
+def _register_pdf_fonts():
+    global _PDF_READY
+    if _PDF_READY: return
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    static = os.path.join(FONTS, "_pdf"); os.makedirs(static, exist_ok=True)
+    for fam, fname in (("Nunito", "Nunito.ttf"), ("DMSans", "DMSans.ttf")):
+        src = os.path.join(FONTS, fname)
+        for w in _PDF_W:
+            name = f"{fam}-{w}"; out = os.path.join(static, f"{name}.ttf")
+            if not os.path.exists(out):
+                try:
+                    from fontTools import ttLib
+                    from fontTools.varLib.instancer import instantiateVariableFont
+                    tf = ttLib.TTFont(src)
+                    if "fvar" in tf: instantiateVariableFont(tf, {"wght": w}, inplace=True)
+                    tf.save(out)
+                except Exception:
+                    out = src
+            try: pdfmetrics.registerFont(TTFont(name, out))
+            except Exception:
+                try: pdfmetrics.registerFont(TTFont(name, src))
+                except Exception: pass
+    _PDF_READY = True
+
+def _pdf_font(fam, wt):
+    w = min(_PDF_W, key=lambda x: abs(x - wt))
+    return f"{'Nunito' if _is_display(fam) else 'DMSans'}-{w}"
+
+def _draw_pdf_text(c, e, pw, ph):
+    # All measurement uses reportlab's OWN metrics (stringWidth) so wrapping,
+    # width and alignment match exactly what gets drawn — text never overflows
+    # its box. Each line draws as font-runs (glyph fallback → DM Sans) via a text
+    # object, so it stays clean selectable/editable text with real letter-spacing.
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    sz = e["sz"]; fam = e["fam"]; wt = e.get("w", 400); disp = _is_display(fam)
+    SC = pw / W; cs = e.get("tr", 0.0) * sz
+    pxc = int(round(sz * PT)); asc_pt = font(fam, pxc, wt).getmetrics()[0] * SC
+    lh_pt = pxc * e.get("lead", 1.2) * SC
+    x, y, w, h = e["xy"]; maxw = w * pw
+
+    def cf(ch):
+        if ord(ch) in _cmap(disp): chf = fam
+        elif ord(ch) in _cmap(not disp): chf = "DMSans" if disp else "Nunito"
+        else: chf = fam
+        return _pdf_font(chf, wt)
+    def tw(s): return sum(stringWidth(ch, cf(ch), sz) + cs for ch in s)
+
+    lines = []
+    for para in e["t"].split("\n"):
+        ln = ""
+        for word in para.split(" "):
+            cand = (ln + " " + word).strip()
+            if tw(cand) <= maxw or not ln: ln = cand
+            else: lines.append(ln); ln = word
+        lines.append(ln)
+
+    n = len(lines)
+    va_off = (h * ph - lh_pt * n) / 2 if e.get("va") == "middle" else 0
+    base0 = ph - (y * ph + va_off) - asc_pt
+    c.setFillColor(_hx(e["c"]))
+    for i, ln in enumerate(lines):
+        lw = tw(ln); lx = x * pw
+        if e.get("align") == "center": lx += (maxw - lw) / 2
+        elif e.get("align") == "right": lx += (maxw - lw)
+        to = c.beginText(lx, base0 - i * lh_pt)
+        to.setCharSpace(cs)        # ALWAYS set (Tc persists across text objects → must reset to 0)
+        cur = ""; curf = None
+        for ch in ln:
+            f = cf(ch)
+            if curf is not None and f != curf and cur:
+                to.setFont(curf, sz); to.textOut(cur); cur = ""
+            curf = f; cur += ch
+        if cur: to.setFont(curf, sz); to.textOut(cur)
+        c.drawText(to)
+
+# --- vector emitters: every art primitive as a real, editable PDF shape -------
+def _hx(col):
+    from reportlab.lib.colors import HexColor
+    return HexColor(col)
+
+def _pdf_arrow(c, p1, p2, col, w, pw, ph):
+    SC = pw / W; x1, y1 = p1; x2, y2 = p2
+    c.setStrokeColor(_hx(col)); c.setFillColor(_hx(col)); c.setLineWidth(max(0.4, w * SC))
+    c.line(x1 * SC, ph - y1 * SC, x2 * SC, ph - y2 * SC)
+    ang = math.atan2(y2 - y1, x2 - x1); L = w * 4.2
+    ax, ay = x2 - L * math.cos(ang - 0.5), y2 - L * math.sin(ang - 0.5)
+    bx, by = x2 - L * math.cos(ang + 0.5), y2 - L * math.sin(ang + 0.5)
+    p = c.beginPath(); p.moveTo(x2 * SC, ph - y2 * SC); p.lineTo(ax * SC, ph - ay * SC)
+    p.lineTo(bx * SC, ph - by * SC); p.close(); c.drawPath(p, fill=1, stroke=0)
+
+def _pdf_emblem(c, x, y, size, pw, ph):
+    SC = pw / W; s = size / 64.0
+    def plate(px, py, w, h, r, fill):
+        c.setFillColor(_hx(fill)); x0 = x + px * s; y0 = y + py * s
+        c.roundRect(x0 * SC, ph - (y0 + h * s) * SC, w * s * SC, h * s * SC, r * s * SC, stroke=0, fill=1)
+    plate(8, 44, 48, 13, 3, BLUE); plate(14, 30, 40, 13, 3, RED)
+    plate(20, 16, 30, 13, 3, YELLOW); plate(30, 9, 10, 8, 2.5, YELLOW)
+
+def _pdf_wordmark(c, e, pw, ph):
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    SC = pw / W; pxc = e["px"] * SS; szpt = pxc * SC; fnt = _pdf_font("Nunito", 800)
+    asc = font("Nunito", pxc, 800).getmetrics()[0]
+    xx = e["x"]
+    if xx == "center":
+        tw = sum(stringWidth(t, fnt, szpt) for t, _ in WORDMARK); xpt = (pw - tw) / 2
+    else:
+        xpt = xx * W * SC
+    ypt = ph - (e["y"] * H + asc) * SC; cx = xpt
+    for t, col in WORDMARK:
+        c.setFont(fnt, szpt); c.setFillColor(_hx(col or ON_DARK)); c.drawString(cx, ypt, t)
+        cx += stringWidth(t, fnt, szpt)
+
+def _pdf_icon(c, e, pw, ph):
+    from reportlab.graphics import renderPDF
+    SC = pw / W; x, y, s, _ = e["xy"]
+    try:
+        raw = open(os.path.join(ICONS, e["name"] + ".svg"), encoding="utf-8").read()
+        raw = raw.replace("currentColor", e["c"])
+        raw = re.sub(r'stroke-width="[0-9.]+"', 'stroke-width="2"', raw)
+        tmp = os.path.join(ICONS, "_t_pdf.svg"); open(tmp, "w", encoding="utf-8").write(raw)
+        dr = svg2rlg(tmp); os.remove(tmp)
+        if dr is None: return
+        size_pt = s * W * SC; k = size_pt / 24.0
+        dr.width = 24 * k; dr.height = 24 * k; dr.scale(k, k)
+        renderPDF.draw(dr, c, x * W * SC, ph - (y * H) * SC - size_pt)
+    except Exception:
+        pass
+
+def draw_art_pdf(c, e, pw, ph):
+    SC = pw / W
+    def Xp(v): return v * SC
+    def Yp(v): return ph - v * SC
+    k = e["k"]
+    if k in ("rect", "plate"):
+        x, y, w, h = e["xy"]; x0, y0, x1, y1 = x * W, y * H, (x + w) * W, (y + h) * H
+        rad = e.get("rad", 0) * SS * SC
+        c.setFillColor(_hx(e["fill"]))
+        if rad > 0.5: c.roundRect(Xp(x0), Yp(y1), (x1 - x0) * SC, (y1 - y0) * SC, rad, stroke=0, fill=1)
+        else: c.rect(Xp(x0), Yp(y1), (x1 - x0) * SC, (y1 - y0) * SC, stroke=0, fill=1)
+        if k == "plate":
+            if e.get("top"):
+                c.setFillColor(_hx(e["top"]))
+                c.roundRect(Xp(x0), Yp(y0 + u(9)), (x1 - x0) * SC, u(9) * SC, rad, stroke=0, fill=1)
+                c.rect(Xp(x0), Yp(y0 + u(9)), (x1 - x0) * SC, u(4) * SC, stroke=0, fill=1)
+            ns = e.get("studs", 0)
+            for i in range(ns):
+                sxc = (x + w * (i + 0.5) / ns) * W
+                c.setFillColor(_hx(e.get("scolor") or YELLOW))
+                c.circle(Xp(sxc), Yp(y0 - u(7)), u(9) * SC, stroke=0, fill=1)
+    elif k in ("stud", "dot"):
+        c.setFillColor(_hx(e["c"]))
+        c.circle(Xp(e["cx"] * W), Yp(e["cy"] * H), e["r"] * W * SC, stroke=0, fill=1)
+    elif k == "ellipse":
+        x, y, w, h = e["xy"]; ox = e.get("outline")
+        c.setFillColor(_hx(e["fill"]))
+        if ox: c.setStrokeColor(_hx(ox)); c.setLineWidth(max(0.25, 0.6 * SC))
+        c.ellipse(Xp(x * W), Yp((y + h) * H), Xp((x + w) * W), Yp(y * H), stroke=1 if ox else 0, fill=1)
+    elif k == "poly":
+        pts = e["pts"]; ox = e.get("outline")
+        p = c.beginPath(); p.moveTo(Xp(pts[0][0] * W), Yp(pts[0][1] * H))
+        for q in pts[1:]: p.lineTo(Xp(q[0] * W), Yp(q[1] * H))
+        p.close(); c.setFillColor(_hx(e["fill"]))
+        if ox: c.setStrokeColor(_hx(ox)); c.setLineWidth(max(0.25, 0.6 * SC))
+        c.drawPath(p, fill=1, stroke=1 if ox else 0)
+    elif k == "line":
+        c.setStrokeColor(_hx(e["c"])); c.setLineWidth(max(0.25, e["w"] * SC))
+        c.line(Xp(e["p1"][0] * W), Yp(e["p1"][1] * H), Xp(e["p2"][0] * W), Yp(e["p2"][1] * H))
+    elif k == "arrow":
+        _pdf_arrow(c, (e["p1"][0] * W, e["p1"][1] * H), (e["p2"][0] * W, e["p2"][1] * H), e["c"], e["w"], pw, ph)
+    elif k == "icon":
+        _pdf_icon(c, e, pw, ph)
+    elif k == "emblem":
+        _pdf_emblem(c, e["x"] * W, e["y"] * H, e["h"] * H, pw, ph)
+    elif k == "wordmark":
+        _pdf_wordmark(c, e, pw, ph)
+    elif k == "photo":
+        from reportlab.lib.utils import ImageReader
+        x, y, w, h = e["xy"]; bx, by, bw, bh = x * W, y * H, w * W, h * H
+        im = Image.open(e["path"]).convert("RGB")
+        fx, fy, fw, fh = fit(im.width, im.height, bx, by, bw, bh)
+        c.setFillColor(_hx(SURFACE))
+        c.roundRect(Xp(fx - u(8)), Yp(fy + fh + u(8)), (fw + u(16)) * SC, (fh + u(16)) * SC, u(10) * SC, stroke=0, fill=1)
+        c.drawImage(ImageReader(im), Xp(fx), Yp(fy + fh), fw * SC, fh * SC)
+
 def build_pdf(slides):
     from reportlab.pdfgen import canvas
-    from reportlab.lib.utils import ImageReader
     os.makedirs(SLIDE_DIR, exist_ok=True)
-    pg = (IN_W * 72, IN_H * 72); c = canvas.Canvas(OUT_PDF, pagesize=pg)
+    _register_pdf_fonts()
+    pw, ph = IN_W * 72, IN_H * 72
+    c = canvas.Canvas(OUT_PDF, pagesize=(pw, ph))
     for i, (els, _) in enumerate(slides, 1):
-        im = render(els, True, True); p = os.path.join(SLIDE_DIR, f"slide_{i:02d}.png"); im.save(p)
-        c.drawImage(ImageReader(p), 0, 0, width=pg[0], height=pg[1]); c.showPage()
-    c.save(); print(f"PDF  -> {OUT_PDF}  ({len(slides)} slides)")
+        # full bake -> the slide_NN.png preview (text included, for reference)
+        render(els, True, True).save(os.path.join(SLIDE_DIR, f"slide_{i:02d}.png"))
+        # fully vector page: felt + every primitive as an editable shape, text as text
+        c.setFillColor(_hx(FELT)); c.rect(0, 0, pw, ph, stroke=0, fill=1)
+        for e in els:
+            if e["k"] == "text": _draw_pdf_text(c, e, pw, ph)
+            elif e["k"] in ART: draw_art_pdf(c, e, pw, ph)
+        c.showPage()
+    c.save(); print(f"PDF  -> {OUT_PDF}  ({len(slides)} slides, fully editable vector)")
 
 def build_pptx(slides):
     from pptx import Presentation

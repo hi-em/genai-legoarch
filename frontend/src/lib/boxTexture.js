@@ -142,6 +142,149 @@ export function buildFrontDataUrl({ imageUrl, setCopy, pieces, width = 720 }) {
 }
 
 // ---------------------------------------------------------------------------
+// The BACK of the box — same matte-black + blueprint language as the front, but
+// laid out like a real retail back panel: brand lockup, a framed "what you'll
+// build" window (the render again), feature bullets, and a spec strip with a
+// faux barcode, price and age. So the 3D carton reads as a printed box on every
+// face, not a black slab with one printed side.
+export function drawBackPanel(ctx, W, H, img, setCopy, pieces) {
+  ctx.fillStyle = "#0b0b0e";
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = "rgba(64, 180, 190, 0.08)";
+  ctx.lineWidth = 1;
+  const grid = W / 18;
+  for (let x = 0; x <= W; x += grid) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y <= H; y += grid) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  const m = W * 0.05;
+
+  // brand lockup + set number
+  const markH = H * 0.06;
+  drawLogoMark(ctx, m, m, markH);
+  ctx.textBaseline = "middle";
+  drawWordmark(ctx, m + markH + W * 0.012, m + markH / 2 + 1, markH * 0.6, "#ffffff");
+  ctx.textBaseline = "alphabetic";
+  ctx.textAlign = "right";
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.font = `700 ${H * 0.03}px ui-monospace, monospace`;
+  ctx.fillText(setCopy?.set_number || "", W - m, m + markH * 0.72);
+
+  // "what you'll build" window — the render, keyed like the front
+  const zone = { x: m, y: H * 0.2, w: W * 0.46, h: H * 0.5 };
+  ctx.fillStyle = "rgba(255,255,255,0.04)";
+  ctx.strokeStyle = "rgba(255,255,255,0.16)";
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(zone.x, zone.y, zone.w, zone.h, 10); ctx.fill(); ctx.stroke();
+  if (img) {
+    const off = document.createElement("canvas");
+    off.width = img.width; off.height = img.height;
+    const octx = off.getContext("2d");
+    octx.drawImage(img, 0, 0);
+    try {
+      const data = octx.getImageData(0, 0, off.width, off.height);
+      const px = data.data;
+      for (let i = 0; i < px.length; i += 4) {
+        const lo = Math.min(px[i], px[i + 1], px[i + 2]);
+        if (lo > 238) px[i + 3] = 0;
+        else if (lo > 218) px[i + 3] = Math.round(255 * (238 - lo) / 20);
+      }
+      octx.putImageData(data, 0, 0);
+    } catch { /* tainted — draw unkeyed */ }
+    const pad = zone.w * 0.08;
+    const iz = { x: zone.x + pad, y: zone.y + pad, w: zone.w - 2 * pad, h: zone.h - 2 * pad };
+    const s = Math.min(iz.w / img.width, iz.h / img.height);
+    const dw = img.width * s, dh = img.height * s;
+    ctx.drawImage(off, iz.x + (iz.w - dw) / 2, iz.y + (iz.h - dh) / 2, dw, dh);
+  }
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = `700 ${H * 0.026}px 'DM Sans', system-ui, sans-serif`;
+  ctx.fillText("WHAT YOU'LL BUILD", zone.x, zone.y + zone.h + H * 0.05);
+
+  // feature bullets
+  const fx = W * 0.57;
+  let fy = H * 0.235;
+  const feats = [
+    ["Generated from a sentence", "an AI proposes the form"],
+    ["Real, orderable parts", `${pieces ? pieces.toLocaleString() : "—"} LEGO® bricks`],
+    ["Buildable for real", "every footprint is a true mould"],
+  ];
+  for (const [t, s] of feats) {
+    ctx.fillStyle = "#f6c700";
+    ctx.beginPath(); ctx.arc(fx + H * 0.012, fy + H * 0.01, H * 0.014, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `800 ${H * 0.034}px 'DM Sans', system-ui, sans-serif`;
+    ctx.fillText(t, fx + H * 0.05, fy + H * 0.022);
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.font = `500 ${H * 0.026}px 'DM Sans', system-ui, sans-serif`;
+    ctx.fillText(s, fx + H * 0.05, fy + H * 0.062);
+    fy += H * 0.11;
+  }
+
+  // bottom spec strip: separator + barcode + age + price + web
+  const by = H * 0.82;
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(m, by); ctx.lineTo(W - m, by); ctx.stroke();
+
+  const seed = setCopy?.set_number || setCopy?.set_name || "legoarch";
+  let h = 5381;
+  for (let i = 0; i < seed.length; i++) h = (Math.imul(h, 33) + seed.charCodeAt(i)) >>> 0;
+  const bcX = m, bcY = by + H * 0.028, bcH = H * 0.075, bcW = W * 0.2;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(bcX - 4, bcY - 4, bcW + 8, bcH + 8);
+  ctx.fillStyle = "#0b0b0e";
+  let cx = bcX;
+  while (cx < bcX + bcW) {
+    const bw = ((h & 3) + 1) * (W * 0.0016);
+    if (h & 4) ctx.fillRect(cx, bcY, bw, bcH);          // Math.imul keeps the LCG 32-bit exact
+    h = (Math.imul(h, 1103515245) + 12345) >>> 0;
+    cx += bw;
+  }
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `900 ${H * 0.05}px 'DM Sans', system-ui, sans-serif`;
+  if (pieces) ctx.fillText(`$${(pieces * 0.12).toFixed(0)}`, W - m, by + H * 0.078);
+  ctx.font = `800 ${H * 0.03}px 'DM Sans', system-ui, sans-serif`;
+  const aw = ctx.measureText("18+").width + H * 0.03;
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.beginPath(); ctx.roundRect(W - m - aw - W * 0.13, by + H * 0.03, aw, H * 0.05, 5); ctx.fill();
+  ctx.fillStyle = "#16181c";
+  ctx.fillText("18+", W - m - W * 0.13 - H * 0.015, by + H * 0.067);
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(255,255,255,0.35)";
+  ctx.font = `600 ${H * 0.02}px 'DM Sans', system-ui, sans-serif`;
+  ctx.fillText("legoarch.studio  ·  © 2026 lEgoarCh", m, H - H * 0.03);
+}
+
+// Same builder shape as the front, for the back panel CanvasTexture.
+export function buildBackTexture({ imageUrl, setCopy, pieces, width = 1280 }) {
+  return new Promise((resolve) => {
+    const W = width;
+    const H = Math.round((width * BOX.BH) / BOX.BW);
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    const finish = (img) => {
+      drawBackPanel(ctx, W, H, img, setCopy, pieces);
+      const t = new THREE.CanvasTexture(canvas);
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = 4;
+      resolve(t);
+    };
+    if (imageUrl) {
+      const img = new Image();
+      img.onload = () => finish(img);
+      img.onerror = () => finish(null);
+      img.src = imageUrl;
+    } else finish(null);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Promise builder: paints the panel at `width` px (height follows the box
 // aspect) and resolves a ready-to-map CanvasTexture. Always resolves — a
 // broken/absent image falls back to the typography-only panel.

@@ -41,36 +41,43 @@ export const FLOOR_Y = -1.45;          // studio floor (world)
 export const FLAP_SHORT = BOX.BH * 0.3;    // flaps on the x walls, fold first
 export const FLAP_LONG = BOX.BH * 0.5;     // flaps on the z walls, meet in the middle
 
-// Kraft cardboard, shared so the sealed shelf box and the animated carton use
-// the EXACT same material + colour.
-const CARTON_KRAFT = new THREE.MeshStandardMaterial({ color: "#b08a5e", roughness: 0.95 });
+// Matte black carton body — a full black retail box (the new deck-matching
+// look), shared by every sealed ClosedCarton face that isn't a printed panel.
+const CARTON_BLACK = new THREE.MeshStandardMaterial({ color: "#0b0b0e", roughness: 0.55 });
 
-/** The carton in its SEALED state — a static, upright kraft box with the printed
- *  front panel on +z, built from the same BOX proportions + panel thickness +
- *  kraft material as the animated PackingScene carton, so the box resting on the
- *  shelf is the same construction as the one the ritual folds shut. No refs / no
- *  useFrame (cheap; safe to instance across a shelf of boxes). */
-export function ClosedCarton({ frontTex }) {
-  const art = useMemo(
-    () => new THREE.MeshStandardMaterial({ map: frontTex || null, color: frontTex ? "#ffffff" : "#b08a5e", roughness: 0.5 }),
+/** The carton in its SEALED state — a static, upright FULL-BLACK box printed on
+ *  both faces: the cover art on +z (front) and a real back panel on -z (brand,
+ *  a "what you'll build" window, features, barcode/age/price). Same BOX
+ *  proportions + panel thickness as the animated carton. No refs / no useFrame
+ *  (cheap; safe to instance across a shelf of boxes). The shelf passes only
+ *  `frontTex`, so its back stays plain black; the inspector passes `backTex`. */
+export function ClosedCarton({ frontTex, backTex }) {
+  const front = useMemo(
+    () => new THREE.MeshStandardMaterial({ map: frontTex || null, color: frontTex ? "#ffffff" : "#0b0b0e", roughness: 0.5 }),
     [frontTex]
   );
-  useEffect(() => () => art.dispose(), [art]);
+  const back = useMemo(
+    () => new THREE.MeshStandardMaterial({ map: backTex || null, color: backTex ? "#ffffff" : "#0b0b0e", roughness: 0.5 }),
+    [backTex]
+  );
+  useEffect(() => () => { front.dispose(); back.dispose(); }, [front, back]);
   const W = BOX.BW, H = BOX.BH, D = BOX.BD, T = PANEL_T;
+  const wd = D - 2 * T;     // side walls span between the two printed panels
   return (
     <group>
-      {/* printed front panel (the carton's floor panel) — art on the +z face */}
-      <mesh position={[0, 0, D / 2 - T / 2]} material={[CARTON_KRAFT, CARTON_KRAFT, CARTON_KRAFT, CARTON_KRAFT, art, CARTON_KRAFT]} castShadow receiveShadow>
+      {/* printed front panel — cover art on the +z face */}
+      <mesh position={[0, 0, D / 2 - T / 2]} material={[CARTON_BLACK, CARTON_BLACK, CARTON_BLACK, CARTON_BLACK, front, CARTON_BLACK]} castShadow receiveShadow>
         <boxGeometry args={[W, H, T]} />
       </mesh>
-      {/* the four folded-up walls (kraft) */}
-      <mesh position={[0, H / 2 - T / 2, -T / 2]} material={CARTON_KRAFT} castShadow receiveShadow><boxGeometry args={[W, T, D - T]} /></mesh>
-      <mesh position={[0, -H / 2 + T / 2, -T / 2]} material={CARTON_KRAFT} castShadow><boxGeometry args={[W, T, D - T]} /></mesh>
-      <mesh position={[-W / 2 + T / 2, 0, -T / 2]} material={CARTON_KRAFT} castShadow><boxGeometry args={[T, H - 2 * T, D - T]} /></mesh>
-      <mesh position={[W / 2 - T / 2, 0, -T / 2]} material={CARTON_KRAFT} castShadow><boxGeometry args={[T, H - 2 * T, D - T]} /></mesh>
-      {/* the long closing flaps meeting at the back centre (as when sealed) */}
-      <mesh position={[0, H / 4, -D / 2 + T / 2]} material={CARTON_KRAFT} castShadow><boxGeometry args={[W - 2 * T, H / 2 - T, T]} /></mesh>
-      <mesh position={[0, -H / 4, -D / 2 + T / 2]} material={CARTON_KRAFT} castShadow><boxGeometry args={[W - 2 * T, H / 2 - T, T]} /></mesh>
+      {/* printed back panel — back art on the -z face */}
+      <mesh position={[0, 0, -D / 2 + T / 2]} material={[CARTON_BLACK, CARTON_BLACK, CARTON_BLACK, CARTON_BLACK, CARTON_BLACK, back]} castShadow receiveShadow>
+        <boxGeometry args={[W, H, T]} />
+      </mesh>
+      {/* four matte-black side walls between the panels */}
+      <mesh position={[0, H / 2 - T / 2, 0]} material={CARTON_BLACK} castShadow receiveShadow><boxGeometry args={[W, T, wd]} /></mesh>
+      <mesh position={[0, -H / 2 + T / 2, 0]} material={CARTON_BLACK} castShadow><boxGeometry args={[W, T, wd]} /></mesh>
+      <mesh position={[-W / 2 + T / 2, 0, 0]} material={CARTON_BLACK} castShadow><boxGeometry args={[T, H - 2 * T, wd]} /></mesh>
+      <mesh position={[W / 2 - T / 2, 0, 0]} material={CARTON_BLACK} castShadow><boxGeometry args={[T, H - 2 * T, wd]} /></mesh>
     </group>
   );
 }

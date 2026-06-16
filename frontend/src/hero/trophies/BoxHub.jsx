@@ -93,7 +93,7 @@ export default function BoxHub({ imageUrl, setCopy, brickModel, glbName }) {
 
   return (
     <div>
-      <SetShowcase imageUrl={imageUrl} setCopy={setCopy} brickModel={brickModel} />
+      <SetShowcase imageUrl={imageUrl} setCopy={setCopy} brickModel={brickModel} glbName={glbName} />
 
       <p className="mt-5 text-nano uppercase tracking-widest text-muted">Open the box</p>
       <div className="mt-1.5 grid gap-2.5 sm:grid-cols-2">
@@ -117,7 +117,7 @@ export default function BoxHub({ imageUrl, setCopy, brickModel, glbName }) {
         </button>
       </div>
       <p className="mt-1.5 text-micro text-muted-faint">
-        Tap the box art to enlarge and save a photo of the box. The .stl is the AI mesh; the .ldr is the buildable LEGO file.
+        Tap the box art to inspect the set — sealed box, the render, the 3D mesh and a closed booklet. The .stl is the AI mesh; the .ldr is the buildable LEGO file.
       </p>
     </div>
   );

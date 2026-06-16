@@ -6,7 +6,7 @@ export const COLORS = {
   elevated: "#ffffff",
   sunken: "#e7e9e4",
   ink: "#20262b",
-  table: "#2b2f2c",
+  table: "#000000",
   brandRed: "#c91a09",
   brandYellow: "#f6c700",
   brandBlue: "#1e5aa8",
