@@ -106,7 +106,7 @@ export default function CallSheet() {
               </>
             ) : (
               b.options.map((o) => (
-                <Chip key={o.id} onClick={() => pick(b.key, o.id)}>
+                <Chip key={o.id} size="sm" onClick={() => pick(b.key, o.id)}>
                   {o.label}
                 </Chip>
               ))

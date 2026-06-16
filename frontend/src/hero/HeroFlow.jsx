@@ -40,6 +40,7 @@ const artifactSlug = (s) => (s || "legoarch").split(",")[0].replace(/[^\w]+/g, "
 export default function HeroFlow() {
   const { prompt, imageUrl, glbUrl, glbName, brickModel, setCopy, params, seed, runRecord, set, reset } = useBuild();
   const addToShelf = useCollection((s) => s.add);
+  const updateShelf = useCollection((s) => s.update);
   const collectionCount = useCollection((s) => s.items.length);
   const showView = useView((s) => s.show);
   const muted = useUI((s) => s.muted);
@@ -288,7 +289,15 @@ export default function HeroFlow() {
     if (!s.relegolizedSincePack) return;            // nothing new since the last pack (Pack is disabled)
 
     const title = setCopy?.set_name || (prompt || "Untitled set").split(",")[0];
-    const dupe = isShelfDupe(useCollection.getState().items, title, brickModel.stability.nBricks);
+    // If THIS build is already packed (shelfId still present on the shelf), a
+    // re-tune + re-pack must REPLACE that entry in place — not add a duplicate
+    // (which would prepend and risk evicting the oldest set). The dupe guard only
+    // applies to genuinely new packs.
+    const existingId =
+      s.shelfId && useCollection.getState().items.some((i) => i.id === s.shelfId)
+        ? s.shelfId
+        : null;
+    const dupe = !existingId && isShelfDupe(useCollection.getState().items, title, brickModel.stability.nBricks);
     // sync: a double-click can't add twice; Pack now locks until a re-tune + re-legolize
     set({ saved: true, relegolizedSincePack: false });
     playPop();
@@ -303,8 +312,8 @@ export default function HeroFlow() {
     // committed the moment addToShelf runs). Survives a refresh; honest quota toast.
     (async () => {
       const renderThumb = await downscaleDataUrl(imageUrl, 360, 0.72);
-      const item = {
-        id: crypto.randomUUID(),
+      // Fields that change with a re-tune — shared by the update + add paths.
+      const fields = {
         title,
         setNumber: setCopy?.set_number || "",
         thumb: frontElevationThumb(brickModel, 240),
@@ -315,8 +324,26 @@ export default function HeroFlow() {
         prompt,
         runRecord,         // tiny JSON — full reproducibility for every saved set
         glbName: glbName || null,   // lets the saved set export its .stl later
-        created_at: new Date().toISOString(),
       };
+
+      if (existingId) {
+        const { updated, dropped } = updateShelf(existingId, { ...fields, updated_at: new Date().toISOString() });
+        if (updated && dropped > 0) {
+          toast.info(
+            "Updated — oldest sets removed",
+            `Your tuned version is bigger and storage is full: the ${dropped} oldest set${dropped > 1 ? "s were" : " was"} deleted to make room.`
+          );
+        } else if (updated) {
+          toast.success("Updated on your shelf", "Your tuned version replaced the old one.");
+        } else {
+          // The entry fell out (e.g. removed elsewhere) — re-pack as fresh.
+          set({ saved: false, relegolizedSincePack: true, shelfId: null });
+          toast.error("Couldn't update that set", "It's no longer on your shelf — pack again to re-add it.");
+        }
+        return;
+      }
+
+      const item = { id: crypto.randomUUID(), ...fields, created_at: new Date().toISOString() };
       const { savedNew, dropped } = addToShelf(item);
       if (!savedNew) {
         // This one build alone exceeds the storage budget — the rest of the
@@ -326,13 +353,16 @@ export default function HeroFlow() {
           "Too large to save",
           "This build exceeds your browser's storage limit — your other sets are safe. Remove a set or lower the brick detail, then pack again."
         );
-      } else if (dropped > 0) {
-        toast.info(
-          "Saved — oldest sets removed",
-          `Your browser's storage is full: the ${dropped} oldest set${dropped > 1 ? "s were" : " was"} deleted to make room.`
-        );
       } else {
-        toast.success("Saved to your shelf", "It's in your collection — open it any time.");
+        set({ shelfId: item.id }); // remember it so the next re-tune replaces this entry
+        if (dropped > 0) {
+          toast.info(
+            "Saved — oldest sets removed",
+            `Your browser's storage is full: the ${dropped} oldest set${dropped > 1 ? "s were" : " was"} deleted to make room.`
+          );
+        } else {
+          toast.success("Saved to your shelf", "It's in your collection — open it any time.");
+        }
       }
     })();
 
@@ -467,9 +497,12 @@ export default function HeroFlow() {
                   placeholder="e.g. Fondation Louis Vuitton, Frank Gehry"
                   className="text-base"
                 />
-                <div className="mt-2.5 flex flex-wrap justify-center gap-2">
+                {/* equal-width grid so every example reads as the same chip
+                    regardless of label length (2 cols on phones, 3 on desktop);
+                    each chip fills its cell and centres its text */}
+                <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {EXAMPLES.map((ex) => (
-                    <Chip key={ex.label} onClick={() => setText(ex.prompt)}>{ex.label}</Chip>
+                    <Chip key={ex.label} className="w-full whitespace-nowrap" onClick={() => setText(ex.prompt)}>{ex.label}</Chip>
                   ))}
                 </div>
                 <TinkerPanel groups={["render"]} />

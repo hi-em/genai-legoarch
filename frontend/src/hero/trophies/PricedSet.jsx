@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ExternalLink, Download, Search, ChevronUp, ChevronDown } from "lucide-react";
-import { Button, toast } from "../../components/ui/index.js";
+import { Button, Chip, toast } from "../../components/ui/index.js";
 import { estimateCost, fmtUSD, bricklinkSearchUrl } from "../../lib/pricing.js";
 import { partsToCsv, download } from "../../lib/ldraw.js";
 
@@ -149,27 +149,27 @@ export default function PricedSet({ brickModel, setCopy }) {
 
         {colors.length > 1 && (
           <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by color">
-            <button
-              type="button"
+            <Chip
+              size="sm"
+              variant={colorFilter.size === 0 ? "selected" : "suggest"}
               onClick={() => setColorFilter(new Set())}
               aria-pressed={colorFilter.size === 0}
-              className={`rounded-pill border px-2.5 py-1 text-nano font-semibold uppercase tracking-wide focus-visible:outline-none focus-visible:shadow-focus ${colorFilter.size === 0 ? "border-brand-blue bg-brand-blue text-white" : "border-border bg-elevated text-muted hover:text-ink"}`}
             >
               All
-            </button>
+            </Chip>
             {colors.map((c) => {
               const on = colorFilter.has(c.name);
               return (
-                <button
+                <Chip
                   key={c.name}
-                  type="button"
+                  size="sm"
+                  variant={on ? "selected" : "suggest"}
                   onClick={() => toggleColor(c.name)}
                   aria-pressed={on}
-                  className={`inline-flex items-center gap-1.5 rounded-pill border px-2 py-1 text-nano font-medium focus-visible:outline-none focus-visible:shadow-focus ${on ? "border-brand-blue bg-sunken text-ink" : "border-border bg-elevated text-muted hover:text-ink"}`}
                 >
                   <span className="inline-block h-3 w-3 rounded-sm border border-black/10" style={{ background: c.hex }} aria-hidden="true" />
                   {c.name}
-                </button>
+                </Chip>
               );
             })}
           </div>

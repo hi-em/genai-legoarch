@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { SlidersHorizontal, ChevronDown, RotateCcw, Dices } from "lucide-react";
 import { useBuild } from "../state/store.js";
 import { PARAMS, PRESETS, activePreset, tweakCount } from "./tinkerParams.js";
-import { Slider } from "../components/ui/index.js";
+import { Slider, Chip } from "../components/ui/index.js";
 import { DUR, EASE } from "../lib/motion.js";
 import { playSnap } from "../lib/sound.js";
 import { cn } from "../lib/cn.js";
@@ -53,20 +53,16 @@ export default function TinkerPanel({
       {presets && (
         <div className="flex flex-wrap gap-1.5">
           {PRESETS.map((pr) => (
-            <button
+            <Chip
               key={pr.id}
+              size="sm"
+              variant={preset === pr.id ? "selected" : "suggest"}
               onClick={() => { setParams(pr.params); playSnap(); }}
               onPointerEnter={() => setCaption(pr.hint)}
               onPointerLeave={() => setCaption(null)}
-              className={cn(
-                "rounded-full border-2 px-2.5 py-0.5 text-micro font-bold transition",
-                preset === pr.id
-                  ? "border-brand-blue bg-brand-blue/10 text-brand-blue"
-                  : "border-stone-300 bg-elevated text-ink-soft hover:border-stone-400"
-              )}
             >
               {pr.label}
-            </button>
+            </Chip>
           ))}
           {!preset && (
             <span className="self-center rounded-full bg-brand-yellow px-2 py-0.5 text-nano font-bold text-ink">
@@ -112,20 +108,16 @@ export default function TinkerPanel({
                   const current = params[p.key] ?? p.def;
                   const on = current === c.value;
                   return (
-                    <button
+                    <Chip
                       key={String(c.value)}
+                      size="sm"
+                      variant={on ? "selected" : "suggest"}
                       role="radio"
                       aria-checked={on}
                       onClick={() => { setParams({ [p.key]: c.value }); playSnap(); }}
-                      className={cn(
-                        "rounded-full border-2 px-2.5 py-0.5 text-micro font-bold transition",
-                        on
-                          ? "border-brand-blue bg-brand-blue/10 text-brand-blue"
-                          : "border-stone-300 bg-elevated text-ink-soft hover:border-stone-400"
-                      )}
                     >
                       {c.label}
-                    </button>
+                    </Chip>
                   );
                 })}
               </div>

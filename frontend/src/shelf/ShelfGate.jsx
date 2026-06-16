@@ -11,7 +11,7 @@ import { List, Boxes } from "lucide-react";
 import ErrorBoundary from "../components/ErrorBoundary.jsx";
 import { hasWebGL } from "../lib/webgl.js";
 import { normalizeAdapted } from "../lib/brickModel.js";
-import { useBuild, useCollection, isShelfDupe } from "../state/store.js";
+import { useBuild, useCollection } from "../state/store.js";
 import { toast } from "../components/ui/index.js";
 import ShelfScene from "./ShelfScene.jsx";
 import CollectionList from "../room/CollectionList.jsx";
@@ -34,15 +34,14 @@ export default function ShelfGate({ items, onRemove }) {
     onRemove(id);
     if (selectedId === id) setSelectedId(null); // closing the modal repaints the demand canvas
 
-    // If the removed set is the build still open on the reveal, removing it
-    // effectively UN-packs it: clear `saved` and re-arm `relegolizedSincePack`
-    // so ▶ Pack re-adds the very set you just removed (without the gate forcing
-    // a re-legolize first, and without short-circuiting to explore).
+    // If the removed set is THIS build's packed entry (matched by stable id),
+    // removing it effectively UN-packs it: clear `saved` + `shelfId` and re-arm
+    // `relegolizedSincePack` so ▶ Pack re-adds the very set you just removed
+    // (without the gate forcing a re-legolize first, or short-circuiting to
+    // explore, or the next pack trying to update a now-gone entry).
     const b = useBuild.getState();
-    if (b.brickModel && b.saved &&
-        isShelfDupe([it], b.setCopy?.set_name || (b.prompt || "Untitled set").split(",")[0],
-                    b.brickModel.stability.nBricks)) {
-      b.set({ saved: false, relegolizedSincePack: true });
+    if (b.shelfId === id) {
+      b.set({ saved: false, relegolizedSincePack: true, shelfId: null });
     }
 
     // Reversible: put it back exactly as it was if the user changes their mind.

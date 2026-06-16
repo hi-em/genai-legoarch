@@ -48,8 +48,15 @@ export default function Lightbox({ open, onClose, label, children }) {
   // Portal to <body> so the fixed overlay escapes any transformed/perspective
   // ancestor (e.g. RecipeCard's 3D flip) that would otherwise contain it.
   return createPortal(
+    // `pointer-events-auto` is load-bearing: when this Lightbox is opened from
+    // INSIDE a Radix Dialog (e.g. the shelf's TrophyShell), Radix sets
+    // `body { pointer-events: none }` (disableOutsidePointerEvents). Since we
+    // portal to <body> as a sibling, the overlay would inherit none — freezing
+    // the canvas/orbit and the Save/Close buttons. Re-enabling it here restores
+    // them. Radix still won't dismiss on our clicks: this subtree is a React-tree
+    // descendant of Dialog.Content, so its onPointerDownCapture marks us "inside".
     <div
-      className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-6"
+      className="pointer-events-auto fixed inset-0 z-[80] grid place-items-center bg-black/70 p-6"
       onClick={(e) => { e.stopPropagation(); onClose?.(); }}
     >
       <div
