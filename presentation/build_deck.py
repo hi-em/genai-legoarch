@@ -1,63 +1,116 @@
 """
-build_deck.py — lEgoarCh deck, "Studwork" visual language (see design-system.md).
+build_deck.py — lEgoarCh deck, warm "Studwork" visual language (see design-system.md).
 
 One fractional-layout spec, two backends that stay in sync:
   - Pillow      -> legoarch-deck.pdf   (fully designed art + type)
   - python-pptx -> legoarch-deck.pptx  (designed art as the slide background;
-                   all COPY overlaid as live, editable Archivo/Inter text boxes)
+                   all COPY overlaid as live, editable Nunito/DM Sans text boxes)
 
-Native diagrams/icons/arrows drawn in primitives — no pasted-figure-as-slide.
-Emblem (plate stack) + colored wordmark + footer on every slide. Act 1 has no
-slides (live demo). 9 slides: title · pipeline · prompt-eng · colour · boundary ·
-reproducible · scale+catalog · contact sheet · end. Re-runnable.
+Rendered at 2x (3840x2160) for crispness. Icons are real Lucide vectors
+(tinted, anti-aliased, transparent) rasterised via svglib+rlPyCairo. Catalog
+parts are real isometric LEGO moulds, flat-shaded procedurally (owned, exact).
+Fonts: Nunito (display) + DM Sans (body). Warm dark "studio table" palette.
+
+15 slides ("behind the sets" — they do NOT re-walk the recorded demo):
+  title · why · system-map · user-flow · models · comfyui-node-graph ·
+  legolize (voxel solve) · colour-match (CIEDE2000) · catalog · LoRA test ·
+  colour denoise (+ pixel waterfall) · scale · honest boundary (Gehry) ·
+  inputs->outputs (radial) · close.
 
     python presentation/build_deck.py
 """
 from __future__ import annotations
-import math, os
-from PIL import Image, ImageDraw, ImageFont, ImageColor
+import math, os, re
+from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageOps
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 ASSETS = os.path.join(REPO, "docs", "benchmarks", "assets", "examples")
+IMAGES = os.path.join(HERE, "images")
+ICONS = os.path.join(HERE, "_icons")
 FONTS = os.path.join(HERE, "fonts")
 OUT_PDF = os.path.join(HERE, "legoarch-deck.pdf")
 OUT_PPTX = os.path.join(HERE, "legoarch-deck.pptx")
 SLIDE_DIR = os.path.join(HERE, "_slides")
 
-W, H = 1920, 1080
+SS = 2                       # supersample factor (render at 2x)
+W, H = 1920 * SS, 1080 * SS
 IN_W, IN_H = 13.333, 7.5
-PT = 2.0  # pt -> px
+PT = 2.0 * SS               # pt -> px (keeps fractional layout identical at 2x)
+TOTAL = 15                  # slide count (footer denominator)
+def u(v): return v * SS     # scale an absolute-px literal to the supersampled canvas
 
-# palette (frontend/src/styles/tokens.css)
-FELT = "#2b2f2c"; FELT_DEEP = "#20241f"
-SURFACE = "#f4f5f2"; ELEVATED = "#ffffff"; SUNKEN = "#e7e9e4"
-RED = "#c91a09"; YELLOW = "#f6c700"; YELLOW_DK = "#c39e00"
-BLUE = "#1e5aa8"; TAN = "#e4cd9e"
-INK = "#23271f"; INK_SOFT = "#5b625a"
-ON_DARK = "#f4f5f2"; ON_DARK_MUTE = "#aab1a6"
-HAIRLINE = "#3a3f39"
+# pure-black studio table (owner: reads cleaner); cream plates keep it warm, not cold
+FELT = "#000000"; FELT_DEEP = "#0a0908"
+SURFACE = "#f6f2ea"; ELEVATED = "#fffdf7"; SUNKEN = "#ece4d6"
+RED = "#c91a09"; YELLOW = "#f6c700"; YELLOW_DK = "#b8890a"
+BLUE = "#1e5aa8"; TAN = "#e7d3a6"; OLIVE = "#6b8e23"
+INK = "#34302a"; INK_SOFT = "#6f685c"        # warm soft-black + warm grey
+ON_DARK = "#f3efe6"; ON_DARK_MUTE = "#b0a899"
+HAIRLINE = "#46403a"        # nudged lighter so dividers read on pure black
 
 WORDMARK = [("l", None), ("E", YELLOW), ("go", None), ("a", RED), ("r", None), ("C", BLUE), ("h", None)]
 
 def img(*p): return os.path.join(ASSETS, *p)
+def imgP(*p): return os.path.join(IMAGES, *p)
 def rgba(c, a=255):
     r, g, b = ImageColor.getrgb(c); return (r, g, b, a)
+def _mix(c1, c2, t):
+    a = ImageColor.getrgb(c1); b = ImageColor.getrgb(c2)
+    return "#%02x%02x%02x" % tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
 
 # =============================================================================
-#  fonts
+#  fonts (Nunito display / DM Sans body)
 # =============================================================================
 _FC = {}; _WN = {800: "ExtraBold", 700: "Bold", 600: "SemiBold", 500: "Medium", 400: "Regular"}
+def _is_display(fam): return fam in ("Archivo", "Nunito", "display")
 def font(fam, px, w):
     k = (fam, px, w)
     if k in _FC: return _FC[k]
-    f = ImageFont.truetype(os.path.join(FONTS, "Archivo-Bold.ttf" if fam == "Archivo" else "Inter-Regular.ttf"), px)
+    f = ImageFont.truetype(os.path.join(FONTS, "Nunito.ttf" if _is_display(fam) else "DMSans.ttf"), int(px))
     try: f.set_variation_by_name(_WN.get(w, "Regular"))
     except Exception: pass
     _FC[k] = f; return f
 
+# Nunito (display) is missing a few glyphs (e.g. → U+2192); fall back to DM Sans per-char.
+from fontTools.ttLib import TTFont as _TTF
+_CMAP = {}
+def _cmap(disp):
+    key = "Nunito" if disp else "DMSans"
+    if key not in _CMAP:
+        _CMAP[key] = set(_TTF(os.path.join(FONTS, key + ".ttf")).getBestCmap().keys())
+    return _CMAP[key]
+def _glyph_font(fam, px, w, ch):
+    disp = _is_display(fam)
+    if ord(ch) in _cmap(disp): return font(fam, px, w)
+    if ord(ch) in _cmap(not disp): return font("DMSans" if disp else "Nunito", px, w)
+    return font(fam, px, w)
+
 # =============================================================================
-#  low-level primitives (px)
+#  Lucide icon rasteriser (tinted, transparent, anti-aliased)
+# =============================================================================
+from svglib.svglib import svg2rlg
+from reportlab.graphics import renderPM
+_IMASK = {}
+def _icon_mask(name):
+    if name in _IMASK: return _IMASK[name]
+    raw = open(os.path.join(ICONS, name + ".svg"), encoding="utf-8").read()
+    raw = raw.replace("currentColor", "#000000")
+    raw = re.sub(r'stroke-width="[0-9.]+"', 'stroke-width="2"', raw)
+    tmp = os.path.join(ICONS, "_t_render.svg"); open(tmp, "w", encoding="utf-8").write(raw)
+    d = svg2rlg(tmp); os.remove(tmp)
+    s = 900.0 / 24.0; d.width = 24 * s; d.height = 24 * s; d.scale(s, s)
+    gray = renderPM.drawToPIL(d, dpi=72, bg=0xffffff).convert("L").resize((720, 720), Image.LANCZOS)
+    mask = ImageOps.invert(gray)
+    _IMASK[name] = mask; return mask
+def icon_tile(name, px, color):
+    px = max(8, int(px))
+    m = _icon_mask(name).resize((px, px), Image.LANCZOS)
+    out = Image.new("RGBA", (px, px), ImageColor.getrgb(color) + (0,)); out.putalpha(m)
+    return out
+
+# =============================================================================
+#  low-level primitives (px on the supersampled canvas)
 # =============================================================================
 def _r(d, box, fill, rad):
     d.rounded_rectangle(box, radius=rad, fill=fill)
@@ -86,110 +139,65 @@ def emblem(d, x, y, size):
     _r(d, [x + 30 * s, y + 9 * s, x + 40 * s, y + 12 * s], rgba("#ffffff", 56), 1.5 * s)
 
 def wordmark(d, x, y, px, base=ON_DARK):
-    f = font("Archivo", px, 800); cx = x
+    f = font("Nunito", px, 800); cx = x
     for t, c in WORDMARK:
         d.text((cx, y), t, font=f, fill=(c or base))
         cx += d.textlength(t, font=f)
     return cx - x
 
-# ---- flat line icons (ink-on-plate) ----------------------------------------
-def icon(d, name, x, y, size, color):
-    p = size * 0.16; st = max(3, int(size * 0.075))
-    L, T, R, B = x + p, y + p, x + size - p, y + size - p
-    cx, cy = x + size / 2, y + size / 2
-    def ell(a, b, c, e, **k): d.ellipse([a, b, c, e], **k)
-    if name == "prompt":
-        d.rounded_rectangle([L, T, R, B - size * 0.12], radius=st * 2, outline=color, width=st)
-        d.polygon([(L + size * 0.16, B - size * 0.14), (L + size * 0.30, B - size * 0.14),
-                   (L + size * 0.16, B + size * 0.02)], fill=color)
-        for i in range(3):
-            xx = L + size * 0.18 + i * size * 0.18
-            ell(xx, cy - st, xx + st * 1.4, cy + st * 0.4, fill=color)
-    elif name == "image":
-        d.rounded_rectangle([L, T, R, B], radius=st, outline=color, width=st)
-        ell(R - size * 0.22, T + size * 0.10, R - size * 0.10, T + size * 0.22, fill=color)
-        d.line([(L + st, B - st), (cx, T + size * 0.28), (cx + size * 0.16, B - size * 0.18),
-                (R - st, B - st)], fill=color, width=st, joint="curve")
-    elif name == "cube":
-        top = [(cx, T), (R, T + size * 0.18), (cx, T + size * 0.36), (L, T + size * 0.18)]
-        d.polygon(top, outline=color, width=st)
-        d.line([(L, T + size * 0.18), (L, B - size * 0.18), (cx, B)], fill=color, width=st)
-        d.line([(R, T + size * 0.18), (R, B - size * 0.18), (cx, B)], fill=color, width=st)
-        d.line([(cx, T + size * 0.36), (cx, B)], fill=color, width=st)
-    elif name == "voxel":
-        n = 3; g = (R - L) / n
-        for i in range(n):
-            for j in range(n):
-                d.rectangle([L + i * g, T + j * g, L + (i + 1) * g, T + (j + 1) * g], outline=color, width=max(2, st - 1))
-    elif name == "brick":
-        d.rounded_rectangle([L, cy - size * 0.06, R, B], radius=st, outline=color, width=st)
-        for i in (0.3, 0.7):
-            ell(L + (R - L) * i - size * 0.07, cy - size * 0.20, L + (R - L) * i + size * 0.07, cy - size * 0.06, outline=color, width=st)
-    elif name == "dial":
-        d.arc([L, T, R, B], 130, 50, fill=color, width=st)
-        d.line([(cx, cy), (cx + size * 0.18, cy - size * 0.12)], fill=color, width=st)
-        ell(cx - st, cy - st, cx + st, cy + st, fill=color)
-    elif name == "curve":
-        pts = [(L + (R - L) * t / 20, cy - math.sin(t / 20 * math.pi * 2) * size * 0.16) for t in range(21)]
-        d.line(pts, fill=color, width=st, joint="curve")
-    elif name == "blob":
-        pts = [(cx + math.cos(a) * (size * 0.30 + (size * 0.05 if i % 2 else -size * 0.03)),
-                cy + math.sin(a) * (size * 0.28 + (size * 0.04 if i % 3 else 0)))
-               for i, a in enumerate([k * math.pi / 5 for k in range(10)])]
-        d.polygon(pts, fill=color)
-    elif name == "warning":
-        d.polygon([(cx, T), (R, B), (L, B)], outline=color, width=st)
-        d.line([(cx, T + size * 0.28), (cx, B - size * 0.30)], fill=color, width=st)
-        ell(cx - st * 0.7, B - size * 0.22, cx + st * 0.7, B - size * 0.22 + st * 1.4, fill=color)
-    elif name == "die":
-        d.rounded_rectangle([L, T, R, B], radius=st * 1.6, outline=color, width=st)
-        for fx, fy in [(0.3, 0.3), (0.7, 0.3), (0.5, 0.5), (0.3, 0.7), (0.7, 0.7)]:
-            xx, yy = L + (R - L) * fx, T + (B - T) * fy
-            ell(xx - st * 0.8, yy - st * 0.8, xx + st * 0.8, yy + st * 0.8, fill=color)
-    elif name == "equals":
-        for yy in (cy - size * 0.10, cy + size * 0.10):
-            d.rounded_rectangle([L, yy - st * 0.8, R, yy + st * 0.8], radius=st, fill=color)
-    elif name == "box":
-        top = [(cx, T), (R, T + size * 0.16), (cx, T + size * 0.32), (L, T + size * 0.16)]
-        d.polygon(top, outline=color, width=st)
-        d.line([(L, T + size * 0.16), (L, B - size * 0.16), (cx, B)], fill=color, width=st)
-        d.line([(R, T + size * 0.16), (R, B - size * 0.16), (cx, B)], fill=color, width=st)
-        d.line([(cx, T + size * 0.32), (cx, B)], fill=color, width=st)
-        d.line([(cx, T + size * 0.32), (L, T + size * 0.16)], fill=color, width=max(2, st - 1))
-    elif name == "booklet":
-        d.line([(cx, T + size * 0.04), (cx, B)], fill=color, width=st)
-        for sx in (L, cx):
-            d.rounded_rectangle([sx, T, sx + (cx - L), B - size * 0.04], radius=st, outline=color, width=st)
-        for i in range(3):
-            yy = T + size * 0.18 + i * size * 0.16
-            d.line([(L + size * 0.06, yy), (cx - size * 0.06, yy)], fill=color, width=max(2, st - 1))
-    elif name == "list":
-        for i in range(3):
-            yy = T + i * (B - T) / 2.4
-            d.rounded_rectangle([L, yy, L + size * 0.12, yy + size * 0.12], radius=2, fill=color)
-            d.line([(L + size * 0.22, yy + size * 0.06), (R, yy + size * 0.06)], fill=color, width=st)
-    elif name == "shelf":
-        for yy in (cy - size * 0.16, B - size * 0.02):
-            d.line([(L, yy), (R, yy)], fill=color, width=st)
-        for bx in (L + size * 0.04, L + size * 0.30, L + size * 0.42):
-            d.rectangle([bx, cy - size * 0.16 - size * 0.16, bx + size * 0.16, cy - size * 0.16], outline=color, width=max(2, st - 1))
-    elif name == "mesh":
-        d.ellipse([L, T, R, B], outline=color, width=st)
-        d.line([(L + size * 0.04, cy), (R - size * 0.04, cy)], fill=color, width=max(2, st - 1))
-        d.line([(cx, T + size * 0.02), (cx, B - size * 0.02)], fill=color, width=max(2, st - 1))
-        d.line([(L + size * 0.12, T + size * 0.18), (R - size * 0.12, B - size * 0.18)], fill=color, width=max(2, st - 1))
-        d.line([(R - size * 0.12, T + size * 0.18), (L + size * 0.12, B - size * 0.18)], fill=color, width=max(2, st - 1))
+# =============================================================================
+#  isometric LEGO part renderer (flat-shaded, real moulds — top/2 sides + studs)
+# =============================================================================
+_COS30 = math.cos(math.radians(30)); _SIN30 = 0.5
+def iso_brick_els(cx, cy, unit, sw, sh, color, kind="brick"):
+    """Real-looking isometric LEGO part centered on (cx,cy) fractions. unit = stud pitch in px."""
+    hh = 1.15 if kind != "plate" else 0.45
+    def pj(i, j, k):
+        return ((i - j) * _COS30 * unit, (i + j) * _SIN30 * unit - k * unit)
+    corners = [pj(i, j, k) for i in (0, sw) for j in (0, sh) for k in (0, hh)]
+    xs = [p[0] for p in corners]; ys = [p[1] for p in corners]
+    ox = cx * W - (min(xs) + max(xs)) / 2; oy = cy * H - (min(ys) + max(ys)) / 2
+    def fp(i, j, k): p = pj(i, j, k); return ((p[0] + ox) / W, (p[1] + oy) / H)
+    def cp(i, j, k): p = pj(i, j, k); return (p[0] + ox, p[1] + oy)   # px center for studs
+    top = color; left = _mix(color, "#000000", 0.20); right = _mix(color, "#000000", 0.40)
+    ln = _mix(color, "#000000", 0.55)
+    els = []
+    def stud_at(cpx):
+        rx = unit * 0.32; ry = rx * _SIN30 * 1.18; ht = unit * 0.26
+        rim = _mix(color, "#000000", 0.16); tp = _mix(color, "#ffffff", 0.16)
+        edge = _mix(color, "#000000", 0.30); x0, y0 = cpx
+        els.append({"k": "poly", "pts": [((x0 - rx) / W, y0 / H), ((x0 - rx) / W, (y0 - ht) / H),
+                                          ((x0 + rx) / W, (y0 - ht) / H), ((x0 + rx) / W, y0 / H)], "fill": rim})
+        els.append({"k": "ellipse", "xy": ((x0 - rx) / W, (y0 - ry) / H, 2 * rx / W, 2 * ry / H), "fill": rim})
+        els.append({"k": "ellipse", "xy": ((x0 - rx) / W, (y0 - ht - ry) / H, 2 * rx / W, 2 * ry / H),
+                    "fill": tp, "outline": edge})
+    if kind == "slope":
+        klow = hh * 0.30
+        els.append({"k": "poly", "pts": [fp(0, sh, 0), fp(sw, sh, 0), fp(sw, sh, klow), fp(0, sh, hh)], "fill": left, "outline": ln})
+        els.append({"k": "poly", "pts": [fp(sw, 0, 0), fp(sw, sh, 0), fp(sw, sh, klow), fp(sw, 0, klow)], "fill": right, "outline": ln})
+        els.append({"k": "poly", "pts": [fp(0, 0, hh), fp(sw, 0, klow), fp(sw, sh, klow), fp(0, sh, hh)], "fill": top, "outline": ln})
+        for j in range(sh):
+            kk = hh - (hh - klow) * (0.4 / sw)
+            stud_at(cp(0.4, j + 0.5, kk))
+        return els
+    els.append({"k": "poly", "pts": [fp(0, sh, 0), fp(sw, sh, 0), fp(sw, sh, hh), fp(0, sh, hh)], "fill": left, "outline": ln})
+    els.append({"k": "poly", "pts": [fp(sw, 0, 0), fp(sw, sh, 0), fp(sw, sh, hh), fp(sw, 0, hh)], "fill": right, "outline": ln})
+    els.append({"k": "poly", "pts": [fp(0, 0, hh), fp(sw, 0, hh), fp(sw, sh, hh), fp(0, sh, hh)], "fill": top, "outline": ln})
+    for i in range(sw):
+        for j in range(sh):
+            stud_at(cp(i + 0.5, j + 0.5, hh))
+    return els
 
 # =============================================================================
 #  spec helpers (fractions). element kinds:
-#    rect plate emblem stud line arrow icon photo wordmark dot scatter | text
+#    rect plate emblem stud line arrow icon photo wordmark dot poly ellipse | text
 # =============================================================================
-ART = {"rect", "plate", "emblem", "stud", "line", "arrow", "icon", "photo", "wordmark", "dot", "scatter"}
+ART = {"rect", "plate", "emblem", "stud", "line", "arrow", "icon", "photo", "wordmark", "dot", "poly", "ellipse"}
 
-def P(x, y, w, h, fill=SURFACE, rad=14, studs=0, scolor=None, top=None):
+def P(x, y, w, h, fill=SURFACE, rad=12, studs=0, scolor=None, top=None):
     return {"k": "plate", "xy": (x, y, w, h), "fill": fill, "rad": rad, "studs": studs,
             "scolor": scolor, "top": top}
-def T(x, y, w, h, t, sz, wt=400, c=ON_DARK, fam="Inter", align="left", va="top", lead=1.3, tr=0.0):
+def T(x, y, w, h, t, sz, wt=400, c=ON_DARK, fam="DMSans", align="left", va="top", lead=1.3, tr=0.0):
     return {"k": "text", "xy": (x, y, w, h), "t": t, "sz": sz, "w": wt, "c": c, "fam": fam,
             "align": align, "va": va, "lead": lead, "tr": tr}
 def IC(name, x, y, s, c=INK):
@@ -197,30 +205,103 @@ def IC(name, x, y, s, c=INK):
 def PH(path, x, y, w, h):
     return {"k": "photo", "xy": (x, y, w, h), "path": path}
 def AR(p1, p2, c=TAN, w=5):
-    return {"k": "arrow", "p1": p1, "p2": p2, "c": c, "w": w}
+    return {"k": "arrow", "p1": p1, "p2": p2, "c": c, "w": w * SS}
+def LN(p1, p2, c=HAIRLINE, w=2):
+    return {"k": "line", "p1": p1, "p2": p2, "c": c, "w": int(w * SS)}
 
-def header(label, color=YELLOW):
-    return [{"k": "emblem", "x": 0.055, "y": 0.05, "h": 0.052},
-            T(0.105, 0.052, 0.7, 0.05, label.upper(), 15, 600, color, tr=0.16)]
+def header(label, color=TAN):
+    return [{"k": "emblem", "x": 0.055, "y": 0.055, "h": 0.046},
+            T(0.097, 0.057, 0.7, 0.05, label.upper(), 13, 700, color, fam="DMSans", tr=0.2)]
 def footer(page):
-    return [{"k": "rect", "xy": (0.055, 0.905, 0.89, 0.0016), "fill": HAIRLINE, "rad": 0},
-            {"k": "emblem", "x": 0.055, "y": 0.918, "h": 0.04},
-            {"k": "wordmark", "x": 0.092, "y": 0.92, "px": 26},
-            T(0.50, 0.922, 0.36, 0.04, "Generative AI · 2026", 12, 400, ON_DARK_MUTE),
-            T(0.80, 0.922, 0.145, 0.04, f"{page:02d} / 09", 12, 500, ON_DARK_MUTE, align="right")]
-def title(t, sz=40):
-    return T(0.055, 0.135, 0.89, 0.12, t, sz, 700, ON_DARK, fam="Archivo")
+    return [{"k": "rect", "xy": (0.055, 0.93, 0.89, 0.001), "fill": HAIRLINE, "rad": 0},
+            {"k": "wordmark", "x": 0.055, "y": 0.948, "px": 19},
+            T(0.80, 0.952, 0.145, 0.04, f"{page:02d} / {TOTAL:02d}", 10, 500, ON_DARK_MUTE, align="right")]
+def title(t, sz=33, y=0.145, c=ON_DARK):
+    return T(0.055, y, 0.89, 0.1, t, sz, 800, c, fam="Nunito")
+def subtitle(t, y=0.235):
+    return T(0.055, y, 0.89, 0.05, t, 16, 500, TAN, fam="DMSans")
 
 def data_plate(x, y, w, h, label, value, vsz=34, accent=YELLOW_DK, vcol=INK):
-    return [P(x, y, w, h, SURFACE, 14, studs=1, scolor=accent),
-            T(x + 0.014, y + 0.028, w - 0.028, 0.05, label.upper(), 12, 600, accent, tr=0.1),
-            T(x + 0.014, y + 0.06, w - 0.028, h - 0.07, value, vsz, 700 if vsz >= 30 else 500,
-              vcol, fam="Archivo" if vsz >= 30 else "Inter", lead=1.15)]
+    return [P(x, y, w, h, SURFACE, 12, studs=1, scolor=accent),
+            T(x + 0.014, y + 0.024, w - 0.028, 0.05, label.upper(), 11, 700, accent, tr=0.1),
+            T(x + 0.014, y + 0.054, w - 0.028, h - 0.07, value, vsz, 800 if vsz >= 30 else 600,
+              vcol, fam="Nunito" if vsz >= 30 else "DMSans", lead=1.12)]
+
+def slot(path, x, y, w, h, label="", accent="#b8b0a2"):
+    if path and os.path.exists(path):
+        return [PH(path, x, y, w, h)]
+    return [P(x, y, w, h, SUNKEN, 10),
+            IC("image", x + w / 2 - 0.024, y + h / 2 - 0.045, 0.048, accent),
+            T(x, y + h - 0.045, w, 0.04, label or "image", 11, 600, "#a59c8c", align="center", tr=0.05)]
 
 def flat(xs):
     o = []
     for e in xs: o.extend(e) if isinstance(e, list) else o.append(e)
     return o
+
+# =============================================================================
+#  rich artifact helpers (all emit existing draw primitives — no draw_art changes)
+# =============================================================================
+def _grad(stops, t):
+    if t <= 0: return stops[0]
+    if t >= 1: return stops[-1]
+    s = t * (len(stops) - 1); i = int(s); return _mix(stops[i], stops[i + 1], s - i)
+
+def wire(p1, p2, c, w=3, curve=0.45, N=26):
+    """Cubic-bezier S-curve as a short polyline (left->right ComfyUI noodle)."""
+    x1, y1 = p1; x2, y2 = p2; dx = (x2 - x1) * curve
+    c1 = (x1 + dx, y1); c2 = (x2 - dx, y2); pts = []
+    for k in range(N + 1):
+        t = k / N; m = 1 - t
+        bx = m**3 * x1 + 3 * m * m * t * c1[0] + 3 * m * t * t * c2[0] + t**3 * x2
+        by = m**3 * y1 + 3 * m * m * t * c1[1] + 3 * m * t * t * c2[1] + t**3 * y2
+        pts.append((bx, by))
+    return [LN(pts[k], pts[k + 1], c, w) for k in range(N)]
+
+def iso_structure(cx, cy, unit, placements, studs=True):
+    """A coherent isometric LEGO assembly sharing one origin (generalises iso_brick_els).
+    placements: dicts {i,j,k,sw,sh,color,h?}. Painter-sorted back->front."""
+    def pj(i, j, k): return ((i - j) * _COS30 * unit, (i + j) * _SIN30 * unit - k * unit)
+    allc = []
+    for p in placements:
+        hh = p.get("h", 1.15)
+        for di in (0, p["sw"]):
+            for dj in (0, p["sh"]):
+                for dk in (0, hh): allc.append(pj(p["i"] + di, p["j"] + dj, p["k"] + dk))
+    xs = [c[0] for c in allc]; ys = [c[1] for c in allc]
+    ox = cx * W - (min(xs) + max(xs)) / 2; oy = cy * H - (min(ys) + max(ys)) / 2
+    def fp(i, j, k): p = pj(i, j, k); return ((p[0] + ox) / W, (p[1] + oy) / H)
+    def cp(i, j, k): p = pj(i, j, k); return (p[0] + ox, p[1] + oy)
+    els = []
+    for p in sorted(placements, key=lambda p: (p["i"] + p["j"] + p["k"])):
+        i, j, k, sw, sh = p["i"], p["j"], p["k"], p["sw"], p["sh"]; color = p["color"]; hh = p.get("h", 1.15)
+        top = color; left = _mix(color, "#000000", 0.20); right = _mix(color, "#000000", 0.40); ln = _mix(color, "#000000", 0.55)
+        els.append({"k": "poly", "pts": [fp(i, j + sh, k), fp(i + sw, j + sh, k), fp(i + sw, j + sh, k + hh), fp(i, j + sh, k + hh)], "fill": left, "outline": ln})
+        els.append({"k": "poly", "pts": [fp(i + sw, j, k), fp(i + sw, j + sh, k), fp(i + sw, j + sh, k + hh), fp(i + sw, j, k + hh)], "fill": right, "outline": ln})
+        els.append({"k": "poly", "pts": [fp(i, j, k + hh), fp(i + sw, j, k + hh), fp(i + sw, j + sh, k + hh), fp(i, j + sh, k + hh)], "fill": top, "outline": ln})
+        if studs:
+            rim = _mix(color, "#000000", 0.16); tp = _mix(color, "#ffffff", 0.16); edge = _mix(color, "#000000", 0.30)
+            rx = unit * 0.32; ry = rx * _SIN30 * 1.18; ht = unit * 0.26
+            for a in range(int(sw)):
+                for b in range(int(sh)):
+                    x0, y0 = cp(i + a + 0.5, j + b + 0.5, k + hh)
+                    els.append({"k": "poly", "pts": [((x0 - rx) / W, y0 / H), ((x0 - rx) / W, (y0 - ht) / H), ((x0 + rx) / W, (y0 - ht) / H), ((x0 + rx) / W, y0 / H)], "fill": rim})
+                    els.append({"k": "ellipse", "xy": ((x0 - rx) / W, (y0 - ry) / H, 2 * rx / W, 2 * ry / H), "fill": rim})
+                    els.append({"k": "ellipse", "xy": ((x0 - rx) / W, (y0 - ht - ry) / H, 2 * rx / W, 2 * ry / H), "fill": tp, "outline": edge})
+    return els
+
+_NODE_BG = "#121110"; _NODE_BORD = "#33302a"
+def gnode(x, y, w, h, title, tcol, sub="", icon=None, icol=BLUE):
+    """ComfyUI-style node: bordered dark body, coloured title bar, icon + sub."""
+    e = [P(x - 0.0016, y - 0.0030, w + 0.0032, h + 0.0052, _NODE_BORD, 11),
+         P(x, y, w, h, _NODE_BG, 11, top=tcol),
+         T(x + 0.013, y + 0.027, w - 0.026, 0.04, title, 12.5, 800, ON_DARK, fam="Nunito")]
+    if icon: e += [IC(icon, x + 0.013, y + 0.071, 0.030, icol)]
+    tx = x + (0.05 if icon else 0.013)
+    if sub: e += [T(tx, y + 0.076, (x + w) - tx - 0.012, 0.05, sub, 10.5, 500, ON_DARK_MUTE, lead=1.22)]
+    return e
+def gport(cx, cy, c=BLUE):
+    return [{"k": "dot", "cx": cx, "cy": cy, "r": 0.0058, "c": c, "noh": True}]
 
 # =============================================================================
 #  slides
@@ -229,190 +310,364 @@ def build_slides():
     S = []
 
     # 1 — TITLE ----------------------------------------------------------
+    t1 = [
+        T(0.055, 0.205, 0.6, 0.04, "BEHIND THE SETS", 15, 700, YELLOW, tr=0.28),
+        {"k": "emblem", "x": 0.055, "y": 0.275, "h": 0.15},
+        {"k": "wordmark", "x": 0.055, "y": 0.45, "px": 120},
+        T(0.058, 0.585, 0.50, 0.12, "Name a building → get a buildable LEGO set.", 24, 600, TAN, lead=1.18),
+        T(0.058, 0.755, 0.46, 0.10,
+          "The engineering under the demo → how a sentence becomes real, orderable bricks.",
+          16, 400, ON_DARK_MUTE, lead=1.45),
+        T(0.058, 0.90, 0.5, 0.05,
+          "Generative AI · Emilie El Chidiac & Charles Abi Chahine · 2026", 13, 500, ON_DARK_MUTE),
+    ]
+    t1 += slot(img("sagrada", "sagrada_build_app.png"), 0.585, 0.235, 0.36, 0.52)
+    S.append((flat(t1), "Title holds while the recorded demo plays. These slides are the 'behind the sets' — the engineering, not a re-walk of the demo."))
+
+    # 2 — WHY ------------------------------------------------------------
+    wy = header("why it matters") + [title("Computation you can hold.")]
+    wy += [subtitle("Three reasons a generated set beats a render.")]
+    cards2 = [
+        ("box", BLUE, "Real, not rendered", "Generative form that snaps together in real bricks.", "the computational designer"),
+        ("presentation", RED, "Models, not mockups", "Hand a client a set they keep → not foam they bin.", "the practicing architect"),
+        ("repeat", YELLOW_DK, "Iterate in bricks", "Change the design → reorder only what changed.", "the student & maker"),
+    ]
+    cw2, gap2, cy2, chh2 = 0.283, 0.0205, 0.345, 0.36
+    for i, (icn, ac, ttl, line, who) in enumerate(cards2):
+        x = 0.055 + i * (cw2 + gap2)
+        wy += [P(x, cy2, cw2, chh2, SURFACE, 14, top=ac),
+               IC(icn, x + 0.026, cy2 + 0.04, 0.052, ac),
+               T(x + 0.026, cy2 + 0.125, cw2 - 0.05, 0.06, ttl, 18, 700, INK, fam="Nunito"),
+               T(x + 0.026, cy2 + 0.195, cw2 - 0.052, 0.1, line, 14, 500, INK_SOFT, lead=1.4),
+               T(x + 0.026, cy2 + 0.31, cw2 - 0.05, 0.04, "FOR " + who.upper(), 10, 700, ac, tr=0.08)]
+    wy += [T(0.055, 0.79, 0.89, 0.05, "A form a machine dreamed up → that real bricks can actually build.", 15, 500, TAN)]
+    wy += footer(2)
+    S.append((flat(wy), "Why this matters. Computation you can hold — generative form that's provably buildable, not a render. The architect's client model, and the iterate loop."))
+
+    # 3 — SYSTEM MAP (the linkage) ---------------------------------------
+    sm = header("the system", TAN) + [title("One pipeline, end to end.")]
+    sm += [subtitle("Five moves turn a sentence into an orderable set.")]
+    nodes = [("type", BLUE, "Prompt", "a building name"),
+             ("wand-sparkles", BLUE, "FLUX.2 + LoRA", "→ a set-look render"),
+             ("rotate-3d", BLUE, "TRELLIS.2", "→ a 3D mesh"),
+             ("blocks", YELLOW_DK, "Legolize", "→ real bricks"),
+             ("package", RED, "Catalog", "→ orderable parts")]
+    nN = len(nodes); nw = 0.142; ngap = (0.89 - nN * nw) / (nN - 1)
+    ny, nh = 0.355, 0.205
+    for i, (icn, ac, ttl, sub) in enumerate(nodes):
+        x = 0.055 + i * (nw + ngap)
+        sm += [P(x, ny, nw, nh, SURFACE, 14, top=ac),
+               IC(icn, x + nw / 2 - 0.032, ny + 0.05, 0.064, ac),
+               T(x, ny + nh + 0.022, nw, 0.04, ttl, 16, 800, ON_DARK, fam="Nunito", align="center"),
+               T(x, ny + nh + 0.067, nw, 0.04, sub, 12, 500, ON_DARK_MUTE, align="center")]
+        if i < nN - 1:
+            cyc = ny + nh / 2
+            sm += [AR((x + nw + 0.004, cyc), (x + nw + ngap - 0.004, cyc), TAN, 5)]
+    # the propose / prove split (how we thought)
+    g1l = 0.055; g1r = 0.055 + 2 * nw + 2 * ngap + nw
+    g2l = 0.055 + 3 * (nw + ngap); g2r = 0.945
+    gby = 0.70
+    sm += [LN((g1l, gby), (g1r, gby), BLUE, 3), LN((g2l, gby), (g2r, gby), RED, 3),
+           T(g1l, gby + 0.012, g1r - g1l, 0.04, "GENERATIVE AI · proposes the form", 12, 700, BLUE, tr=0.04),
+           T(g2l, gby + 0.012, g2r - g2l, 0.04, "DETERMINISTIC CODE · proves & orders", 12, 700, RED, align="right", tr=0.04)]
+    sm += [T(0.055, 0.80, 0.89, 0.05, "Anyone can generate a picture → the back half, the code that proves it builds, is the work.", 15, 500, TAN)]
+    sm += footer(3)
+    S.append((flat(sm), "The whole machine in one view. A sentence flows through FLUX+LoRA and TRELLIS (generative, blue), then plain deterministic code legolizes and maps to a real catalog (yellow then red). Generative proposes; code proves and orders."))
+
+    # 4 — USER FLOW (what you actually do) -------------------------------
+    uf = header("the experience", BLUE) + [title("What you actually do.")]
+    uf += [subtitle("One sentence in → a real set on your shelf. Five moves, every one yours to redo.")]
+    stops = [
+        ("Name it", "type any building", imgP("hero-launch-display.png")),
+        ("Forge it", "FLUX render · tune it", imgP("visualize-view.png")),
+        ("Carve it", "TRELLIS 3D mesh", imgP("reveal-mesh.png")),
+        ("Build it", "course by course", imgP("Sagrada_Fam_lia_Barcelona_Antoni_Gaud__build.png")),
+        ("Keep it", "box · booklet · parts · shelf", imgP("shelf-view.png")),
+    ]
+    fn = len(stops); fw = 0.16; fgap = (0.89 - fn * fw) / (fn - 1); fy = 0.42; fch = 0.245
+    for i, (ttl, line, path) in enumerate(stops):
+        x = 0.055 + i * (fw + fgap)
+        uf += [P(x, fy, fw, fch, SURFACE, 12, top=BLUE),
+               {"k": "dot", "cx": x + 0.024, "cy": fy + 0.036, "r": 0.0145, "c": BLUE},
+               T(x + 0.006, fy + 0.0195, 0.036, 0.03, str(i + 1), 12, 800, "#ffffff", fam="Nunito", align="center"),
+               T(x + 0.046, fy + 0.021, fw - 0.05, 0.04, ttl, 15, 800, INK, fam="Nunito")]
+        uf += slot(path, x + 0.012, fy + 0.064, fw - 0.024, 0.108)
+        uf += [T(x + 0.012, fy + 0.188, fw - 0.024, 0.05, line, 11.5, 500, INK_SOFT, align="center", lead=1.25)]
+        if i < fn - 1:
+            uf += [AR((x + fw + 0.004, fy + 0.118), (x + fw + fgap - 0.004, fy + 0.118), TAN, 5)]
+    uf += [T(0.055, 0.725, 0.89, 0.05, "Every stop is editable → re-roll the render, re-tune the bricks, reopen any set from the shelf.", 15, 500, TAN)]
+    uf += footer(4)
+    S.append((flat(uf), "What the user actually does: name a building, forge a render (and tune it), carve it to 3D, watch it build course by course, then keep the boxed set — booklet, priced parts, all on a persistent shelf."))
+
+    # 5 — THE MODELS (de-cluttered) --------------------------------------
+    md = header("the models", BLUE) + [title("One dreams → one carves.")]
+    md += [subtitle("Two AI models do all the imagining. Everything after is plain code.")]
+    md += [P(0.055, 0.34, 0.43, 0.34, SURFACE, 14, top=BLUE),
+           IC("wand-sparkles", 0.082, 0.375, 0.066, BLUE),
+           T(0.082, 0.475, 0.38, 0.05, "FLUX.2 Klein 4B", 22, 800, INK, fam="Nunito"),
+           T(0.082, 0.53, 0.38, 0.05, "base image model → dreams the picture", 14, 500, INK_SOFT),
+           P(0.082, 0.585, 0.376, 0.058, SUNKEN, 20),
+           IC("sparkles", 0.097, 0.598, 0.032, BLUE),
+           T(0.142, 0.598, 0.31, 0.04, "+ legoarch LoRA · 40 real Architecture sets", 13, 700, BLUE, fam="DMSans")]
+    md += [AR((0.498, 0.51), (0.532, 0.51), TAN, 6)]
+    md += [P(0.545, 0.34, 0.40, 0.34, SURFACE, 14, top=BLUE),
+           IC("rotate-3d", 0.572, 0.375, 0.066, BLUE),
+           T(0.572, 0.475, 0.36, 0.05, "TRELLIS.2-4B", 22, 800, INK, fam="Nunito"),
+           T(0.572, 0.53, 0.36, 0.05, "render → carves a textured 3D mesh", 14, 500, INK_SOFT),
+           P(0.572, 0.585, 0.346, 0.058, SUNKEN, 20),
+           IC("box", 0.587, 0.598, 0.032, BLUE),
+           T(0.632, 0.598, 0.28, 0.04, "invents the faces the photo can't see", 13, 700, BLUE, fam="DMSans")]
+    md += [T(0.055, 0.705, 0.89, 0.04, "qwen3-4b encoder · flux2-vae · euler · 1024×1024", 13, 500, ON_DARK_MUTE),
+           T(0.055, 0.745, 0.89, 0.04, "swept, then fixed → 28 steps · CFG 5.0 · LoRA 1.0 · negative prompt on", 13, 600, ON_DARK_MUTE)]
+    md += [T(0.055, 0.81, 0.89, 0.05, "Two models dream → everything after them is plain, checkable code.", 15, 500, TAN)]
+    md += footer(5)
+    S.append((flat(md), "Two models. FLUX.2 Klein dreams the picture, with a LoRA we trained on 40 real LEGO Architecture sets. TRELLIS carves it into 3D. After that, no AI."))
+
+    # 6 — COMFYUI NODE GRAPH ---------------------------------------------
+    cf = header("comfyui workflows", BLUE) + [title("Three graphs, one core.")]
+    cf += [subtitle("Text or image in → the same FLUX.2 + legoarch LoRA core → then TRELLIS to 3D.")]
+    TXT = (0.055, 0.350, 0.150, 0.105); IMG = (0.055, 0.560, 0.150, 0.105)
+    FLX = (0.285, 0.410, 0.200, 0.190)
+    RND = (0.540, 0.452, 0.120, 0.105); TRL = (0.700, 0.452, 0.120, 0.105); MSH = (0.852, 0.452, 0.093, 0.105)
+    def _xr(n): return n[0] + n[2]
+    def _my(n): return n[1] + n[3] / 2
+    fin1 = FLX[1] + 0.058; fin2 = FLX[1] + 0.132; wc = "#3f73b2"
+    cf += wire((_xr(TXT), _my(TXT)), (FLX[0], fin1), wc, 3)
+    cf += wire((_xr(IMG), _my(IMG)), (FLX[0], fin2), wc, 3)
+    cf += wire((_xr(FLX), _my(FLX)), (RND[0], _my(RND)), wc, 3)
+    cf += wire((_xr(RND), _my(RND)), (TRL[0], _my(TRL)), wc, 3)
+    cf += wire((_xr(TRL), _my(TRL)), (MSH[0], _my(MSH)), wc, 3)
+    for n in (TXT, IMG): cf += gport(_xr(n), _my(n))
+    cf += gport(FLX[0], fin1) + gport(FLX[0], fin2) + gport(_xr(FLX), _my(FLX))
+    cf += gport(RND[0], _my(RND)) + gport(_xr(RND), _my(RND))
+    cf += gport(TRL[0], _my(TRL)) + gport(_xr(TRL), _my(TRL)) + gport(MSH[0], _my(MSH))
+    cf += gnode(*TXT, "TEXT", INK_SOFT, "a building name", "type", BLUE)
+    cf += gnode(*IMG, "IMAGE", INK_SOFT, "a photo or sketch", "image", BLUE)
+    cf += gnode(*FLX, "FLUX.2 + LoRA", BLUE, "the shared core →\none LEGO look", "wand-sparkles", BLUE)
+    cf += gnode(*RND, "RENDER", YELLOW_DK, "set-look image")
+    cf += gnode(*TRL, "TRELLIS.2", BLUE, "carves 3D", "rotate-3d", BLUE)
+    cf += gnode(*MSH, "3D MESH", YELLOW_DK, "textured")
+    chips = [("txt → img", "05_FLUX.2_LoRA.json", BLUE),
+             ("img → img", "FLUX.2_image-to-image_LoRA.json", BLUE),
+             ("img → 3D", "3D.json", YELLOW_DK)]
+    chw = 0.283; chg = 0.0205; chy = 0.705
+    for i, (fl, fn2, ac) in enumerate(chips):
+        x = 0.055 + i * (chw + chg)
+        cf += [P(x, chy, chw, 0.078, SURFACE, 10, top=ac),
+               T(x + 0.016, chy + 0.017, chw - 0.03, 0.04, fl, 14, 800, INK, fam="Nunito"),
+               T(x + 0.016, chy + 0.047, chw - 0.03, 0.03, fn2, 10.5, 600, INK_SOFT)]
+    cf += footer(6)
+    S.append((flat(cf), "Three ComfyUI workflows are really one connected node graph. Text or image both feed the shared FLUX.2 + legoarch LoRA core; its render feeds TRELLIS to 3D. Same look out of every door — the three .json files are just three entry points."))
+
+    # 7 — LEGOLIZE (voxel solve) -----------------------------------------
+    vx = header("how legolization works", YELLOW_DK) + [title("Many 1×1s → a few real parts.")]
+    vx += [subtitle("Split-and-merge packs the voxel grid into the largest legal bricks — fewer parts, same shape.")]
+    sand = ["#caa46e", "#b9854e", "#9c6b3a", "#d8bd92"]
+    raw = [{"i": i, "j": j, "k": 0, "sw": 1, "sh": 1, "color": sand[(i + j) % 4]} for i in range(4) for j in range(4)]
+    raw += [{"i": i, "j": j, "k": 1.15, "sw": 1, "sh": 1, "color": sand[(i + j + 1) % 4]} for i in (1, 2) for j in (1, 2)]
+    merged = [{"i": 0, "j": 0, "k": 0, "sw": 2, "sh": 4, "color": "#b9854e"},
+              {"i": 2, "j": 0, "k": 0, "sw": 2, "sh": 4, "color": "#caa46e"},
+              {"i": 1, "j": 1, "k": 1.15, "sw": 2, "sh": 2, "color": "#9c6b3a"}]
+    vx += iso_structure(0.235, 0.46, 60 * SS, raw)
+    vx += iso_structure(0.615, 0.46, 60 * SS, merged)
+    vx += [AR((0.45, 0.46), (0.52, 0.46), TAN, 7)]
+    vx += [T(0.115, 0.665, 0.24, 0.04, "raw voxel grid", 14, 700, ON_DARK, fam="Nunito", align="center"),
+           T(0.115, 0.705, 0.24, 0.04, "thousands of 1×1 cells", 12, 500, ON_DARK_MUTE, align="center"),
+           T(0.495, 0.665, 0.24, 0.04, "merged real parts", 14, 700, ON_DARK, fam="Nunito", align="center"),
+           T(0.495, 0.705, 0.24, 0.04, "2×4 · 2×2 · slopes", 12, 500, ON_DARK_MUTE, align="center")]
+    passes = [("slopes", BLUE), ("bricks", YELLOW_DK), ("plates", OLIVE), ("tiles", RED)]
+    pcx = 0.795
+    vx += [T(pcx, 0.345, 0.155, 0.04, "FOUR PASSES", 11, 700, TAN, tr=0.12)]
+    for i, (nm, ac) in enumerate(passes):
+        yy = 0.405 + i * 0.06
+        vx += [{"k": "dot", "cx": pcx + 0.012, "cy": yy + 0.014, "r": 0.009, "c": ac},
+               T(pcx + 0.036, yy, 0.12, 0.04, nm, 15, 700, ON_DARK, fam="Nunito")]
+    vx += [T(0.055, 0.79, 0.74, 0.05, "Every brick is colour-uniform and seam-staggered → every footprint is one a real mould was made in.", 15, 600, TAN)]
+    vx += footer(7)
+    S.append((flat(vx), "The brick solve. A split-and-merge pass (Luo 2015) packs the anisotropic voxel grid into the largest legal, colour-uniform bricks — four passes: slopes, bricks, plates, tiles — staggering seams like real masonry. Thousands of 1x1s collapse into a few real footprints, same shape."))
+
+    # 8 — COLOUR MATCH (CIEDE2000) ---------------------------------------
+    cm = header("how colour matches", BLUE) + [title("Every voxel → a real colour.")]
+    cm += [subtitle("A continuous mesh colour is snapped to the nearest of 48 real LEGO colours by ΔE2000.")]
+    gx, gy, gw, gh = 0.10, 0.345, 0.075, 0.40            # continuous gradient column
+    gstops = ["#efe9dc", "#d8bd92", "#b9854e", "#7a4f28", "#46443f", "#9ba0a0", "#23211d"]
+    nstep = 48
+    for i in range(nstep):
+        cm += [{"k": "rect", "xy": (gx, gy + i * gh / nstep, gw, gh / nstep + 0.001), "fill": _grad(gstops, i / (nstep - 1)), "rad": 0}]
+    realpal = ["#e6e3da", "#c2b280", "#a05a2c", "#5b3a1a", "#5a5e60", "#9ba0a0", "#1b1a17"]
+    sx = 0.245; sw3 = 0.075                              # quantised swatch column
+    K = len(realpal); band = gh / K
+    for b in range(K):
+        cm += [{"k": "rect", "xy": (sx, gy + b * band, sw3, band + 0.001), "fill": realpal[b], "rad": 0}]
+    for i in range(0, nstep, 4):                         # many->one connectors
+        ty = gy + (i + 0.5) * gh / nstep
+        bb = min(K - 1, int((i / (nstep - 1)) * K))
+        cm += [LN((gx + gw, ty), (sx, gy + (bb + 0.5) * band), _mix(FELT, TAN, 0.4), 1)]
+    cm += [T(gx, gy + gh + 0.012, gw, 0.04, "mesh colour", 11, 600, ON_DARK_MUTE, align="center"),
+           T(sx, gy + gh + 0.012, sw3, 0.04, "48 real", 11, 600, ON_DARK_MUTE, align="center"),
+           T(0.10, 0.30, 0.22, 0.04, "ΔE2000 → nearest", 12, 700, TAN, align="center", tr=0.04)]
+    rsteps = [("Sample", "read each voxel's colour off the textured mesh", BLUE),
+              ("Match", "rescale exposure to the FLUX render (per-channel quantile)", BLUE),
+              ("Convert", "sRGB → CIE Lab (D65)", YELLOW_DK),
+              ("Snap", "nearest of 48 real colours by CIEDE2000", YELLOW_DK),
+              ("Clamp", "to a colour that part was really moulded in", RED)]
+    rx = 0.40
+    for i, (term, line, ac) in enumerate(rsteps):
+        yy = 0.355 + i * 0.082
+        cm += [{"k": "dot", "cx": rx + 0.014, "cy": yy + 0.018, "r": 0.0135, "c": ac},
+               T(rx, yy + 0.0015, 0.028, 0.03, str(i + 1), 11, 800, "#ffffff", fam="Nunito", align="center"),
+               T(rx + 0.042, yy, 0.5, 0.04, term, 16, 800, ON_DARK, fam="Nunito"),
+               T(rx + 0.042, yy + 0.036, 0.52, 0.05, line, 13, 500, ON_DARK_MUTE, lead=1.3)]
+    cm += [T(0.055, 0.79, 0.89, 0.05, "Continuous mesh colour → a small set of real, orderable LEGO colours. No invented paint.", 15, 600, TAN)]
+    cm += footer(8)
+    S.append((flat(cm), "How colour matches. We sample each voxel's colour off the textured mesh, rescale exposure to the render the user saw, convert to CIE Lab, snap to the nearest of 48 real LEGO colours by CIEDE2000, then clamp to a colour that exact part was really produced in. Continuous colour becomes a small, orderable palette."))
+
+    # 9 — REAL PARTS CATALOG (real isometric moulds) ---------------------
+    rp = header("buildable means orderable", RED) + [title("Real parts. Real moulds.")]
+    rp += [subtitle("A small vocabulary of actual BrickLink parts → snapped to real colours.")]
+    parts = [("3001", "2×4", 2, 4, RED, "brick"), ("3003", "2×2", 2, 2, BLUE, "brick"),
+             ("3004", "1×2", 1, 2, YELLOW, "brick"), ("3010", "1×4", 1, 4, OLIVE, "brick"),
+             ("3005", "1×1", 1, 1, "#4bacc6", "brick"), ("3040", "slope", 2, 1, "#d99694", "slope")]
+    centers = [0.13, 0.266, 0.402, 0.538, 0.674, 0.81]
+    pcy = 0.44
+    for (pid, pname, swc, shc, col, kind), cxn in zip(parts, centers):
+        rp += iso_brick_els(cxn, pcy, 28 * SS, swc, shc, col, kind)
+        rp += [T(cxn - 0.07, 0.56, 0.14, 0.03, pname, 13, 700, ON_DARK, fam="Nunito", align="center"),
+               T(cxn - 0.07, 0.595, 0.14, 0.03, pid, 10, 500, ON_DARK_MUTE, align="center")]
+    rp += [{"k": "rect", "xy": (0.055, 0.66, 0.89, 0.001), "fill": HAIRLINE, "rad": 0}]
+    # colour swatch strip (bottom-left)
+    palette = [BLUE, RED, YELLOW, TAN, OLIVE, "#5b9bd5", "#c0504d", "#e8a33d",
+               "#8064a2", "#4bacc6", "#9bbb59", "#d99694", "#3a3530", "#f6f2ea"]
+    for i, c in enumerate(palette):
+        rp += [{"k": "dot", "cx": 0.066 + i * 0.027, "cy": 0.735, "r": 0.011, "c": c}]
+    rp += [T(0.055, 0.775, 0.5, 0.04, "48 real LEGO colours", 14, 600, TAN)]
+    rp += [T(0.60, 0.695, 0.18, 0.06, "44", 40, 800, ON_DARK, fam="Nunito"),
+           T(0.60, 0.785, 0.2, 0.04, "real parts", 13, 600, RED),
+           T(0.775, 0.695, 0.2, 0.06, "1,598", 40, 800, ON_DARK, fam="Nunito"),
+           T(0.775, 0.785, 0.2, 0.04, "validated combos", 13, 600, RED)]
+    rp += footer(9)
+    S.append((flat(rp), "It's all real. Actual BrickLink moulds — bricks, plates, a slope — snapped to 48 real colours and 1,598 validated combinations. Every piece is orderable, and one model scales from a 2k draft to a 22k flagship."))
+
+    # 10 — TESTING · LoRA (2 buildings x 0/0.5/1) ------------------------
+    lo = header("we tested this", YELLOW_DK) + [title("The look lives in the LoRA.")]
+    lo += [subtitle("Same prompt, same seed → only the LoRA strength changes.")]
+    rows = [("Sagrada", [imgP("sagrada-lora-0.png"), imgP("sagrada-lora-0.5.png"), imgP("sagrada-lora-1.png")]),
+            ("La Muralla", [imgP("muralla-lora 0.png"), imgP("muralla-lora-0.5.png"), imgP("muralla-lora-1.png")])]
+    cols_x = [0.17, 0.318, 0.466]; sq = 0.137; row_y = [0.37, 0.59]
+    lo += [P(cols_x[2] - 0.008, row_y[0] - 0.012, sq + 0.016, (row_y[1] + sq * W / H) - row_y[0] + 0.016, YELLOW, 12)]
+    head = ["LoRA 0", "LoRA 0.5", "LoRA 1.0"]
+    for c in range(3):
+        lo += [T(cols_x[c], 0.33, sq, 0.04, head[c], 14, 700, ON_DARK if c < 2 else YELLOW_DK, fam="Nunito", align="center")]
+    for r, (lab, paths) in enumerate(rows):
+        y = row_y[r]
+        lo += [T(0.055, y + sq * W / H / 2 - 0.02, 0.105, 0.05, lab, 15, 700, TAN, fam="Nunito")]
+        for c in range(3):
+            lo += slot(paths[c], cols_x[c], y, sq, sq * W / H)
+    lo += [T(cols_x[2], row_y[1] + sq * W / H + 0.004, sq, 0.03, "winner", 11, 700, YELLOW_DK, align="center", tr=0.08)]
+    lo += [T(0.62, 0.37, 0.33, 0.05, "0 → 0.5 → 1.0", 24, 800, ON_DARK, fam="Nunito"),
+           T(0.62, 0.44, 0.33, 0.2, "At 0 it's a plain building. At 1 the studs and seams snap in → on a landmark and an obscure block alike.", 17, 500, TAN, lead=1.5),
+           T(0.62, 0.65, 0.33, 0.05, "The LEGO look isn't the prompt. It's the fine-tune.", 15, 600, ON_DARK),
+           T(0.62, 0.71, 0.33, 0.04, "swept 0 → 1.5 · winner 1.0", 12, 600, ON_DARK_MUTE)]
+    lo += footer(10)
+    S.append((flat(lo), "Of everything we tuned, this matters most. Only the LoRA strength changes across the grid. At zero, a normal building; at one, studs and seams appear. The LEGO-ness lives in the fine-tune."))
+
+    # 11 — COLOUR DENOISE (real montage + conceptual waterfall) ----------
+    co = header("we tested this", YELLOW_DK) + [title("Same building, −46% bricks.")]
+    co += [subtitle("Raw mesh colour speckles into thousands of 1×1s → we merge it to the true colour first.")]
+    co += slot(img("sagrada", "sagrada_montage.png"), 0.055, 0.345, 0.34, 0.355)
+    co += [T(0.055, 0.715, 0.34, 0.04, "real build → raw colour grid → merged to true colour", 11.5, 500, ON_DARK_MUTE)]
+    wx, wy, ww, wh = 0.435, 0.345, 0.165, 0.355          # conceptual pixel waterfall
+    cols, rows, mfrom = 9, 16, 9
+    cw_, chh = ww / cols, wh / rows
+    spal = ["#e6dcc4", "#caa46e", "#b9854e", "#9c6b3a", "#6e4a28", "#d8bd92"]
+    mbands = ["#d8bd92", "#caa46e", "#b9854e", "#9c6b3a"]
+    for r in range(rows):
+        for c in range(cols):
+            col = spal[(c * 53 + r * 131 + c * r * 17) % len(spal)] if r < mfrom else mbands[min(len(mbands) - 1, (r - mfrom) // 2)]
+            co += [{"k": "rect", "xy": (wx + c * cw_, wy + r * chh, cw_ + 0.0006, chh + 0.0006), "fill": col, "rad": 0}]
+    co += [T(wx, wy - 0.034, ww, 0.03, "1×1 speckle", 11, 600, ON_DARK_MUTE, align="center"),
+           T(wx, wy + wh + 0.008, ww, 0.03, "merged regions", 11, 600, TAN, align="center")]
+    co += [T(0.645, 0.345, 0.3, 0.045, "SAGRADA FAMÍLIA", 12, 700, TAN, tr=0.08),
+           T(0.637, 0.38, 0.31, 0.14, "−46%", 80, 800, YELLOW, fam="Nunito"),
+           T(0.645, 0.545, 0.3, 0.05, "8,627 → 4,682 pieces", 18, 700, ON_DARK)]
+    co += data_plate(0.645, 0.615, 0.30, 0.115, "why fewer is better", "cheaper · simpler to build · same stability", 15)
+    co += [T(0.645, 0.755, 0.30, 0.04, "holds across buildings → −19% to −46%", 13, 600, ON_DARK_MUTE)]
+    co += footer(11)
+    S.append((flat(co), "The 3D model bakes in colour speckle, and each speck forces its own 1x1 brick. Blur it onto the render's true colour first → up to 46 percent fewer pieces on Sagrada, 19 to 46 percent across buildings, no loss of stability. Real montage on the left, the merge concept on the right."))
+
+    # 12 — SCALE (detail 24 / 32 / 48) -----------------------------------
+    sc = header("we tested this", YELLOW_DK) + [title("Draft to flagship — same set.")]
+    sc += [subtitle("Pick the detail; the method holds. Pieces grow about quadratically.")]
+    sc += slot(img("sagrada", "sagrada_scale.png"), 0.055, 0.345, 0.46, 0.40)
+    sc += [T(0.055, 0.76, 0.46, 0.04, "Sagrada Família at detail 24 · 32 · 48", 12, 500, ON_DARK_MUTE)]
+    levels = [("24", "draft", "2,189", OLIVE, False),
+              ("32", "default", "4,682", YELLOW, True),
+              ("48", "large", "15,089", RED, False)]
+    lx = 0.56; lw = 0.385; ly0 = 0.35; lhh = 0.12; lg = 0.018
+    for i, (d, tag, pcs, ac, win) in enumerate(levels):
+        y = ly0 + i * (lhh + lg)
+        sc += [P(lx, y, lw, lhh, SURFACE, 12, top=ac, studs=1 if win else 0, scolor=ac),
+               T(lx + 0.02, y + 0.022, 0.22, 0.05, "detail " + d, 17, 800, INK, fam="Nunito"),
+               T(lx + 0.02, y + 0.07, 0.22, 0.04, tag + (" · winner" if win else ""), 12, 600, ac),
+               T(lx + 0.165, y + 0.016, lw - 0.185, 0.08, pcs, 30, 800, INK, fam="Nunito", align="right"),
+               T(lx + 0.165, y + 0.08, lw - 0.185, 0.03, "pieces", 11, 600, INK_SOFT, align="right")]
+    sc += [T(0.56, 0.775, 0.385, 0.04, "16–64 studs available in-app · same connected set every time", 13, 600, ON_DARK_MUTE)]
+    sc += footer(12)
+    S.append((flat(sc), "Scale is the user's call. The same Sagrada at detail 24, 32 and 48 gives 2.2k, 4.7k and 15k pieces — roughly quadratic. The default is 32; in-app you can dial 16 to 64. Same connected, recognizable set at every size."))
+
+    # 13 — HONEST BOUNDARY (Gehry prompt) --------------------------------
+    bd = header("the honest part", RED) + [title("It built Gehry, not the Guggenheim.")]
+    bd += [subtitle("We named both. The model followed the curves — and voxels can't hold them.")]
+    bd += [P(0.055, 0.345, 0.50, 0.285, SURFACE, 14),
+           T(0.078, 0.367, 0.45, 0.03, "THE PROMPT — VERBATIM", 11, 700, RED, tr=0.1),
+           T(0.078, 0.415, 0.455, 0.20,
+             "“Guggenheim Museum Bilbao Frank Gehry … interconnected swirling titanium-clad volumes … overlapping curved ship-like masses merging into one continuous sculptural body …”",
+             15, 600, INK, lead=1.5)]
+    bd += slot(img("bilbao", "bilbao_build_app.png"), 0.60, 0.345, 0.345, 0.275)
+    bd += [IC("triangle-alert", 0.612, 0.357, 0.04, RED),
+           T(0.60, 0.63, 0.345, 0.03, "voxelized Bilbao → a connected metallic blob", 11.5, 500, ON_DARK_MUTE, align="center")]
+    bd += [P(0.055, 0.668, 0.89, 0.162, FELT_DEEP, 12),
+           T(0.078, 0.693, 0.85, 0.05, "Smooth curves can't survive a voxel grid.", 17, 700, ON_DARK, fam="Nunito"),
+           T(0.078, 0.75, 0.85, 0.06, "Connected and 93% supported → just not legible. Knowing exactly where the method ends is part of the work.", 14, 400, ON_DARK_MUTE, lead=1.4)]
+    bd += footer(13)
+    S.append((flat(bd), "The honest part. The prompt names the museum AND the architect — and the model latched onto Gehry's signature swirling curves, not the specific Guggenheim. Those smooth curves can't survive a voxel grid, so Bilbao builds as a connected, 93%-supported, but illegible blob. Knowing the edge is part of the work."))
+
+    # 14 — INPUTS -> OUTPUTS (radial hero) -------------------------------
+    io = header("inputs → outputs") + [title("One sentence → everything you get.")]
+    cx0, cy0 = 0.5, 0.575
+    sats = [(90, "the render", img("sagrada", "sagrada.png")),
+            (150, "the 3D mesh", imgP("reveal-mesh.png")),
+            (210, "the build", img("sagrada", "sagrada_build_app.png")),
+            (270, "the boxed set", imgP("Sagrada_Fam_lia_Barcelona_Antoni_Gaud__box (1).png")),
+            (330, "the booklet", imgP("booklet-instructions.png")),
+            (30, "parts + price", imgP("prcie and parts list.png"))]
+    Rx, Ry = 0.33, 0.24; sw2, sh2 = 0.165, 0.125
+    # connector lines first (under cards)
+    for ang, lab, path in sats:
+        a = math.radians(ang)
+        sx = cx0 + Rx * math.cos(a); sy = cy0 - Ry * math.sin(a)
+        io += [LN((cx0, cy0), (sx, sy), _mix(FELT, TAN, 0.35), 2)]
+    # centre hub
+    io += slot(imgP("hero-launch-display.png"), cx0 - 0.13, cy0 - 0.105, 0.26, 0.21)
+    io += [T(cx0 - 0.13, cy0 + 0.115, 0.26, 0.04, "NAME A BUILDING", 12, 700, BLUE, align="center", tr=0.1)]
+    # satellites
+    for ang, lab, path in sats:
+        a = math.radians(ang)
+        sx = cx0 + Rx * math.cos(a); sy = cy0 - Ry * math.sin(a)
+        x = sx - sw2 / 2; y = sy - sh2 / 2
+        io += [P(x - 0.006, y - 0.006, sw2 + 0.012, sh2 + 0.04, SURFACE, 10)]
+        io += slot(path, x, y, sw2, sh2)
+        io += [T(x - 0.006, y + sh2 + 0.004, sw2 + 0.012, 0.03, lab, 12, 700, INK, fam="Nunito", align="center")]
+    io += footer(14)
+    S.append((flat(io), "From one sentence, a whole set radiates out: the render, the 3D mesh, the legolized build, a boxed set, an instruction booklet, and a real parts list with a price."))
+
+    # 15 — CLOSE ---------------------------------------------------------
     S.append((flat([
-        {"k": "emblem", "x": 0.055, "y": 0.16, "h": 0.26},
-        {"k": "wordmark", "x": 0.055, "y": 0.46, "px": 150},
-        T(0.058, 0.63, 0.8, 0.08, "Name a building. Get a buildable LEGO set.", 30, 500, TAN),
-        T(0.058, 0.73, 0.84, 0.06, "Generative AI proposes the form · deterministic computation proves it's buildable.",
-          18, 400, ON_DARK_MUTE),
-        T(0.058, 0.90, 0.89, 0.05, "Generative AI · final presentation · Emilie Chidiac & Charles · 2026",
-          14, 400, ON_DARK_MUTE),
-    ]), "Cold open is LIVE (no slide). This title holds at the very top/tail. Emilie: 'Watch this — I'll name a building, and we build it.'"))
-
-    # 2 — PIPELINE (the spine) -------------------------------------------
-    pipe = header("how it works") + [title("Three steps. One build.")]
-    pipe += [T(0.055, 0.245, 0.89, 0.05,
-               "A model proposes the shape; plain code proves you can actually build it.", 18, 400, TAN)]
-    stages = [("prompt", "you name a building", TAN, "prompt"),
-              ("FLUX render", "image, LEGO style", BLUE, "image"),
-              ("TRELLIS 3D", "rebuild hidden sides", BLUE, "cube"),
-              ("voxelize", "grid · colour-match", YELLOW, "voxel"),
-              ("brick solve", "real parts · stability", RED, "brick")]
-    n = len(stages); x0 = 0.055; pw = 0.158; gap = (0.89 - n * pw) / (n - 1)
-    cy, ch = 0.40, 0.30
-    for i, (h, g, ac, icn) in enumerate(stages):
-        x = x0 + i * (pw + gap)
-        pipe += [P(x, cy, pw, ch, SURFACE, 14, top=ac),
-                 IC(icn, x + pw / 2 - 0.035, cy + 0.045, 0.07, INK),
-                 T(x + 0.012, cy + 0.16, pw - 0.024, 0.06, h, 18, 700, INK, fam="Archivo"),
-                 T(x + 0.012, cy + 0.225, pw - 0.024, 0.07, g, 13, 400, INK_SOFT, lead=1.2)]
-        if i < n - 1:
-            sx = x + pw + gap / 2; sy = cy + ch / 2
-            pipe += [{"k": "stud", "cx": sx, "cy": sy, "r": 0.011, "c": ON_DARK_MUTE},
-                     AR((x + pw + 0.006, sy), (x + pw + gap - 0.006, sy), TAN, 5)]
-    pipe += [T(0.055, 0.76, 0.89, 0.05,
-               "blue = generative   ·   yellow = deterministic compute   ·   red = the real catalog",
-               15, 500, ON_DARK_MUTE)]
-    pipe += footer(2)
-    S.append((flat(pipe),
-              "Charles: prompt -> FLUX render -> TRELLIS 3D -> voxelize + colour-match -> brick solve. Generative up front, plain deterministic code at the back. That back half is the part we're proud of."))
-
-    # 3 — PROMPT ENGINEERING ---------------------------------------------
-    pe = header("we tuned this by hand") + [title("Getting the render right.")]
-    pe += [PH(img("ab_cfg.png"), 0.055, 0.30, 0.46, 0.55),
-           T(0.055, 0.86, 0.46, 0.05, "same three buildings, one setting swept at a time — winner ringed",
-             13, 400, ON_DARK_MUTE),
-           IC("dial", 0.55, 0.295, 0.07, YELLOW)]
-    pe += data_plate(0.64, 0.31, 0.14, 0.15, "steps", "28", 40)
-    pe += data_plate(0.80, 0.31, 0.14, 0.15, "guidance", "5.0", 40)
-    pe += data_plate(0.64, 0.49, 0.14, 0.15, "LoRA", "1.0", 40)
-    pe += data_plate(0.80, 0.49, 0.14, 0.15, "negative", "on", 40)
-    pe += [T(0.55, 0.67, 0.39, 0.16,
-             "Turn the LoRA down and the studs literally fade away — that's where the LEGO look lives. "
-             "The prompt itself is an 8-part grammar that keeps the shape fused so it survives the 3D step.",
-             16, 400, TAN, lead=1.45)]
-    pe += footer(3)
-    S.append((flat(pe),
-              "Charles, conversational: we had to tune this by hand. 28 steps, guidance 5, LoRA at full, negative prompt on. Below 0.75 the studs fade — that's where the LEGO-ness lives."))
-
-    # 4 — COLOUR DENOISE (confetti -> plate) -----------------------------
-    co = header("a cleanup step") + [title("Fewer bricks, same building.")]
-    # confetti scatter (left)
-    conf = []
-    import random as _rnd
-    rng = _rnd.Random(7)
-    cols = [RED, "#e8736a", "#f2a59c", YELLOW, "#8ea9c9", TAN, "#b48f6b"]
-    for _ in range(120):
-        cx = 0.07 + rng.random() * 0.20; cy = 0.34 + rng.random() * 0.34
-        s = 0.006 + rng.random() * 0.006
-        conf.append({"k": "rect", "xy": (cx, cy, s, s * W / H), "fill": rng.choice(cols), "rad": 1})
-    co += conf
-    co += [T(0.07, 0.71, 0.21, 0.05, "every speck = its own 1×1 brick", 14, 400, ON_DARK_MUTE)]
-    co += [AR((0.305, 0.50), (0.40, 0.50), TAN, 7)]
-    # merged plate (right of arrow)
-    co += [P(0.42, 0.345, 0.20, 0.30, SURFACE, 16, studs=4, scolor=RED),
-           T(0.42, 0.55, 0.20, 0.06, "merged onto the true colour", 14, 400, INK_SOFT, align="center")]
-    # big delta + why
-    co += [T(0.66, 0.31, 0.30, 0.045, "up to", 18, 500, TAN),
-           T(0.652, 0.35, 0.31, 0.13, "−46%", 78, 700, YELLOW, fam="Archivo"),
-           T(0.66, 0.505, 0.30, 0.05, "fewer pieces  ·  −19% on La Muralla", 16, 500, TAN)]
-    co += data_plate(0.66, 0.575, 0.285, 0.145, "why fewer is good", "cheaper · simpler to build · no loss of stability", 17)
-    co += footer(4)
-    S.append((flat(co),
-              "Charles: the 3D model bakes in colour speckle, and each speck would force its own brick. We blur it onto the render's true colour first — 19 to 46 percent fewer pieces, and nothing gets wobblier."))
-
-    # 5 — HONEST BOUNDARY (curve -> grid -> blob) ------------------------
-    bd = header("where it breaks") + [title("And here's where it falls apart.")]
-    panels = [("curve", BLUE, "smooth Gehry curves"), ("voxel", YELLOW_DK, "forced onto a grid"),
-              ("blob", "#9aa0a6", "a blob — not Bilbao")]
-    px0 = 0.055; ppw = 0.225; pgap = 0.05
-    for i, (icn, ic_c, lab) in enumerate(panels):
-        x = px0 + i * (ppw + pgap)
-        bd += [P(x, 0.32, ppw, 0.30, SURFACE, 16),
-               IC(icn, x + ppw / 2 - 0.055, 0.37, 0.11, ic_c),
-               T(x, 0.555, ppw, 0.05, lab, 15, 500, INK_SOFT, align="center")]
-        if i < 2:
-            sy = 0.47; sx = x + ppw + pgap / 2
-            bd += [AR((x + ppw + 0.006, sy), (x + ppw + pgap - 0.006, sy), TAN, 6)]
-    bd += [IC("warning", 0.72, 0.345, 0.05, RED),
-           PH(img("bilbao", "bilbao_build_app.png"), 0.80, 0.30, 0.145, 0.30)]
-    bd += [P(0.055, 0.67, 0.89, 0.16, FELT_DEEP, 14),
-           T(0.075, 0.69, 0.85, 0.06,
-             "Still structurally sound — connected, 93% supported. It just isn't legible.", 19, 500, ON_DARK),
-           T(0.075, 0.755, 0.85, 0.06,
-             "Voxels can't hold a curve. We like that we know exactly where the method ends.", 15, 400, ON_DARK_MUTE)]
-    bd += footer(5)
-    S.append((flat(bd),
-              "Charles, humble: this is the honest part. Gehry's curves are too smooth for a voxel grid, so Bilbao builds as a blob. It stands up fine — it's just not legible. Knowing the limit is part of the work."))
-
-    # 6 — REPRODUCIBLE (seed equation) -----------------------------------
-    rp = header("this surprised us") + [title("Same prompt, same set.")]
-    rp += [P(0.055, 0.34, 0.30, 0.30, SURFACE, 16, studs=3, scolor=BLUE),
-           IC("die", 0.075, 0.36, 0.07, INK),
-           T(0.16, 0.375, 0.18, 0.05, "seed 1001", 18, 700, INK, fam="Archivo"),
-           PH(img("muralla", "muralla_build_app.png"), 0.075, 0.45, 0.26, 0.165)]
-    rp += [IC("equals", 0.40, 0.45, 0.07, ON_DARK_MUTE)]
-    rp += [P(0.49, 0.34, 0.30, 0.30, SURFACE, 16, studs=3, scolor=RED),
-           IC("die", 0.51, 0.36, 0.07, INK),
-           T(0.595, 0.375, 0.18, 0.05, "seed 2002", 18, 700, INK, fam="Archivo"),
-           PH(img("muralla", "muralla_s2002.png"), 0.51, 0.45, 0.26, 0.165)]
-    rp += [AR((0.80, 0.49), (0.86, 0.49), TAN, 6),
-           T(0.86, 0.40, 0.09, 0.20, "same buildable set", 18, 600, YELLOW, lead=1.25)]
-    rp += [T(0.055, 0.70, 0.89, 0.1,
-             "A new seed is a different generation — the pieces vary — but it's always a single, connected, "
-             "recognizable set. The result is the method, not a lucky seed.", 18, 400, TAN, lead=1.45)]
-    rp += footer(6)
-    S.append((flat(rp),
-              "Charles: same prompt, a different seed -> a different generation but the same outcome: a connected buildable set. Determinism, in a field built on randomness. Honestly, that surprised us."))
-
-    # 7 — SCALE + CATALOG (stud grid) ------------------------------------
-    sc = header("buildable means orderable") + [title("Real parts. Three sizes.")]
-    # stud grid of 48
-    grid = []
-    palette = [BLUE, RED, YELLOW, TAN, "#6b8e23", "#5b9bd5", "#c0504d", "#e8a33d",
-               "#8064a2", "#4bacc6", "#9bbb59", "#d99694"]
-    gx, gy, cols_n, rows_n = 0.055, 0.315, 8, 6
-    cw = 0.30 / cols_n
-    for r in range(rows_n):
-        for c in range(cols_n):
-            grid.append({"k": "dot", "cx": gx + c * cw + cw / 2, "cy": gy + r * cw * W / H + cw * W / H / 2,
-                         "r": 0.013, "c": palette[(r * cols_n + c) % len(palette)]})
-    sc += grid
-    sc += [T(0.055, 0.76, 0.30, 0.05, "48 LEGO colours", 16, 600, TAN)]
-    sc += data_plate(0.40, 0.34, 0.255, 0.18, "real parts", "44", 56)
-    sc += data_plate(0.40, 0.55, 0.255, 0.15, "validated combos", "1,598", 40)
-    # scale steps
-    sc += [P(0.685, 0.34, 0.26, 0.34, SURFACE, 16)]
-    for i, (lab, hh) in enumerate([("24", 0.05), ("32", 0.085), ("48", 0.13)]):
-        bx = 0.715 + i * 0.075
-        sc += [{"k": "rect", "xy": (bx, 0.55 - hh, 0.05, hh), "fill": [BLUE, RED, YELLOW][i], "rad": 4},
-               T(bx - 0.005, 0.565, 0.06, 0.04, lab, 14, 600, INK_SOFT, align="center")]
-    sc += [T(0.685, 0.61, 0.26, 0.06, "≈ 2k draft · 4.7k set · 22k flagship", 14, 400, INK_SOFT, align="center")]
-    sc += [T(0.685, 0.30, 0.26, 0.04, "one model · three sizes", 13, 500, ON_DARK_MUTE)]
-    sc += footer(7)
-    S.append((flat(sc),
-              "Charles: every piece is a real BrickLink part — 48 colours, 44 parts, 1,598 validated combinations, CIEDE2000-matched. And one model scales from a 2k draft to a 22k flagship."))
-
-    # 8 — CONTACT SHEET (the ending) -------------------------------------
-    cs = header("from a sentence to a set") + [title("Everything you get.")]
-    cards = [("3D mesh", "mesh", img("muralla", "muralla_mesh_app.png")),
-             ("legolized build", "brick", img("muralla", "muralla_build_app.png")),
-             ("the boxed set", "box", None),
-             ("instruction booklet", "booklet", None),
-             ("parts list + price", "list", None),
-             ("your shelf", "shelf", None)]
-    cw2, chh = 0.283, 0.225; gx2, gy2 = 0.055, 0.30; gpx, gpy = 0.0185, 0.03
-    for i, (lab, icn, ph) in enumerate(cards):
-        r, c = divmod(i, 3)
-        x = gx2 + c * (cw2 + gpx); y = gy2 + r * (chh + gpy)
-        cs += [P(x, y, cw2, chh, SURFACE if ph else SUNKEN, 14)]
-        if ph:
-            cs += [PH(ph, x + 0.008, y + 0.008, cw2 - 0.016, chh - 0.05)]
-        else:
-            cs += [IC(icn, x + cw2 / 2 - 0.038, y + 0.052, 0.076, "#9aa0a6"),
-                   T(x + 0.014, y + 0.02, cw2 - 0.028, 0.03, "add screenshot", 10, 500, "#90978c", tr=0.08)]
-        cs += [T(x + 0.014, y + chh - 0.045, cw2 - 0.028, 0.04, lab, 14, 600, INK, fam="Archivo")]
-    cs += footer(8)
-    S.append((flat(cs),
-              "Both. Charles: 'From a sentence—' Emilie: '—to a set you can build.' Emilie: the 3D model, the build, a boxed set, an instruction booklet, a real parts list with a price. An architect's idea becomes a box on your table."))
-
-    # 9 — END CARD -------------------------------------------------------
-    S.append((flat([
-        {"k": "emblem", "x": 0.435, "y": 0.20, "h": 0.20},
-        {"k": "wordmark", "x": "center", "y": 0.46, "px": 120},
-        T(0.055, 0.625, 0.89, 0.06, "From a sentence to a set you can build.", 26, 500, TAN, align="center"),
-        T(0.055, 0.71, 0.89, 0.05, "Emilie Chidiac · Charles · Generative AI · 2026", 16, 400, ON_DARK_MUTE, align="center"),
-    ]), "End card under the final line."))
+        {"k": "wordmark", "x": "center", "y": 0.31, "px": 100},
+        T(0.055, 0.46, 0.89, 0.1, "From words to LEGO.", 54, 800, ON_DARK, fam="Nunito", align="center"),
+        T(0.055, 0.61, 0.89, 0.05, "Generative AI proposes → code proves → the catalog ships.", 18, 500, TAN, align="center"),
+        T(0.055, 0.78, 0.89, 0.05, "Emilie El Chidiac & Charles Abi Chahine · 2026", 14, 500, ON_DARK_MUTE, align="center"),
+    ]), "Close. From words to LEGO — every brick is real and orderable."))
 
     return S
 
@@ -432,22 +687,23 @@ def _wrap(d, text, f, maxw, tr=0.0):
         out.append(line)
     return out
 
+def _line_w(d, ln, fam, px, wt, tr):
+    return sum(d.textlength(ch, font=_glyph_font(fam, px, wt, ch)) + tr for ch in ln)
+
 def draw_text(d, e):
-    x, y, w, h = e["xy"]; px = int(round(e["sz"] * PT))
-    f = font(e["fam"], px, e.get("w", 400)); tr = e.get("tr", 0.0) * px
-    maxw = w * W; lines = _wrap(d, e["t"], f, maxw, tr); lh = px * e.get("lead", 1.2)
+    x, y, w, h = e["xy"]; px = int(round(e["sz"] * PT)); fam = e["fam"]; wt = e.get("w", 400)
+    prim = font(fam, px, wt); tr = e.get("tr", 0.0) * px
+    maxw = w * W; lines = _wrap(d, e["t"], prim, maxw, tr); lh = px * e.get("lead", 1.2)
     by = y * H
     if e.get("va") == "middle": by += (h * H - lh * len(lines)) / 2
     for i, ln in enumerate(lines):
-        ly = by + i * lh; lw = d.textlength(ln, font=f) + tr * len(ln); lx = x * W
+        ly = by + i * lh; lw = _line_w(d, ln, fam, px, wt, tr); lx = x * W
         if e.get("align") == "center": lx += (maxw - lw) / 2
         elif e.get("align") == "right": lx += (maxw - lw)
-        if tr:
-            cx = lx
-            for ch in ln:
-                d.text((cx, ly), ch, font=f, fill=e["c"]); cx += d.textlength(ch, font=f) + tr
-        else:
-            d.text((lx, ly), ln, font=f, fill=e["c"])
+        cx = lx
+        for ch in ln:
+            gf = _glyph_font(fam, px, wt, ch)
+            d.text((cx, ly), ch, font=gf, fill=e["c"]); cx += d.textlength(ch, font=gf) + tr
 
 def fit(iw, ih, bx, by, bw, bh):
     ar, bar = iw / ih, bw / bh
@@ -458,40 +714,51 @@ def fit(iw, ih, bx, by, bw, bh):
 def draw_art(base, d, e):
     k = e["k"]
     if k == "rect":
-        x, y, w, h = e["xy"]; _r(d, [x * W, y * H, (x + w) * W, (y + h) * H], e["fill"], e.get("rad", 0))
+        x, y, w, h = e["xy"]; _r(d, [x * W, y * H, (x + w) * W, (y + h) * H], e["fill"], e.get("rad", 0) * SS)
     elif k == "plate":
-        x, y, w, h = e["xy"]; _r(d, [x * W, y * H, (x + w) * W, (y + h) * H], e["fill"], e["rad"])
+        x, y, w, h = e["xy"]; rad = e["rad"] * SS
+        _r(d, [x * W, y * H, (x + w) * W, (y + h) * H], e["fill"], rad)
         if e.get("top"):
-            _r(d, [x * W, y * H, (x + w) * W, y * H + 9], e["top"], e["rad"])
-            d.rectangle([x * W, y * H + 5, (x + w) * W, y * H + 9], fill=e["top"])
+            _r(d, [x * W, y * H, (x + w) * W, y * H + u(9)], e["top"], rad)
+            d.rectangle([x * W, y * H + u(5), (x + w) * W, y * H + u(9)], fill=e["top"])
         for i in range(e.get("studs", 0)):
             n = e["studs"]; sx = (x + w * (i + 0.5) / n) * W
-            stud(d, sx, y * H - 7, 9, e.get("scolor") or YELLOW)
+            stud(d, sx, y * H - u(7), u(9), e.get("scolor") or YELLOW)
     elif k == "stud":
         stud(d, e["cx"] * W, e["cy"] * H, e["r"] * W, e["c"])
     elif k == "dot":
         r = e["r"] * W; cx, cy = e["cx"] * W, e["cy"] * H
         d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=e["c"])
-        d.ellipse([cx - r, cy - r, cx + r, cy - r * 0.2], fill=rgba("#ffffff", 55))
+        if not e.get("noh"):
+            d.ellipse([cx - r, cy - r, cx + r, cy - r * 0.2], fill=rgba("#ffffff", 55))
+        else:
+            d.ellipse([cx - r, cy - r, cx + r, cy - r * 0.25], fill=rgba("#ffffff", 38))
+    elif k == "poly":
+        pts = [(p[0] * W, p[1] * H) for p in e["pts"]]
+        d.polygon(pts, fill=e["fill"], outline=e.get("outline"))
+    elif k == "ellipse":
+        x, y, w, h = e["xy"]
+        d.ellipse([x * W, y * H, (x + w) * W, (y + h) * H], fill=e["fill"], outline=e.get("outline"))
     elif k == "line":
         d.line([(e["p1"][0] * W, e["p1"][1] * H), (e["p2"][0] * W, e["p2"][1] * H)], fill=e["c"], width=e["w"])
     elif k == "arrow":
         arrow(d, (e["p1"][0] * W, e["p1"][1] * H), (e["p2"][0] * W, e["p2"][1] * H), e["c"], e["w"])
     elif k == "icon":
-        x, y, s, _ = e["xy"]; icon(d, e["name"], x * W, y * H, s * W, e["c"])
+        x, y, s, _ = e["xy"]; px = max(8, int(s * W))
+        t = icon_tile(e["name"], px, e["c"]); base.paste(t, (int(x * W), int(y * H)), t)
     elif k == "emblem":
         emblem(d, e["x"] * W, e["y"] * H, e["h"] * H)
     elif k == "wordmark":
-        xx = e["x"]
+        xx = e["x"]; px = e["px"] * SS
         if xx == "center":
-            f = font("Archivo", e["px"], 800); tw = sum(d.textlength(t, font=f) for t, _ in WORDMARK)
+            f = font("Nunito", px, 800); tw = sum(d.textlength(t, font=f) for t, _ in WORDMARK)
             xx = (W - tw) / 2 / W
-        wordmark(d, xx * W, e["y"] * H, e["px"])
+        wordmark(d, xx * W, e["y"] * H, px)
     elif k == "photo":
         x, y, w, h = e["xy"]; bx, by, bw, bh = x * W, y * H, w * W, h * H
         im = Image.open(e["path"]).convert("RGB")
         fx, fy, fw, fh = fit(im.width, im.height, bx, by, bw, bh)
-        _r(d, [fx - 10, fy - 10, fx + fw + 10, fy + fh + 10], SURFACE, 12)
+        _r(d, [fx - u(8), fy - u(8), fx + fw + u(8), fy + fh + u(8)], SURFACE, u(10))
         base.paste(im.resize((max(1, int(fw)), max(1, int(fh))), Image.LANCZOS), (int(fx), int(fy)))
 
 def render(elements, do_text=True, do_art=True):
@@ -536,8 +803,9 @@ def build_pptx(slides):
                 p.alignment = {"center": PP_ALIGN.CENTER, "right": PP_ALIGN.RIGHT}.get(e.get("align"), PP_ALIGN.LEFT)
                 p.line_spacing = e.get("lead", 1.1)
                 rn = p.add_run(); rn.text = line
-                rn.font.name = e["fam"]; rn.font.size = Pt(e["sz"])
-                rn.font.bold = e.get("w", 400) >= 600; rn.font.color.rgb = rc(e["c"])
+                rn.font.name = "Nunito" if e["fam"] in ("Archivo", "Nunito", "display") else "DM Sans"
+                rn.font.size = Pt(e["sz"]); rn.font.bold = e.get("w", 400) >= 700
+                rn.font.color.rgb = rc(e["c"])
         if notes: s.notes_slide.notes_text_frame.text = notes
     prs.save(OUT_PPTX); print(f"PPTX -> {OUT_PPTX}  ({len(slides)} slides)")
 
