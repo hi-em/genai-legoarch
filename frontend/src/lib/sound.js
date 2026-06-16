@@ -1,10 +1,26 @@
 // Tiny synthesized UI sounds (Web Audio) — no audio assets needed.
 // Respects a persisted mute flag (see useUI in state/store.js).
 let ctx;
-function ac() {
-  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if (ctx.state === "suspended") ctx.resume();
+function build() {
+  if (!ctx) {
+    try { ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch { ctx = null; }
+  }
   return ctx;
+}
+// Construct the AudioContext ONCE, off the animation hot path — call at idle on
+// app start so the first sound never pays the (heavy) constructor cost mid-intro.
+export function warmAudio() { build(); }
+// Resume the autoplay-suspended context on the user's FIRST gesture, so the
+// first audible sound plays immediately instead of after a resume() round-trip.
+export function primeAudio() {
+  const a = build();
+  if (a && a.state === "suspended") a.resume().catch(() => {});
+}
+function ac() {
+  const a = build();
+  if (a && a.state === "suspended") a.resume();
+  return a;
 }
 function muted() {
   try { return localStorage.getItem("lEgoarCh.muted") === "1"; } catch { return false; }
@@ -37,13 +53,13 @@ function snapGate(minMs = 45) {
 // a two-tick "snap" — like two bricks clicking together
 export function playSnap() {
   if (muted() || !snapGate()) return;
-  try { const a = ac(); const t = a.currentTime; blip(430, t, 0.05); blip(700, t + 0.045, 0.05); } catch {}
+  try { const a = ac(); const t = a.currentTime + 0.012; blip(430, t, 0.05); blip(700, t + 0.045, 0.05); } catch {}
 }
 
 // a rising "pop" — for adding to the shelf
 export function playPop() {
   if (muted()) return;
-  try { const a = ac(); const t = a.currentTime; blip(540, t, 0.05, 0.07); blip(900, t + 0.06, 0.09, 0.06); } catch {}
+  try { const a = ac(); const t = a.currentTime + 0.012; blip(540, t, 0.05, 0.07); blip(900, t + 0.06, 0.09, 0.06); } catch {}
 }
 
 // a warm rising C–E–G arpeggio (sine) — the "set complete" payoff at the
@@ -52,7 +68,7 @@ export function playPop() {
 export function playReveal() {
   if (muted()) return;
   try {
-    const a = ac(); const t = a.currentTime;
+    const a = ac(); const t = a.currentTime + 0.012;
     blip(523.25, t, 0.14, 0.06, "sine");
     blip(659.25, t + 0.10, 0.16, 0.06, "sine");
     blip(783.99, t + 0.22, 0.30, 0.07, "sine");
@@ -62,12 +78,12 @@ export function playReveal() {
 // a bright rising third — you called the set right (CallSheet scorecard)
 export function playWin() {
   if (muted()) return;
-  try { const a = ac(); const t = a.currentTime; blip(660, t, 0.08, 0.06, "sine"); blip(990, t + 0.08, 0.18, 0.06, "sine"); } catch {}
+  try { const a = ac(); const t = a.currentTime + 0.012; blip(660, t, 0.08, 0.06, "sine"); blip(990, t + 0.08, 0.18, 0.06, "sine"); } catch {}
 }
 
 // a soft descending blip — missed the call. Gentle triangle, never a buzzer:
 // a live demo wants a wink, not an alarm.
 export function playLose() {
   if (muted()) return;
-  try { const a = ac(); const t = a.currentTime; blip(392, t, 0.10, 0.05, "triangle"); blip(311, t + 0.09, 0.18, 0.05, "triangle"); } catch {}
+  try { const a = ac(); const t = a.currentTime + 0.012; blip(392, t, 0.10, 0.05, "triangle"); blip(311, t + 0.09, 0.18, 0.05, "triangle"); } catch {}
 }

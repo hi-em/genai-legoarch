@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Upload, X, Box, Star, RotateCcw, Volume2, VolumeX, Copy, SlidersHorizontal, Play, Boxes, CheckCircle2 } from "lucide-react";
+import { Sparkles, Upload, X, Box, Star, RotateCcw, Volume2, VolumeX, MousePointer2, Copy, SlidersHorizontal, Play, Boxes, CheckCircle2 } from "lucide-react";
 import { generate, generateMesh, legolizeMesh, getSetCopy, latestMesh } from "../api.js";
 import { useBuild, useCollection, useView, useUI, derivePhase, isShelfDupe } from "../state/store.js";
 import { hasWebGL } from "../lib/webgl.js";
@@ -45,6 +45,8 @@ export default function HeroFlow() {
   const showView = useView((s) => s.show);
   const muted = useUI((s) => s.muted);
   const toggleMute = useUI((s) => s.toggleMute);
+  const brickCursor = useUI((s) => s.cursor);
+  const toggleCursor = useUI((s) => s.toggleCursor);
   // Phase is a pure DERIVATION of the store — never component state. HMR
   // remounts, Collection round-trips and refreshes always land on whatever
   // the data supports; in-flight work keeps its waiting panel because
@@ -460,6 +462,14 @@ export default function HeroFlow() {
             className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-on-dark hover:bg-white/20"
           >
             {muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+          </button>
+          <button
+            onClick={toggleCursor}
+            aria-label={brickCursor ? "Use the normal cursor" : "Use the brick cursor"}
+            title={brickCursor ? "Brick cursor on" : "Brick cursor off"}
+            className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-on-dark hover:bg-white/20"
+          >
+            <MousePointer2 size={15} className={brickCursor ? "" : "opacity-40"} />
           </button>
           <button
             onClick={() => showView("collection")}

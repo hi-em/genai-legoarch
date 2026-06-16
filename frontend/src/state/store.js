@@ -1,14 +1,22 @@
 import { create } from "zustand";
 import { DEFAULTS } from "../hero/tinkerParams.js";
 
-// ---------- global chrome: sound mute (read by lib/sound.js) ----------
+// ---------- global chrome: sound mute (read by lib/sound.js) + brick cursor ----------
 const initMuted = (() => { try { return localStorage.getItem("lEgoarCh.muted") === "1"; } catch { return false; } })();
+// brick cursor defaults ON; only "0" turns it off (so first-time visitors get the fun touch)
+const initCursor = (() => { try { return localStorage.getItem("lEgoarCh.cursor") !== "0"; } catch { return true; } })();
 export const useUI = create((set) => ({
   muted: initMuted,
   toggleMute: () => set((s) => {
     const muted = !s.muted;
     try { localStorage.setItem("lEgoarCh.muted", muted ? "1" : "0"); } catch {}
     return { muted };
+  }),
+  cursor: initCursor,
+  toggleCursor: () => set((s) => {
+    const cursor = !s.cursor;
+    try { localStorage.setItem("lEgoarCh.cursor", cursor ? "1" : "0"); } catch {}
+    return { cursor };
   }),
 }));
 

@@ -60,3 +60,53 @@
     opacity: 0.9;
   }
 }
+
+/* ---- brick cursor (CustomCursor.jsx) ----
+   When active, the native pointer is hidden everywhere except text fields (which
+   keep the I-beam so typing feels right); the floating brick element shows. */
+.bf-cursor-on,
+.bf-cursor-on * { cursor: none !important; }
+.bf-cursor-on input,
+.bf-cursor-on textarea,
+.bf-cursor-on [contenteditable] { cursor: text !important; }
+
+.bf-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 99999;
+  pointer-events: none;
+  will-change: transform;
+  /* a short transform transition gives a gentle trail without any rAF loop */
+  transition: transform 45ms ease-out;
+}
+.bf-cursor-inner {
+  position: relative;
+  transition: transform 140ms ease;
+}
+.bf-cursor[data-mode="hover"] .bf-cursor-inner { transform: scale(1.06) rotate(-6deg); }
+.bf-cursor-inner img {
+  position: absolute;
+  left: -7px;            /* hotspot ≈ the brick's top-left corner */
+  top: -6px;
+  width: 42px;
+  height: 42px;
+  max-width: none;       /* Tailwind preflight `img{max-width:100%}` + a 0-width
+                            positioned parent was clamping the brick to 0px wide */
+  max-height: none;
+  display: block;
+  -webkit-user-drag: none;
+  user-select: none;
+  transition: opacity 130ms ease;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
+}
+.bf-cursor-hand { opacity: 0; }
+.bf-cursor[data-mode="hover"] .bf-cursor-brick { opacity: 0; }
+.bf-cursor[data-mode="hover"] .bf-cursor-hand { opacity: 1; }
+
+.bf-pop .bf-cursor-inner { animation: bf-pop 240ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes bf-pop {
+  0%   { transform: scale(0.72); }
+  55%  { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}

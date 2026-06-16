@@ -41,9 +41,10 @@ const TIMELINE = [
   ["lockup", 4900],
   ["hold", 6100],
 ];
-// review affordance: ?introSlow=3 stretches the gaps between beats (the beat
-// animations themselves keep their real timing) — handy for design review
-const SLOW = Number(new URLSearchParams(window.location.search).get("introSlow")) || 1;
+// Pacing multiplier on the gaps between beats (the beat animations keep their
+// real timing). Default 1.25 = a slightly slower, more graceful ritual; override
+// with ?introSlow=N (e.g. ?introSlow=1 for the original speed, =3 for review).
+const SLOW = Number(new URLSearchParams(window.location.search).get("introSlow")) || 1.25;
 
 const GLYPH_RATIO = 0.62; // mirror of LetterPlate's glyph sizing
 
@@ -78,6 +79,7 @@ export default function LaunchIntro({ onDone }) {
   const fireDone = () => {
     if (doneRef.current) return;
     doneRef.current = true;
+    playSnap();   // the user's click unlocks audio — guarantee an audible snap on entry
     onDoneRef.current?.();
   };
 
@@ -85,6 +87,7 @@ export default function LaunchIntro({ onDone }) {
   // straight out — the hold's Enter CTA is the only exit (plus Esc there).
   const skipToHold = () => {
     if (doneRef.current || holding) return;
+    playSnap();   // first gesture into the hold — unlocks audio + a satisfying snap
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
     setFast(true);
