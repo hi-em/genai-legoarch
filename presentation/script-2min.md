@@ -5,43 +5,25 @@ Conversational pace, humble tone. ~290 words. Pause on the slide changes.
 ---
 
 **01 · Title**
-Name a building, get a LEGO set you can actually order. You just saw it work — now here's what's happening underneath.
+Now here's what's happening behind the sets.
 
 **02 · Why it matters**
 Why bother? Three reasons. It's real bricks, not a render. It's something a client keeps, not foam they bin. And change the design, you only reorder what changed.
 
-**03 · The system**
-Here's the whole pipeline. Two AI models propose the form — a render, then a 3D mesh. Everything after is plain code that proves it builds.
+**03 · The system → 04 · The experience → 05 · The models → 06 · ComfyUI workflows**
+Here's the whole pipeline — and what makes it interesting is that it's generative at every step. You don't draw anything. You describe a building, and two AI models do the imagining: FLUX hallucinates the image, TRELLIS carves it into a 3D mesh — filling in the back the photo can't see. We wrapped that in three small ComfyUI graphs so the input can be text, a sketch, or a photo — same core, one LEGO look. And every step is yours to redo, anytime, from the shelf.
 
-**04 · The experience**
-And every step is yours to redo, anytime, from the shelf.
+**07 · How legolization works → 08 · How colour matches → 09 · Buildable means orderable**
+Now the fun part — turning that generated mesh into something you can actually hold. The mesh is thousands of tiny cubes; we merge them into the biggest legal bricks we can. Same for colour — we snap each voxel to the nearest of 48 real LEGO colours. No invented paint. So every set ends up as a small handful of real parts, in colours those parts were actually made in.
 
-**05 · The models**
-The imagining is just two models. FLUX dreams the picture; TRELLIS carves it into 3D — even the back the photo can't see.
-
-**06 · ComfyUI workflows**
-We wrapped that in three small ComfyUI graphs — text or image in, same core, one LEGO look.
-
-**07 · How legolization works**
-Now the fun part. The mesh is thousands of tiny cubes; we merge them into the biggest legal bricks we can. Fewer parts, same shape.
-
-**08 · How colour matches**
-Same for colour — we snap each voxel to the nearest of 48 real LEGO colours. No invented paint.
-
-**09 · Buildable means orderable**
-So every set is a small handful of real parts, in colours those parts were actually made in.
-
-**10 · The look lives in the LoRA**
-We tested it. The look isn't the prompt, it's the fine-tune — turn it off, plain building; turn it up, the studs snap in.
-
-**11 · −46% bricks**
-Merging colour first really matters — it takes Sagrada from 8,600 pieces to 4,700. Cheaper, simpler, just as stable.
+**10 · The look lives in the LoRA → 11 · −46% bricks**
+The LEGO look itself isn't in the prompt — it's in the fine-tune. Turn the LoRA off, you get a plain building; turn it up, the studs snap in. And the order in which you optimise matters: merging colour before geometry takes Sagrada from 8,600 pieces to 4,700. Cheaper, simpler, just as stable.
 
 **12 · Draft to flagship**
 And you pick the detail, draft to flagship — same connected set every time.
 
 **13 · The honest part**
-And honestly? We tried Gehry's Bilbao. The model followed the curves, but a voxel grid can't hold them — knowing where it breaks is part of the work.
+And honestly? when we tried typing "Gehry." The model built its own version of Gehry — not the Guggenheim Bilbao. But a voxel grid can't hold every curve. Knowing where it breaks is part of the work.
 
 **14 · Inputs → outputs**
 And that's it — from a few words to a boxed set, a booklet, and a parts list you can order. Thanks.
