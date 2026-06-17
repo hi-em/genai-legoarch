@@ -59,6 +59,7 @@ const GLYPH_RATIO = 0.62; // mirror of LetterPlate's glyph sizing
 export default function LaunchIntro({ onDone }) {
   const reduced = useReducedMotion();
   const [beat, setBeat] = useState("idle");
+  const [started, setStarted] = useState(false);
   const [fast, setFast] = useState(false);
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
   const [hovered, setHovered] = useState(null);
@@ -74,6 +75,7 @@ export default function LaunchIntro({ onDone }) {
   onDoneRef.current = onDone;
   const stackRef = useRef(null);
   const ctaWrapRef = useRef(null);
+  const beginWrapRef = useRef(null);
   const lastSnapRef = useRef(0);
 
   const fireDone = () => {
@@ -94,8 +96,19 @@ export default function LaunchIntro({ onDone }) {
     setBeat("hold");
   };
 
+  // The animated build waits for the user's first click so its snaps are
+  // audible (browsers block audio until a gesture). The click ignites the
+  // cascade — and unlocks audio — so the whole build plays WITH sound.
+  const begin = () => {
+    if (started || doneRef.current) return;
+    playSnap();
+    setStarted(true);
+    setBeat("cascade");
+  };
+
   const escRef = useRef(() => {});
-  escRef.current = () => (holding || reduced ? fireDone() : skipToHold());
+  escRef.current = () =>
+    reduced ? fireDone() : !started ? begin() : holding ? fireDone() : skipToHold();
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && escRef.current();
     window.addEventListener("keydown", onKey);
@@ -105,10 +118,15 @@ export default function LaunchIntro({ onDone }) {
   // Beat chain — cleared on unmount (survives StrictMode double-mount: the
   // first chain is fully cleared in the simulated unmount).
   useEffect(() => {
-    if (reduced) return;
+    if (reduced || !started) return;
     timersRef.current = TIMELINE.map(([name, ms]) => setTimeout(() => setBeat(name), ms * SLOW));
     return () => timersRef.current.forEach(clearTimeout);
-  }, [reduced]);
+  }, [reduced, started]);
+
+  // Focus the "build" button while we wait, so keyboard users can just hit Enter.
+  useEffect(() => {
+    if (!reduced && !started) beginWrapRef.current?.querySelector("button")?.focus();
+  }, [reduced, started]);
 
   // The hold is indefinite, so resizes must re-layout (debounced).
   useEffect(() => {
@@ -235,7 +253,7 @@ export default function LaunchIntro({ onDone }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.45, ease: "easeOut" }}
-      onClick={holding ? undefined : skipToHold}
+      onClick={holding ? undefined : started ? skipToHold : begin}
     >
       {/* the wall of training photos, anchored to the viewport center */}
       <div
@@ -348,6 +366,27 @@ export default function LaunchIntro({ onDone }) {
         )}
       </div>
 
+      {/* begin gate — the build waits here for the first click so the cascade's
+          snaps are audible (browsers mute audio until a user gesture) */}
+      {!started && (
+        <motion.div
+          className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-5 px-6 text-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+        >
+          <p className="max-w-[440px] font-display text-2xl font-black leading-tight text-on-dark sm:text-3xl">
+            Watch 40 LEGO sets teach a model one word.
+          </p>
+          <div ref={beginWrapRef}>
+            <Button variant="primary" className="pointer-events-auto" onClick={(e) => { e.stopPropagation(); begin(); }}>
+              ▶ Build the wall
+            </Button>
+          </div>
+          <p className="text-nano text-on-dark-muted">click anywhere to begin · sound on</p>
+        </motion.div>
+      )}
+
       {/* center stack: ALWAYS mounted at final layout (opacity 0 until the
           hold) so the 8 char rects can be measured before the lockup flight */}
       <div
@@ -395,8 +434,8 @@ export default function LaunchIntro({ onDone }) {
         </motion.div>
       </div>
 
-      {/* skip — jumps to the hold, not out */}
-      {!holding && (
+      {/* skip — jumps to the hold, not out (only once the build is running) */}
+      {started && !holding && (
         <motion.button
           onClick={(e) => {
             e.stopPropagation();
