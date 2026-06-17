@@ -18,6 +18,7 @@ import { toPng } from "html-to-image";
 import { jsPDF } from "jspdf";
 import LogoMark from "../components/brand/LogoMark.jsx";
 import Wordmark from "../components/brand/Wordmark.jsx";
+import { setPrice } from "../lib/pricing.js";
 import { buildBookletPages } from "./bookletPages.js";
 import { useStepThumbs } from "./useStepThumbs.js";
 
@@ -330,7 +331,8 @@ export default function BookletView({ brickModel, setCopy = {}, imageUrl = null 
 
   const setNumber = cover.number || `#${(hashString(cover.name) % 9000 + 1000)}`;
   const designer = "lEgoarCh Studio"; // the studio signature — never the set title
-  const price = `$${(cover.nBricks * 0.12).toFixed(2)}`;
+  // same canonical build-cost as the box back panel + the Pieces & Prices table
+  const price = `$${Math.round(setPrice(brickModel)).toLocaleString()}`;
   const lastCourse = Math.max(0, cover.nCourses - 1);
 
   // pre-render all step thumbs once; priority near the visible page

@@ -19,7 +19,30 @@ export const MODEL_BRICK_BUDGET = 60000;
 
 // Diorama composition: the retail box sits at the back of the compartment
 // (slightly left, yawed toward the viewer), the built model stands in front.
-export const BOX_SCALE = 2.25;     // box size in world units (BOX.* × this)
+export const BOX_SCALE = 2.25;     // legacy constant; live boxes use boxScaleFor()
+
+// ---- size ∝ set ----------------------------------------------------------
+// A set with more pieces should READ as a physically bigger box + model on the
+// shelf. Piece counts span a huge range (a few k → 40k+), so we compress with a
+// square root and normalise against the LARGEST set currently on the shelf: the
+// biggest set fills its compartment, every other set scales down proportionally
+// — never up (fitScale still caps the model to the cell). One set on the shelf
+// → it is its own max → full size.
+export const BOX_SCALE_MIN = 1.65; // smallest set's box (world units, BOX.* ×)
+export const BOX_SCALE_MAX = 2.4;  // biggest set's box — stays within the cell
+
+// 0..1 size weight for a set, given the collection's largest piece count.
+export function sizeFrac(nBricks, maxBricks) {
+  const n = Math.sqrt(Math.max(1, nBricks || 1));
+  const m = Math.sqrt(Math.max(1, maxBricks || 1, nBricks || 1));
+  return Math.min(1, n / m);
+}
+// Box scale for a size weight: the bigger the set, the bigger the carton.
+export const boxScaleFor = (frac) => BOX_SCALE_MIN + (BOX_SCALE_MAX - BOX_SCALE_MIN) * frac;
+// Model gets the same relative treatment but keeps a floor so a small set's
+// build stays readable rather than shrinking to a speck (multiplies fitScale,
+// so it only ever shrinks from the cell-fit — never overflows).
+export const modelScaleFrac = (frac) => 0.7 + 0.3 * frac;
 export const BOX_X = -0.35;        // box x offset from the compartment centre
 export const BOX_Z = 0.95;         // box depth position (back of the diorama)
 export const BOX_YAW = 0.12;       // box yaw toward the viewer (rad, about Y)

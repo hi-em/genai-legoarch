@@ -16,6 +16,7 @@ import { Box, Image as ImageIcon, Boxes, BookOpen, Download } from "lucide-react
 import { Lightbox } from "../../components/ui/index.js";
 import { ClosedCarton } from "../../transition/PackingScene.jsx";
 import { BOX, buildFrontTexture, buildBackTexture } from "../../lib/boxTexture.js";
+import { setPrice } from "../../lib/pricing.js";
 import MeshViewer from "../../viewer/MeshViewer.jsx";
 import { downloadDataUrl } from "./downloadImage.js";
 
@@ -91,6 +92,7 @@ function TabButton({ active, icon: Icon, label, onClick }) {
 
 export default function SetInspector({ open, onClose, imageUrl, setCopy, brickModel, glbName }) {
   const pieces = brickModel?.stability?.nBricks ?? brickModel?.bricks?.length;
+  const price = useMemo(() => setPrice(brickModel), [brickModel]); // box back panel = priced-set total
   const meshUrl = glbName ? `/api/mesh/${glbName}` : null;
   const [tab, setTab] = useState("box");
   const [tex, setTex] = useState({ front: null, back: null });
@@ -105,13 +107,13 @@ export default function SetInspector({ open, onClose, imageUrl, setCopy, brickMo
     let alive = true; let f = null; let b = null;
     Promise.all([
       buildFrontTexture({ imageUrl, setCopy, pieces, width: 1280 }),
-      buildBackTexture({ imageUrl, setCopy, pieces, width: 1280 }),
+      buildBackTexture({ imageUrl, setCopy, pieces, price, width: 1280 }),
     ]).then(([ft, bt]) => {
       if (alive) { f = ft; b = bt; setTex({ front: ft, back: bt }); }
       else { ft.dispose?.(); bt.dispose?.(); }
     });
     return () => { alive = false; f?.dispose?.(); b?.dispose?.(); setTex({ front: null, back: null }); };
-  }, [open, imageUrl, setCopy, pieces]);
+  }, [open, imageUrl, setCopy, pieces, price]);
 
   const tabs = [
     { id: "box", label: "Box", icon: Box },

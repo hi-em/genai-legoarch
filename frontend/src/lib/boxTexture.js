@@ -147,7 +147,11 @@ export function buildFrontDataUrl({ imageUrl, setCopy, pieces, width = 720 }) {
 // build" window (the render again), feature bullets, and a spec strip with a
 // faux barcode, price and age. So the 3D carton reads as a printed box on every
 // face, not a black slab with one printed side.
-export function drawBackPanel(ctx, W, H, img, setCopy, pieces) {
+// `price` (USD) is the canonical build-cost from pricing.setPrice — the SAME
+// number the Pieces & Prices table shows. Passed in (not recomputed here) so the
+// box never disagrees with the priced set; falls back to the old flat estimate
+// only if a caller can't supply it.
+export function drawBackPanel(ctx, W, H, img, setCopy, pieces, price) {
   ctx.fillStyle = "#0b0b0e";
   ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = "rgba(64, 180, 190, 0.08)";
@@ -245,7 +249,8 @@ export function drawBackPanel(ctx, W, H, img, setCopy, pieces) {
   ctx.textAlign = "right";
   ctx.fillStyle = "#ffffff";
   ctx.font = `900 ${H * 0.05}px 'DM Sans', system-ui, sans-serif`;
-  if (pieces) ctx.fillText(`$${(pieces * 0.12).toFixed(0)}`, W - m, by + H * 0.078);
+  const dollars = price != null ? price : (pieces ? pieces * 0.12 : null);
+  if (dollars != null) ctx.fillText(`$${Math.round(dollars).toLocaleString()}`, W - m, by + H * 0.078);
   ctx.font = `800 ${H * 0.03}px 'DM Sans', system-ui, sans-serif`;
   const aw = ctx.measureText("18+").width + H * 0.03;
   ctx.fillStyle = "rgba(255,255,255,0.92)";
@@ -260,7 +265,7 @@ export function drawBackPanel(ctx, W, H, img, setCopy, pieces) {
 }
 
 // Same builder shape as the front, for the back panel CanvasTexture.
-export function buildBackTexture({ imageUrl, setCopy, pieces, width = 1280 }) {
+export function buildBackTexture({ imageUrl, setCopy, pieces, price, width = 1280 }) {
   return new Promise((resolve) => {
     const W = width;
     const H = Math.round((width * BOX.BH) / BOX.BW);
@@ -269,7 +274,7 @@ export function buildBackTexture({ imageUrl, setCopy, pieces, width = 1280 }) {
     canvas.height = H;
     const ctx = canvas.getContext("2d");
     const finish = (img) => {
-      drawBackPanel(ctx, W, H, img, setCopy, pieces);
+      drawBackPanel(ctx, W, H, img, setCopy, pieces, price);
       const t = new THREE.CanvasTexture(canvas);
       t.colorSpace = THREE.SRGBColorSpace;
       t.anisotropy = 4;

@@ -69,6 +69,15 @@ export function estimateCost(parts) {
   return { total, lines };
 }
 
+// The ONE canonical build-cost number for a model — the exact figure the Pieces
+// & Prices table headlines and the parts CSV totals to (estimateCost over the
+// real parts list). Every retail surface that quotes a price — the box back
+// panel, the booklet cover — reads this, so the number is identical everywhere
+// (no more flat pieces×$0.12 guess that disagreed with the priced set).
+export function setPrice(brickModel) {
+  return estimateCost(brickModel?.parts || []).total;
+}
+
 // Used-condition resale value of a built set — roughly what you'd recoup parting
 // it out at typical used prices. Reused by the trophy/collection views.
 const RESELL_FACTOR = 0.55;

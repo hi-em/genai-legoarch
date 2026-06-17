@@ -22,19 +22,25 @@ import { STYLE_SUFFIX as TAIL } from "../lib/promptGrammar.js";
 export const EXAMPLES = [
   {
     // LEGO's own 21065 (12,060 pcs, the largest set ever) is the fun benchmark:
-    // completed basilica, all 18 towers, deliberately unified tan stone. This
-    // wording (the "v6a" forge) foregrounds the tallest central Tower of Jesus
-    // Christ crowned with a cross — owner-selected after a render exploration.
+    // completed basilica, all 18 towers, unified tan stone. Tuned to the 21065
+    // box art but RESTRAINED on colour: the tall spires lead with white
+    // star/cross finials and Gaudí's red-and-gold ceramic "fruit" accents are
+    // kept small + sparse on the lower apostle towers only (an earlier "bright
+    // … clusters" wording crowned nearly every spire and read overwhelming).
     label: "Sagrada Família",
     prompt:
       "Sagrada Família Barcelona Antoni Gaudí, LEGO Architecture set, the " +
       "completed basilica as one unified tan-stone massing of eighteen fused " +
-      "tapering openwork towers in a dense vertical cluster, the tallest " +
+      "tapering openwork spires rising in a stepped cluster, the tallest " +
       "central Tower of Jesus Christ a stout fused spire rising far above the " +
-      "others and crowned with a cross, smooth tan and dark tan plastic " +
-      "bricks, vertical lacework stone with pointed pinnacles and tracery, " +
-      "stepped apse on a solid display podium, warm tan sandstone throughout, " +
-      "dark tan recess shadows, pearl-gold pinnacle tips, " + TAIL,
+      "rest and crowned with a white cross, the slender towers led by white " +
+      "star finials with only the lower apostle towers tipped with small " +
+      "red-and-gold fruit finials, smooth tan and dark tan plastic bricks, " +
+      "vertical lacework stone with pointed pinnacles and tracery, gabled " +
+      "portico and stepped apse on a solid dark display base with a few small " +
+      "dark green trees, warm tan sandstone throughout, soft dark tan recess " +
+      "shadows, sparse red and golden yellow fruit accents, white pinnacle " +
+      "stars and cross, " + TAIL,
   },
   {
     // The organic-form showcase. Shells are segments of ONE 75.2 m sphere in
@@ -51,16 +57,27 @@ export const EXAMPLES = [
   },
   {
     // The color story — interlocking prismatic massing, proven live in-app.
+    // Tuned to Bofill's real scheme + the aerial reference: VERTICAL walls in
+    // reds + pinks vs HORIZONTAL terraces/stairs in blues + violets, sunken
+    // blue pool, cypress trees. Revised AGAIN after a forge read too square/
+    // blocky — dropped "monolithic … solid plinth/fortress" (those forced a
+    // cube) for an ARTICULATED notched cross-plan of varying-height volumes and
+    // a labyrinth of external stairs at many levels.
     label: "La Muralla Roja",
     prompt:
-      "La Muralla Roja Calpe Ricardo Bofill, LEGO Architecture set, " +
-      "interlocking Greek-cross towers forming a stepped casbah-like " +
-      "fortress around inner courtyards, rooftop terraces with external " +
-      "staircases descending between volumes, smooth dark red and coral " +
-      "plastic bricks, repeating vertical slot openings and crisp parapet " +
-      "edges, monolithic interlocked massing on a solid plinth, dark red " +
-      "outer walls, coral pink courtyards, medium lavender and sand blue " +
-      "stairwells, " + TAIL,
+      "La Muralla Roja Calpe Ricardo Bofill, LEGO Architecture set, a cluster " +
+      "of interlocking Greek-cross towers fused into one connected massing " +
+      "with a deeply notched, stepped silhouette, projecting and recessed " +
+      "cubic volumes at varying heights and re-entrant corners cut deep into a " +
+      "cross-shaped plan, deep open courtyards, a sunken blue pool and a " +
+      "labyrinth of external staircases zig-zagging between the volumes at many " +
+      "levels, smooth dark red and coral plastic bricks, crisp parapet edges, " +
+      "vertical slot windows and crenellated stepped rooflines, the vertical " +
+      "walls in reds and pinks against blue and violet horizontal terraces and " +
+      "stairs, interlocked cruciform massing on a slim dark display base, deep " +
+      "red and coral outer walls, soft pink inner courtyard faces, medium blue " +
+      "and sand blue rooftop terraces and pool, medium lavender stairs, dark " +
+      "green cypress trees on the terraces, " + TAIL,
   },
   {
     // The metallic curve. Gehry's titanium volumes read as one fused sculptural
@@ -81,17 +98,24 @@ export const EXAMPLES = [
   {
     // The multicolor pick — the set's only candy-bright palette. Domes ride on
     // STOUT drums on a shared fused gallery so the slim onion necks don't pinch
-    // off in voxelization.
+    // off in voxelization. Tuned to the references: a red-brick central TENT
+    // crowned with a small gold dome, every onion dome uniquely coloured +
+    // patterned (the iconic blue-and-white spiral stripe, green/gold twists,
+    // diamond-lattice facets), green gallery roofs, white kokoshnik gables.
     label: "Saint Basil's Cathedral",
     prompt:
-      "Saint Basil's Cathedral Moscow Red Square, LEGO Architecture set, " +
-      "nine onion-domed chapels clustered symmetrically around a tall central " +
-      "tented spire, all fused onto one shared raised gallery, bulbous domes " +
-      "on stout cylindrical drums, smooth red and white plastic bricks, " +
-      "candy-striped spiral and faceted onion domes with patterned brickwork " +
-      "and pointed arched gables, raised arcaded gallery podium with covered " +
-      "staircases, scarlet red brick walls, white trim, dark green, blue, " +
-      "golden yellow and orange spiral domes, pearl gold cupola tips, " + TAIL,
+      "Saint Basil's Cathedral Moscow Red Square, LEGO Architecture set, eight " +
+      "onion-domed chapels of differing heights clustered symmetrically around " +
+      "a taller central red-brick tented tower crowned with a small golden " +
+      "onion dome and cross, all fused onto one shared raised gallery, bulbous " +
+      "onion domes on stout cylindrical drums, smooth red and white plastic " +
+      "bricks, each dome uniquely coloured and patterned — twisted spirals, " +
+      "vertical stripes and diamond-lattice facets, no two alike — over " +
+      "red-and-white patterned walls with white blind arcades and stacked " +
+      "pointed kokoshnik gables, raised arcaded gallery podium with covered " +
+      "staircases and green gallery roofs, scarlet red brick walls, white " +
+      "trim, one blue-and-white spiral-striped dome, dark green, golden yellow " +
+      "and orange spiral domes, pearl gold central cupola, " + TAIL,
   },
   {
     // The ancient monolith. One continuous fused oval ring with a thick solid

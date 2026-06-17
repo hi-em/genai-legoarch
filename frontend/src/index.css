@@ -77,8 +77,9 @@
   z-index: 99999;
   pointer-events: none;
   will-change: transform;
-  /* a short transform transition gives a gentle trail without any rAF loop */
-  transition: transform 45ms ease-out;
+  /* NO transform transition: the brick tracks the pointer instantly. A trailing
+     transition made the visible brick lag the real hit point, so clicks felt
+     laggy and missed their target. */
 }
 .bf-cursor-inner {
   position: relative;
@@ -87,10 +88,12 @@
 .bf-cursor[data-mode="hover"] .bf-cursor-inner { transform: scale(1.06) rotate(-6deg); }
 .bf-cursor-inner img {
   position: absolute;
-  left: -7px;            /* hotspot ≈ the brick's top-left corner */
-  top: -6px;
-  width: 42px;
-  height: 42px;
+  /* sized to a normal pointer (~22px) with the hotspot at the brick's top-left
+     tip, so what you aim is what you click */
+  left: -3px;
+  top: -2px;
+  width: 22px;
+  height: 22px;
   max-width: none;       /* Tailwind preflight `img{max-width:100%}` + a 0-width
                             positioned parent was clamping the brick to 0px wide */
   max-height: none;
@@ -98,7 +101,8 @@
   -webkit-user-drag: none;
   user-select: none;
   transition: opacity 130ms ease;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
+  /* a light shadow — a heavier drop-shadow re-rasterized on every pointer move */
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.4));
 }
 .bf-cursor-hand { opacity: 0; }
 .bf-cursor[data-mode="hover"] .bf-cursor-brick { opacity: 0; }

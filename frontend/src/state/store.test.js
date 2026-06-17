@@ -34,6 +34,45 @@ describe("useCollection.add", () => {
   });
 });
 
+describe("useCollection.add — same-name replacement (the two-St-Basils bug)", () => {
+  const named = (id, title, nBricks) => ({
+    id, title, nBricks, brickModel: { grid: [1, 1, 1] }, created_at: `${id}`,
+  });
+
+  it("replaces a same-name set IN PLACE — no duplicate, no eviction of others", () => {
+    useCollection.getState().add(named("sagrada", "Sagrada Família", 4000)); // oldest
+    useCollection.getState().add(named("muralla", "La Muralla Roja", 3000));
+    useCollection.getState().add(named("basil-1", "St Basil's Cathedral", 5000));
+
+    // pack a SECOND St Basil (new build, different brick count)
+    const res = useCollection.getState().add(named("basil-2", "St Basil's Cathedral", 9000));
+    const items = useCollection.getState().items;
+
+    expect(res).toEqual({ savedNew: true, dropped: 0 });
+    expect(items).toHaveLength(3);                                  // not 4 — replaced, not added
+    // the St Basil entry kept its slot and now holds the new build…
+    expect(items.map((i) => i.id)).toEqual(["basil-2", "muralla", "sagrada"]);
+    expect(items.find((i) => i.title === "St Basil's Cathedral").nBricks).toBe(9000);
+    // …and the unrelated buildings are untouched
+    expect(items.find((i) => i.id === "sagrada").nBricks).toBe(4000);
+    expect(items.find((i) => i.id === "muralla").nBricks).toBe(3000);
+  });
+
+  it("matches names case/space-insensitively", () => {
+    useCollection.getState().add(named("a", "  Eiffel Tower ", 100));
+    useCollection.getState().add(named("b", "eiffel tower", 200));
+    const items = useCollection.getState().items;
+    expect(items).toHaveLength(1);
+    expect(items[0].id).toBe("b");
+  });
+
+  it("adds a brand-new building when no same-name set exists", () => {
+    useCollection.getState().add(named("a", "Sagrada Família", 100));
+    useCollection.getState().add(named("b", "Guggenheim Bilbao", 200));
+    expect(useCollection.getState().items.map((i) => i.id)).toEqual(["b", "a"]);
+  });
+});
+
 describe("useCollection.update — Task 4 re-tune replaces in place", () => {
   it("updates the edited set by id WITHOUT dropping any unrelated set", () => {
     useCollection.getState().add(mk("sagrada", 4242)); // oldest

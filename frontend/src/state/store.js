@@ -20,58 +20,115 @@ export const useUI = create((set) => ({
   }),
 }));
 
-// ---------- collection shelf — persisted to localStorage (survives reloads) ----------
+// ---------- collection shelf — persisted to IndexedDB (survives reloads) ----------
 // Each saved set carries its full brickModel + setCopy + a render thumbnail so it
-// can be reopened (3D viewer + trophies) offline. Capped + quota-safe so a long
-// collection of large sets can't exceed the ~5MB localStorage budget.
-const SHELF_KEY = "lEgoarCh.shelf.v2";
-const SHELF_CAP = 20;
-function loadShelf() {
-  try { return JSON.parse(localStorage.getItem(SHELF_KEY)) || []; } catch { return []; }
+// can be reopened (3D viewer + trophies) offline. A single flagship build (a
+// detail-48 model can be tens of thousands of bricks) serializes to several MB —
+// past localStorage's ~5 MB budget — so the shelf lives in IndexedDB, whose quota
+// is hundreds of MB to GB. That is what lets a real collection of large sets
+// coexist: a big new set NEVER has to evict the others to fit. (The old
+// localStorage shelf dropped the oldest sets on quota pressure, silently deleting
+// unrelated buildings — e.g. packing two large sets wiped Sagrada/Muralla.)
+const SHELF_KEY = "lEgoarCh.shelf.v2";   // legacy localStorage key (migrated in once)
+const SHELF_CAP = 20;                     // hard cap on COUNT (≥10); never byte-evicts
+
+// -- IndexedDB key/value: one record holds the whole shelf array --
+const IDB_DB = "lEgoarCh", IDB_STORE = "kv", IDB_KEY = "shelf.v2";
+let _idb = null;
+function openIdb() {
+  if (_idb) return _idb;
+  _idb = new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") { reject(new Error("no-idb")); return; }
+    const req = indexedDB.open(IDB_DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return _idb;
 }
-function saveShelf(items) {
-  let list = items.slice(0, SHELF_CAP);
-  if (list.length === 0) {                 // legitimately empty (e.g. removed the last set)
-    try { localStorage.setItem(SHELF_KEY, "[]"); } catch {}
-    return [];
-  }
-  while (list.length) {
-    try { localStorage.setItem(SHELF_KEY, JSON.stringify(list)); return list; }
-    catch { list = list.slice(0, list.length - 1); }   // drop oldest on quota pressure
-  }
-  // A single set alone exceeds the quota — DON'T wipe the shelf to "[]". Keep the
-  // last good persisted collection; the caller reports the add as rejected.
-  return loadShelf();
+function idbGet() {
+  return openIdb().then((db) => new Promise((resolve, reject) => {
+    const rq = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(IDB_KEY);
+    rq.onsuccess = () => resolve(rq.result ?? null);
+    rq.onerror = () => reject(rq.error);
+  }));
 }
+function idbSet(items) {
+  return openIdb().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).put(items, IDB_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+
+// localStorage fallback — node tests + browsers without IndexedDB. Best-effort:
+// a too-large set just won't persist here, but it NEVER drops the other sets.
+function lsLoad() { try { return JSON.parse(localStorage.getItem(SHELF_KEY)) || []; } catch { return []; } }
+function lsSave(items) { try { localStorage.setItem(SHELF_KEY, JSON.stringify(items)); } catch {} }
+
+// Persist the whole shelf. IndexedDB is the source of truth; fall back to
+// localStorage only where IDB is unavailable. Async + fire-and-forget — the
+// in-memory store is what the UI reads, so a write is never lost mid-session.
+function persistShelf(items) { idbSet(items).catch(() => lsSave(items)); }
+
+// Two sets are "the same building" when their display titles match (case/space
+// insensitive). Packing a new version of an existing building REPLACES it in
+// place rather than piling up duplicates (see add()).
+const sameName = (a, b) => {
+  const ka = (a?.title || "").trim().toLowerCase();
+  return !!ka && ka === (b?.title || "").trim().toLowerCase();
+};
+
 export const useCollection = create((set, get) => ({
-  items: loadShelf(),
-  // Returns { savedNew, dropped }: whether the NEW set actually persisted, and how
-  // many OLDER sets quota-pressure evicted to make room — so the caller can be
-  // honest (never claim "saved" when storage rejected it, never wipe the shelf).
-  add: (item) => {
-    const wanted = [item, ...get().items];
-    const items = saveShelf(wanted);
-    set({ items });
-    const savedNew = items.some((i) => i.id === item.id);
-    return { savedNew, dropped: savedNew ? Math.max(0, wanted.length - items.length) : 0 };
+  // Instant first paint from the legacy localStorage shelf (if any); hydrate()
+  // then swaps in the authoritative IndexedDB copy and migrates legacy data.
+  items: lsLoad(),
+  hydrate: async () => {
+    try {
+      const fromIdb = await idbGet();
+      if (Array.isArray(fromIdb)) { set({ items: fromIdb.slice(0, SHELF_CAP) }); return; }
+      // first run on IndexedDB — migrate whatever the old localStorage shelf had
+      const legacy = lsLoad();
+      if (legacy.length) { set({ items: legacy.slice(0, SHELF_CAP) }); idbSet(legacy).catch(() => {}); }
+    } catch { /* no IndexedDB — keep the localStorage items already loaded */ }
   },
-  remove: (id) => { const items = saveShelf(get().items.filter((i) => i.id !== id)); set({ items }); },
-  // Replace one set IN PLACE by stable id, preserving its position in the shelf.
-  // Used when re-tuning a packed set: the tuned bricks overwrite the SAME entry
-  // instead of being added as a new one (which would prepend + risk evicting the
-  // oldest set). Count is preserved EXCEPT under genuine quota pressure (a tuned
-  // model larger than before) — saveShelf then drops oldest to fit, so we report
-  // `dropped` too (mirroring add) and the caller surfaces it honestly. Returns
-  // { updated, dropped } so the caller can fall back to add() / tell the truth.
+  // Returns { savedNew, dropped }. The new set ALWAYS saves (IndexedDB has room);
+  // `dropped` is only ever >0 if the shelf was already at the hard COUNT cap.
+  // If a set with the SAME name exists it is replaced in place — no duplicate and
+  // no eviction of other buildings; otherwise the new set is prepended.
+  add: (item) => {
+    const cur = get().items;
+    const idx = cur.findIndex((i) => sameName(i, item));
+    const merged = idx >= 0
+      ? cur.map((i, k) => (k === idx ? item : i))   // same building → replace in place
+      : [item, ...cur];                             // new building → prepend
+    const items = merged.slice(0, SHELF_CAP);
+    set({ items });
+    persistShelf(items);
+    const savedNew = items.some((i) => i.id === item.id);
+    return { savedNew, dropped: savedNew ? Math.max(0, merged.length - items.length) : 0 };
+  },
+  remove: (id) => {
+    const items = get().items.filter((i) => i.id !== id);
+    set({ items });
+    persistShelf(items);
+  },
+  // Replace one set IN PLACE by stable id, preserving its position. Used when
+  // re-tuning a packed set. Never drops another set (IndexedDB has room), so
+  // `dropped` is always 0; the shape mirrors add() for the caller.
   update: (id, patch) => {
     const cur = get().items;
     if (!cur.some((i) => i.id === id)) return { updated: false, dropped: 0 };
-    const items = saveShelf(cur.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+    const items = cur.map((i) => (i.id === id ? { ...i, ...patch } : i));
     set({ items });
-    const updated = items.some((i) => i.id === id);
-    return { updated, dropped: updated ? Math.max(0, cur.length - items.length) : 0 };
+    persistShelf(items);
+    return { updated: true, dropped: 0 };
   },
 }));
+
+// Pull the authoritative shelf out of IndexedDB once, on load (browser only).
+if (typeof window !== "undefined") useCollection.getState().hydrate();
 
 // ---------- top-level view switch (hero create flow <-> collection) ----------
 export const useView = create((set) => ({
