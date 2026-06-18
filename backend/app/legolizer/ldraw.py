@@ -94,8 +94,8 @@ def brick_to_ldraw_line(
     return f"1 {color} {coords} {matrix} {part}.dat"
 
 
-def write_ldr(bricks: Iterable, path: str, title: str = "BrickForge model") -> str:
-    lines = [f"0 {title}", "0 Name: model.ldr", "0 Author: BrickForge", ""]
+def write_ldr(bricks: Iterable, path: str, title: str = "lEgoarCh model") -> str:
+    lines = [f"0 {title}", "0 Name: model.ldr", "0 Author: lEgoarCh", ""]
     for b in bricks:
         part = b.part if hasattr(b, "part") else b[0]
         x = b.x if hasattr(b, "x") else b[1]

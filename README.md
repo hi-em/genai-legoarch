@@ -40,16 +40,19 @@ The backend is the **single source of truth** for the brick layout; the frontend
 
 ---
 
-## Repo layout
+## Repository layout
 
 | Path | What's inside |
 |---|---|
-| `docs/` | [Concept](docs/concept.md), [architecture & flow](docs/architecture.md), [prior art / repos](docs/references.md), [design system](docs/design-system.md), [research](docs/research.md), [ADRs](docs/adr/), [roadmap](docs/plan.md) |
-| `references/` | Trained `legoarch` LoRA + the original ComfyUI workflow JSONs |
-| `comfyui/workflows/` | API-format workflows the backend submits (`flux_txt2img`, `flux_img2img`, `trellis_3d`) |
 | `backend/` | FastAPI service wrapping ComfyUI + the **custom legolizer** + the set-designer persona |
 | `frontend/` | React + three.js hero flow & collection |
-| `samples/` | Example inputs & outputs |
+| `comfyui/workflows/` | API-format workflows the backend submits (`flux_txt2img`, `flux_img2img`, `trellis_3d`) |
+| `references/` | Trained `legoarch` LoRA (git-LFS) + the original ComfyUI workflow JSONs |
+| `docs/` | Narrative docs + evidence — see the [docs index](docs/README.md). Highlights: [concept](docs/concept.md), [architecture](docs/architecture.md), [benchmarks](docs/benchmarks.md), [design system](docs/design-system.md), [ADRs](docs/adr/), [roadmap](docs/plan.md), and the [blog post](docs/blog/legoarch-blog-post.md) |
+| `docs/presentation/` | The deck (`build_deck.py` → PDF/PPTX), the "Studwork" deck design system, and the talk/recording kit in [`talk/`](docs/presentation/talk/) |
+| `scripts/` | Catalog/asset build tools + benchmark figure generators — see the [scripts index](scripts/README.md) |
+| `samples/` | Example inputs & outputs (placeholder for curated examples) |
+| `start-app.ps1` | One-command launcher for the backend + frontend (see below) |
 
 ---
 

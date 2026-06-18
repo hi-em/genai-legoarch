@@ -1,1 +1,1 @@
-"""BrickForge backend package."""
+"""lEgoarCh backend package."""

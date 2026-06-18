@@ -25,6 +25,16 @@ Thumbs.db
 backend/outputs/
 *.ldr.bak
 
+# Deck build output — regenerate with: python docs/presentation/build_deck.py
+docs/presentation/_slides/
+docs/presentation/fonts/_pdf/
+docs/presentation/legoarch-deck.pdf
+docs/presentation/legoarch-deck.pptx
+
+# Local-only reference parking — kept for the team, NOT part of the clean repo.
+# Safe to delete; clean up manually off your desktop when no longer needed.
+/_local-ref/
+
 # Large model weights are tracked via git-LFS (see .gitattributes).
 # If you prefer to keep them out of git entirely, uncomment:
 # references/*.safetensors

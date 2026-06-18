@@ -1,4 +1,4 @@
-"""BrickForge FastAPI app.
+"""lEgoarCh FastAPI app.
 
 Wraps a running ComfyUI (FLUX.2 + legoarch LoRA + TRELLIS) and the custom
 legolizer. Endpoints are defined here as a thin layer; heavy logic lives in
@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from .legolizer import legolize_voxelgrid
 
-app = FastAPI(title="BrickForge API", version="0.0.1")
+app = FastAPI(title="lEgoarCh API", version="0.0.1")
 
 app.add_middleware(
     CORSMiddleware,

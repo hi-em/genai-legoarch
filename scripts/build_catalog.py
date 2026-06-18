@@ -1,4 +1,4 @@
-"""Build the real-parts catalog for lEgoarCh / BrickForge.
+"""Build the real-parts catalog for lEgoarCh.
 
 Downloads the Rebrickable CSV dumps (free for any purpose; we credit
 "data from Rebrickable" in the UI) plus the official LDraw colour config,

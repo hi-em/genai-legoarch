@@ -1,0 +1,104 @@
+<svg viewBox="0 0 1000 430" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8A8175"/>
+    </marker>
+    <marker id="arrB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1257C9"/>
+    </marker>
+  </defs>
+
+  <rect x="2" y="2" width="996" height="426" rx="18" fill="#F6F2EA" stroke="#E6DECF"/>
+
+  <!-- half labels -->
+  <rect x="55" y="56" width="436" height="28" rx="14" fill="#FBEFD9"/>
+  <text x="273" y="74" text-anchor="middle" font-size="13" font-weight="bold" fill="#B8740F" letter-spacing="1.5">AI PROPOSES &#183; probabilistic</text>
+  <rect x="511" y="56" width="436" height="28" rx="14" fill="#E2ECFB"/>
+  <text x="729" y="74" text-anchor="middle" font-size="13" font-weight="bold" fill="#1257C9" letter-spacing="1.5">COMPUTATION PROVES &#183; deterministic</text>
+
+  <!-- divider -->
+  <line x1="501" y1="92" x2="501" y2="250" stroke="#C9BCA6" stroke-width="2" stroke-dasharray="4 5"/>
+
+  <!-- connectors -->
+  <line x1="187" y1="163" x2="205" y2="163" stroke="#8A8175" stroke-width="2.5" marker-end="url(#arr)"/>
+  <line x1="339" y1="163" x2="357" y2="163" stroke="#8A8175" stroke-width="2.5" marker-end="url(#arr)"/>
+  <line x1="489" y1="163" x2="513" y2="163" stroke="#1257C9" stroke-width="3" marker-end="url(#arrB)"/>
+  <line x1="643" y1="163" x2="661" y2="163" stroke="#8A8175" stroke-width="2.5" marker-end="url(#arr)"/>
+  <line x1="795" y1="163" x2="813" y2="163" stroke="#8A8175" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- NODE 1 prompt -->
+  <g>
+    <rect x="55" y="104" width="132" height="118" rx="12" fill="#FFFFFF" stroke="#E0922B" stroke-width="1.5"/>
+    <circle cx="75" cy="124" r="12" fill="#E0922B"/><text x="75" y="129" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">1</text>
+    <g transform="translate(121,148)" fill="none" stroke="#E0922B" stroke-width="2.2" stroke-linejoin="round">
+      <rect x="-18" y="-12" width="36" height="22" rx="5"/><path d="M-8,10 L-8,17 L0,10"/>
+    </g>
+    <text x="121" y="192" text-anchor="middle" font-size="14" font-weight="bold" fill="#2A2622">Prompt</text>
+    <text x="121" y="210" text-anchor="middle" font-size="11" fill="#6B6258">a building name</text>
+  </g>
+
+  <!-- NODE 2 flux -->
+  <g>
+    <rect x="207" y="104" width="132" height="118" rx="12" fill="#FFFFFF" stroke="#E0922B" stroke-width="1.5"/>
+    <circle cx="227" cy="124" r="12" fill="#E0922B"/><text x="227" y="129" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">2</text>
+    <g transform="translate(273,148)" stroke="#E0922B" stroke-width="2.2" fill="none" stroke-linejoin="round">
+      <rect x="-18" y="-14" width="36" height="28" rx="4"/><circle cx="-7" cy="-5" r="4" fill="#E0922B" stroke="none"/><path d="M-15,12 L-3,0 L4,7 L10,1 L15,8"/>
+    </g>
+    <text x="273" y="192" text-anchor="middle" font-size="14" font-weight="bold" fill="#2A2622">FLUX.2 + LoRA</text>
+    <text x="273" y="210" text-anchor="middle" font-size="11" fill="#6B6258">render &#183; 28 steps</text>
+  </g>
+
+  <!-- NODE 3 trellis -->
+  <g>
+    <rect x="359" y="104" width="132" height="118" rx="12" fill="#FFFFFF" stroke="#E0922B" stroke-width="1.5"/>
+    <circle cx="379" cy="124" r="12" fill="#E0922B"/><text x="379" y="129" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">3</text>
+    <g transform="translate(425,148)" stroke="#E0922B" stroke-width="2" fill="none" stroke-linejoin="round">
+      <path d="M0,-15 L16,-6 L16,10 L0,18 L-16,10 L-16,-6 Z"/><path d="M0,-15 L0,18 M-16,-6 L0,4 L16,-6"/>
+    </g>
+    <text x="425" y="192" text-anchor="middle" font-size="14" font-weight="bold" fill="#2A2622">TRELLIS-2</text>
+    <text x="425" y="210" text-anchor="middle" font-size="11" fill="#6B6258">image &#62; 3D mesh</text>
+  </g>
+
+  <!-- NODE 4 voxelize -->
+  <g>
+    <rect x="511" y="104" width="132" height="118" rx="12" fill="#FFFFFF" stroke="#1257C9" stroke-width="1.5"/>
+    <circle cx="531" cy="124" r="12" fill="#1257C9"/><text x="531" y="129" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">4</text>
+    <g transform="translate(577,148)" fill="none" stroke="#1257C9" stroke-width="2">
+      <rect x="-15" y="-15" width="13" height="13"/><rect x="2" y="-15" width="13" height="13"/>
+      <rect x="-15" y="2" width="13" height="13"/><rect x="2" y="2" width="13" height="13"/>
+    </g>
+    <text x="577" y="192" text-anchor="middle" font-size="14" font-weight="bold" fill="#2A2622">Voxelize</text>
+    <text x="577" y="210" text-anchor="middle" font-size="11" fill="#6B6258">32 studs wide</text>
+  </g>
+
+  <!-- NODE 5 legolize -->
+  <g>
+    <rect x="663" y="104" width="132" height="118" rx="12" fill="#FFFFFF" stroke="#1257C9" stroke-width="1.5"/>
+    <circle cx="683" cy="124" r="12" fill="#1257C9"/><text x="683" y="129" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">5</text>
+    <g transform="translate(729,150)">
+      <circle cx="-9" cy="-12" r="4" fill="none" stroke="#1257C9" stroke-width="2"/><circle cx="9" cy="-12" r="4" fill="none" stroke="#1257C9" stroke-width="2"/>
+      <rect x="-18" y="-8" width="36" height="20" rx="3" fill="none" stroke="#1257C9" stroke-width="2"/>
+    </g>
+    <text x="729" y="192" text-anchor="middle" font-size="14" font-weight="bold" fill="#2A2622">Legolize</text>
+    <text x="729" y="210" text-anchor="middle" font-size="11" fill="#6B6258">split + merge</text>
+  </g>
+
+  <!-- NODE 6 set -->
+  <g>
+    <rect x="815" y="104" width="132" height="118" rx="12" fill="#FFFFFF" stroke="#1257C9" stroke-width="1.5"/>
+    <circle cx="835" cy="124" r="12" fill="#1257C9"/><text x="835" y="129" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">6</text>
+    <g transform="translate(881,148)"><circle cx="0" cy="0" r="16" fill="none" stroke="#1B9E54" stroke-width="2.4"/><path d="M-7,0 L-2,6 L8,-7" fill="none" stroke="#1B9E54" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></g>
+    <text x="881" y="192" text-anchor="middle" font-size="14" font-weight="bold" fill="#2A2622">Buildable set</text>
+    <text x="881" y="210" text-anchor="middle" font-size="11" fill="#6B6258">stable &amp; legal</text>
+  </g>
+
+  <!-- outputs -->
+  <line x1="55" y1="296" x2="947" y2="296" stroke="#E0D7C7" stroke-width="1.5"/>
+  <text x="55" y="288" font-size="11" font-weight="bold" fill="#9A8F7E" letter-spacing="1.5">THEN PACKAGED LIKE A PRODUCT</text>
+  <g font-size="12.5" fill="#4A4138" text-anchor="middle">
+    <rect x="76" y="318" width="200" height="40" rx="20" fill="#fff" stroke="#E0D7C7"/><text x="176" y="343">Box art &amp; set number</text>
+    <rect x="292" y="318" width="200" height="40" rx="20" fill="#fff" stroke="#E0D7C7"/><text x="392" y="343">Instruction booklet</text>
+    <rect x="508" y="318" width="200" height="40" rx="20" fill="#fff" stroke="#E0D7C7"/><text x="608" y="343">Priced parts list</text>
+    <rect x="724" y="318" width="200" height="40" rx="20" fill="#fff" stroke="#E0D7C7"/><text x="824" y="343">Collection shelf</text>
+  </g>
+</svg>

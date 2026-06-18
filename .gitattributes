@@ -5,7 +5,7 @@
 *.glb         filter=lfs diff=lfs merge=lfs -text
 *.stl         filter=lfs diff=lfs merge=lfs -text
 *.npz         filter=lfs diff=lfs merge=lfs -text
+*.mp4         filter=lfs diff=lfs merge=lfs -text
 
 # Normalize line endings for text
 * text=auto
-/presentation/S12_charles_emilie_legoarch.mp4 filter=lfs diff=lfs merge=lfs -text
