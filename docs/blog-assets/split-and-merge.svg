@@ -1,0 +1,63 @@
+<svg viewBox="0 0 920 400" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <marker id="sm-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1257C9"/>
+    </marker>
+    <radialGradient id="stud" cx="40%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="2" y="2" width="916" height="396" rx="18" fill="#F6F2EA" stroke="#E6DECF"/>
+
+  <text x="190" y="58" text-anchor="middle" font-size="15" font-weight="bold" fill="#2A2622">One layer of voxels</text>
+  <text x="190" y="78" text-anchor="middle" font-size="12" fill="#6B6258">coloured cubes, all 1&#215;1</text>
+
+  <text x="725" y="58" text-anchor="middle" font-size="15" font-weight="bold" fill="#2A2622">Legal bricks, largest-first</text>
+  <text x="725" y="78" text-anchor="middle" font-size="12" fill="#6B6258">same colour, real part IDs</text>
+
+  <!-- LEFT GRID: 6 cols x 4 rows, cell 40, origin (70,110) -->
+  <g>
+    <!-- region colours: A tan r0-1 c0-3, B blue r0-1 c4-5, C red r2-3 c0-1, D yellow r2-3 c2-3, E grey r2-3 c4-5 -->
+    <!-- row0 -->
+    <g stroke="#F6F2EA" stroke-width="3">
+      <rect x="70"  y="110" width="40" height="40" fill="#C9A66B"/><rect x="110" y="110" width="40" height="40" fill="#C9A66B"/><rect x="150" y="110" width="40" height="40" fill="#C9A66B"/><rect x="190" y="110" width="40" height="40" fill="#C9A66B"/><rect x="230" y="110" width="40" height="40" fill="#2E5FA3"/><rect x="270" y="110" width="40" height="40" fill="#2E5FA3"/>
+      <rect x="70"  y="150" width="40" height="40" fill="#C9A66B"/><rect x="110" y="150" width="40" height="40" fill="#C9A66B"/><rect x="150" y="150" width="40" height="40" fill="#C9A66B"/><rect x="190" y="150" width="40" height="40" fill="#C9A66B"/><rect x="230" y="150" width="40" height="40" fill="#2E5FA3"/><rect x="270" y="150" width="40" height="40" fill="#2E5FA3"/>
+      <rect x="70"  y="190" width="40" height="40" fill="#B23A2E"/><rect x="110" y="190" width="40" height="40" fill="#B23A2E"/><rect x="150" y="190" width="40" height="40" fill="#E0B635"/><rect x="190" y="190" width="40" height="40" fill="#E0B635"/><rect x="230" y="190" width="40" height="40" fill="#8C877D"/><rect x="270" y="190" width="40" height="40" fill="#8C877D"/>
+      <rect x="70"  y="230" width="40" height="40" fill="#B23A2E"/><rect x="110" y="230" width="40" height="40" fill="#B23A2E"/><rect x="150" y="230" width="40" height="40" fill="#E0B635"/><rect x="190" y="230" width="40" height="40" fill="#E0B635"/><rect x="230" y="230" width="40" height="40" fill="#8C877D"/><rect x="270" y="230" width="40" height="40" fill="#8C877D"/>
+    </g>
+  </g>
+
+  <!-- arrow -->
+  <line x1="350" y1="190" x2="430" y2="190" stroke="#1257C9" stroke-width="3.5" marker-end="url(#sm-arr)"/>
+  <text x="390" y="178" text-anchor="middle" font-size="11" font-weight="bold" fill="#1257C9">merge</text>
+
+  <!-- RIGHT GRID merged into bricks, origin (470,110) -->
+  <g>
+    <!-- A: 2x4 tan (r0-1,c0-3) -> x470 y110 w160 h80 -->
+    <g stroke="#7A5A28" stroke-width="2.5">
+      <rect x="470" y="110" width="160" height="80" rx="5" fill="#C9A66B"/>
+      <rect x="630" y="110" width="80"  height="80" rx="5" fill="#2E5FA3"/>
+      <rect x="470" y="190" width="80"  height="80" rx="5" fill="#B23A2E"/>
+      <rect x="550" y="190" width="80"  height="80" rx="5" fill="#E0B635"/>
+      <rect x="630" y="190" width="80"  height="80" rx="5" fill="#8C877D"/>
+    </g>
+    <!-- studs on right: circles at each cell center -->
+    <g fill="#ffffff" fill-opacity="0.30">
+      <circle cx="490" cy="130" r="9"/><circle cx="530" cy="130" r="9"/><circle cx="570" cy="130" r="9"/><circle cx="610" cy="130" r="9"/>
+      <circle cx="490" cy="170" r="9"/><circle cx="530" cy="170" r="9"/><circle cx="570" cy="170" r="9"/><circle cx="610" cy="170" r="9"/>
+      <circle cx="650" cy="130" r="9"/><circle cx="690" cy="130" r="9"/><circle cx="650" cy="170" r="9"/><circle cx="690" cy="170" r="9"/>
+      <circle cx="490" cy="210" r="9"/><circle cx="530" cy="210" r="9"/><circle cx="490" cy="250" r="9"/><circle cx="530" cy="250" r="9"/>
+      <circle cx="570" cy="210" r="9"/><circle cx="610" cy="210" r="9"/><circle cx="570" cy="250" r="9"/><circle cx="610" cy="250" r="9"/>
+      <circle cx="650" cy="210" r="9"/><circle cx="690" cy="210" r="9"/><circle cx="650" cy="250" r="9"/><circle cx="690" cy="250" r="9"/>
+    </g>
+    <!-- part labels -->
+    <g font-size="11" font-weight="bold" fill="#2A2622" text-anchor="middle">
+      <text x="550" y="155">2&#215;4</text><text x="670" y="155">2&#215;2</text><text x="510" y="235">2&#215;2</text><text x="590" y="235">2&#215;2</text><text x="670" y="235">2&#215;2</text>
+    </g>
+  </g>
+
+  <text x="460" y="330" text-anchor="middle" font-size="13.5" fill="#4A4138">For each layer, a greedy search covers the studs with the <tspan font-weight="bold">largest legal brick</tspan> that fits and shares a colour.</text>
+  <text x="460" y="352" text-anchor="middle" font-size="13.5" fill="#4A4138">Bricks first, then plates, then smooth tiles on top. A 1&#215;1 is the guaranteed last resort.</text>
+</svg>

@@ -1,0 +1,46 @@
+<svg viewBox="0 0 920 380" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <marker id="pc-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8A8175"/>
+    </marker>
+  </defs>
+
+  <rect x="2" y="2" width="916" height="376" rx="18" fill="#F6F2EA" stroke="#E6DECF"/>
+
+  <text x="460" y="46" text-anchor="middle" font-size="16" font-weight="bold" fill="#2A2622">Which real LEGO colour is &#8220;closest&#8221;?</text>
+
+  <!-- target -->
+  <text x="125" y="92" text-anchor="middle" font-size="12" font-weight="bold" fill="#6B6258" letter-spacing="1">RENDER COLOUR</text>
+  <rect x="65" y="104" width="120" height="120" rx="10" fill="#6E8E5A" stroke="#4F6A3F" stroke-width="2"/>
+  <text x="125" y="246" text-anchor="middle" font-size="11" fill="#6B6258">a sampled olive-green</text>
+
+  <!-- candidates -->
+  <!-- RGB pick (wrong): a flat grey, "equal RGB distance" -->
+  <line x1="195" y1="150" x2="365" y2="135" stroke="#8A8175" stroke-width="2" marker-end="url(#pc-arr)"/>
+  <line x1="195" y1="178" x2="365" y2="250" stroke="#8A8175" stroke-width="2" marker-end="url(#pc-arr)"/>
+
+  <g>
+    <rect x="375" y="92" width="150" height="92" rx="10" fill="#8E8B7E" stroke="#D8D0C4" stroke-width="2"/>
+    <rect x="375" y="208" width="150" height="92" rx="10" fill="#6FA24A" stroke="#D8D0C4" stroke-width="2"/>
+    <text x="450" y="142" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">a muted grey</text>
+    <text x="450" y="258" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">a clean green</text>
+  </g>
+
+  <!-- distances box -->
+  <g>
+    <text x="600" y="110" font-size="13" font-weight="bold" fill="#B23A2E">RGB distance</text>
+    <text x="600" y="132" font-size="13" fill="#4A4138">says it is a <tspan font-weight="bold">tie.</tspan></text>
+    <text x="600" y="152" font-size="12" fill="#6B6258">Both are the same number</text>
+    <text x="600" y="168" font-size="12" fill="#6B6258">of steps away in R,G,B.</text>
+
+    <line x1="600" y1="186" x2="890" y2="186" stroke="#E0D7C7" stroke-width="1.5"/>
+
+    <text x="600" y="222" font-size="13" font-weight="bold" fill="#1B9E54">CIEDE2000</text>
+    <text x="600" y="244" font-size="13" fill="#4A4138">picks the <tspan font-weight="bold">green.</tspan></text>
+    <text x="600" y="264" font-size="12" fill="#6B6258">It weights lightness, chroma</text>
+    <text x="600" y="280" font-size="12" fill="#6B6258">and hue the way your eye does.</text>
+  </g>
+
+  <text x="460" y="340" text-anchor="middle" font-size="13.5" fill="#4A4138">Plain RGB distance treats every channel equally; your eye does not. We match to the fixed LEGO palette with</text>
+  <text x="460" y="360" text-anchor="middle" font-size="13.5" fill="#4A4138"><tspan font-weight="bold">CIEDE2000</tspan>, the standard for <tspan font-style="italic">perceptual</tspan> colour difference, so &#8220;nearest&#8221; means &#8220;looks right,&#8221; not just &#8220;numerically close.&#8221;</text>
+</svg>
