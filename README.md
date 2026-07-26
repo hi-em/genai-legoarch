@@ -2,7 +2,7 @@
 
 **Generative-AI brick-architecture studio** — type a building and watch it become a *genuinely buildable* LEGO set: rendered, reconstructed in 3D, solved brick by brick, and packaged like a real product. (The capital **E** and **C** in the name are for **E**milie and **C**harles.)
 
-> Academic project — MaCAD (Master in Advanced Computation for Architecture & Design), Generative AI seminar.
+> Academic project — MaCAD (Master in Advanced Computation for Architecture & Design), AIA (Artificial Intelligence in Architecture) Generative AI seminar at IAAC.
 > By **Emilie El Chidiac** & **Charles Abi Chahine**.
 >
 > LEGO® is a trademark of the LEGO Group of companies, which does not sponsor, authorize or endorse this project. This is a non-commercial, academic project; it avoids the LEGO logo, the minifigure, and the trademarked 2×4 brick silhouette, and uses "LEGO" only descriptively (e.g. "built of LEGO bricks"). The visual language is grounded in LEGO's real design system — see [`docs/design-system.md`](docs/design-system.md).
@@ -177,3 +177,32 @@ Optional backend environment variables (defaults shown):
 ## Status
 
 ✅ **Full pipeline live end-to-end** on local ComfyUI: prompt/photo → FLUX render → TRELLIS mesh → voxelize + colour-match → real split-and-merge bricks → assembly → trophies → collection. The legolizer uses real LEGO footprints; colours are matched to the generated render. See the roadmap in [`docs/plan.md`](docs/plan.md).
+
+---
+
+## Honest notes
+
+The parts of the project that are actually worth reading, including the ones that did not work.
+
+- **The most instructive result was a failure.** An intermediate legolizer returned a set that
+  was connected and supported, and still unusable: it did not read as architecture any more. A
+  brick model can satisfy every structural constraint and lose the building. Legibility went
+  into the constraint set after that, which is not a thing we would have thought to specify up
+  front.
+- **The colour pass paid for itself.** TRELLIS leaves a fine speckle of stray colour that,
+  quantized directly, shatters the model into thousands of single-stud pieces. A gentle blur
+  pulling each speck toward its local dominant colour, applied before quantization, cut piece
+  counts by 19% to 46% with no loss of connectivity or support. Sagrada fell from 8,627 to
+  4,682 pieces, Bilbao from 8,168 to 5,830, La Muralla from 9,043 to 7,343. Almost all of the
+  gain came from a step nobody would put in a pitch.
+- **Buildable means digitally verified, and nothing more.** Every footprint is a real BrickLink
+  part, connectivity and support are checked, colours are matched to the render. Nothing here
+  has been assembled by hand. We deliberately kept a physical bricks-on-the-table shot out of
+  the presentation film for exactly that reason: it would have implied a claim the pipeline
+  cannot make.
+- **The price is an estimate, and labelled as one.** Per-part used-market values times quantity,
+  with a deep link out to BrickLink so you can go and price the real thing. It is not live
+  market data and it should not be read as a quote.
+- **The venv notes above are scar tissue.** They are in the README because mixing two Python
+  versions across two setup runs silently corrupted the compiled packages, and the error it
+  produced pointed nowhere near the cause.
