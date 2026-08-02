@@ -54,6 +54,8 @@ The backend is the **single source of truth** for the brick layout; the frontend
 | `samples/` | Example inputs & outputs (placeholder for curated examples) |
 | `start-app.ps1` | One-command launcher for the backend + frontend (see below) |
 
+**Model weights and training images.** `references/legoarch.safetensors` is a LoRA adapter trained for this project on the 40 official LEGO product photographs in `comfyui/legoarch-dataset/`, used for research and study. LEGO is a trademark of the LEGO Group, which does not sponsor, authorise or endorse this project.
+
 ---
 
 ## Running it locally
