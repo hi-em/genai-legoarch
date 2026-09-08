@@ -10,6 +10,7 @@
 // / booklet) or the render image itself.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
+import { apiUrl } from "../../config.js";
 import { OrbitControls, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
 import { Box, Image as ImageIcon, Boxes, BookOpen, Download } from "lucide-react";
@@ -93,7 +94,7 @@ function TabButton({ active, icon: Icon, label, onClick }) {
 export default function SetInspector({ open, onClose, imageUrl, setCopy, brickModel, glbName }) {
   const pieces = brickModel?.stability?.nBricks ?? brickModel?.bricks?.length;
   const price = useMemo(() => setPrice(brickModel), [brickModel]); // box back panel = priced-set total
-  const meshUrl = glbName ? `/api/mesh/${glbName}` : null;
+  const meshUrl = glbName ? apiUrl(`/api/mesh/${glbName}`) : null;
   const [tab, setTab] = useState("box");
   const [tex, setTex] = useState({ front: null, back: null });
   const stageRef = useRef(null);

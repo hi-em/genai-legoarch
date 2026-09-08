@@ -1,0 +1,11 @@
+# Netlify build for the demo-only deployment (docs/deploy.md).
+# The frontend is a subdirectory of the repo — that's what `base` is for.
+# Leave VITE_API_BASE unset here to ship the GPU-offline build; set it in the
+# Netlify UI (Site settings -> Environment) when a backend is actually up.
+[build]
+  base    = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"

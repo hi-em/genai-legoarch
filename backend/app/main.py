@@ -20,9 +20,23 @@ from .legolizer import legolize_voxelgrid
 
 app = FastAPI(title="lEgoarCh API", version="0.0.1")
 
+# The dev origins are always allowed; a deployed frontend lives on some other
+# origin entirely, so add it with ALLOWED_ORIGINS (comma-separated). Without
+# this the browser blocks every call from the deployed site — the failure looks
+# like the backend is down when it is in fact running fine.
+_DEV_ORIGINS = [
+    "http://localhost:5173", "http://127.0.0.1:5173",
+    "http://localhost:5175", "http://127.0.0.1:5175",
+]
+_EXTRA_ORIGINS = [
+    o.strip().rstrip("/")
+    for o in os.environ.get("ALLOWED_ORIGINS", "").split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_DEV_ORIGINS + _EXTRA_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -98,6 +112,39 @@ class SetCopyReq(BaseModel):
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {"ok": True, "comfyui_url": COMFYUI_URL, "comfyui_3d_url": COMFYUI_3D_URL}
+
+
+def _comfy_up(base: str, timeout: float = 1.5) -> bool:
+    """Is a ComfyUI actually answering at `base`? Cheap GET, short timeout."""
+    import httpx
+
+    try:
+        r = httpx.get(f"{base}/system_stats", timeout=timeout)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
+@app.get("/capabilities")
+def capabilities() -> dict[str, Any]:
+    """Which pipeline stages can actually run right now.
+
+    The frontend asks this on load so the GPU steps can announce themselves as
+    offline BEFORE the user spends a click on them. The two ComfyUI servers are
+    the expensive, frequently-absent half: the deployed site is usually up with
+    the GPU box switched off (see docs/deploy.md), and a disabled button with a
+    reason reads very differently from a 4-minute wait ending in "didn't
+    finish". The CPU legolizer needs no GPU, so it is up whenever we are.
+    """
+    flux = _comfy_up(COMFYUI_URL)
+    trellis = _comfy_up(COMFYUI_3D_URL)
+    return {
+        "backend": True,
+        "image": flux,        # /generate-image  (FLUX + legoarch LoRA)
+        "mesh": trellis,      # /generate-mesh   (TRELLIS-2)
+        "bricks": True,       # /legolize-mesh   (CPU only — always available)
+        "gpu": flux and trellis,
+    }
 
 
 @app.post("/generate-image")

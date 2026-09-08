@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Upload, X, Box, Star, RotateCcw, Volume2, VolumeX, MousePointer2, Copy, SlidersHorizontal, Play, Boxes, CheckCircle2 } from "lucide-react";
 import { generate, generateMesh, legolizeMesh, getSetCopy, latestMesh } from "../api.js";
+import { apiUrl, HAS_BACKEND } from "../config.js";
+import { useCapabilities, gpuOffline } from "../lib/backendStatus.js";
 import { useBuild, useCollection, useView, useUI, derivePhase, isShelfDupe } from "../state/store.js";
 import { hasWebGL } from "../lib/webgl.js";
 import { useReducedMotion } from "../lib/useReducedMotion.js";
@@ -62,6 +64,11 @@ export default function HeroFlow() {
   const relegolizedSincePack = useBuild((s) => s.relegolizedSincePack);
   const { startJob, finishJob, failJob, cancelJob, dismissPendingJob } = useBuild.getState();
   const reduced = useReducedMotion();
+  // The GPU behind the two ComfyUI servers is not always switched on (the
+  // deployed site outlives it — see docs/deploy.md). Probed once per load so
+  // the intro can offer the sample build instead of a button that cannot work.
+  const { caps, checking, refresh: recheckGpu } = useCapabilities();
+  const offline = gpuOffline(caps);
   const [text, setText] = useState(prompt || "");
   const [photo, setPhoto] = useState(null);
   const fileRef = useRef(null);
@@ -425,7 +432,7 @@ export default function HeroFlow() {
                 onClick={() => {
                   set({
                     prompt: pendingJob.prompt || "",
-                    glbUrl: `/api/mesh/${pendingJob.glbName}`,
+                    glbUrl: apiUrl(`/api/mesh/${pendingJob.glbName}`),
                     glbName: pendingJob.glbName,
                     pendingJob: null,
                   });
@@ -515,9 +522,34 @@ export default function HeroFlow() {
                     <Chip key={ex.label} className="w-full whitespace-nowrap" onClick={() => setText(ex.prompt)}>{ex.label}</Chip>
                   ))}
                 </div>
+                {offline && (
+                  <p className="mt-3 rounded-lg bg-amber-100 px-3 py-2 text-left text-xs leading-relaxed text-amber-900">
+                    <strong>Live rendering is offline.</strong> Forging a new building needs
+                    an NVIDIA GPU running FLUX and TRELLIS, which isn't switched on right now.
+                    Everything else works — watch a real solved set assemble below, open the
+                    box, read the instructions, and export it.
+                    {HAS_BACKEND && (
+                      <>
+                        {" "}
+                        <button
+                          onClick={recheckGpu}
+                          disabled={checking}
+                          className="font-semibold underline underline-offset-2 disabled:opacity-50"
+                        >
+                          {checking ? "Checking…" : "Just started it? Check again"}
+                        </button>
+                      </>
+                    )}
+                  </p>
+                )}
                 <TinkerPanel groups={["render"]} />
                 <div className="mt-3.5 flex flex-wrap items-center justify-center gap-2.5">
-                  <Button variant="primary" onClick={onForge} disabled={!!inFlight}>
+                  <Button
+                    variant="primary"
+                    onClick={onForge}
+                    disabled={!!inFlight || offline}
+                    title={offline ? "The render GPU is offline — try the sample build below" : undefined}
+                  >
                     <Sparkles size={16} /> Visualize it
                   </Button>
                   <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} className="hidden" />
@@ -537,9 +569,14 @@ export default function HeroFlow() {
                 </div>
               </div>
 
-              {import.meta.env.DEV && (
-                <button onClick={onDemo} className="mt-5 text-xs text-on-dark-muted underline-offset-2 hover:underline">
-                  ▶ Preview the assembly (dev sample)
+              {(import.meta.env.DEV || offline) && (
+                <button
+                  onClick={onDemo}
+                  className={offline
+                    ? "mt-5 inline-flex items-center gap-1.5 rounded-full bg-brand-yellow px-4 py-2 text-sm font-bold text-black hover:brightness-105"
+                    : "mt-5 text-xs text-on-dark-muted underline-offset-2 hover:underline"}
+                >
+                  <Play size={offline ? 14 : 12} /> {offline ? "Watch a set assemble" : "Preview the assembly (dev sample)"}
                 </button>
               )}
             </motion.section>

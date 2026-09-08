@@ -3,6 +3,7 @@
 // legolizer. The backend is the single source of truth for the brick layout —
 // the frontend never invents geometry; it renders what the backend returns.
 import { adaptBrickModel } from "./lib/brickModel.js";
+import { apiUrl } from "./config.js";
 
 // Typed error: `code` carries the backend's detail.code (e.g. "mesh_not_found")
 // so callers can steer the user instead of dumping raw text.
@@ -33,7 +34,7 @@ async function postJSON(path, body, { signal } = {}) {
     SANITY_TIMEOUT_MS
   );
   try {
-    const r = await fetch(path, {
+    const r = await fetch(apiUrl(path), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -85,7 +86,7 @@ export async function generateMesh(imageDataUrl, opts = {}) {
 // Refresh recovery: newest GLB the backend finished after `sinceMs`.
 // Throws ApiError(code "no_mesh") when nothing new exists yet.
 export async function latestMesh(sinceMs) {
-  const r = await fetch(`/api/latest-mesh?since=${encodeURIComponent(sinceMs)}`);
+  const r = await fetch(apiUrl(`/api/latest-mesh?since=${encodeURIComponent(sinceMs)}`));
   if (!r.ok) {
     let code;
     try { code = (await r.json())?.detail?.code; } catch {}
@@ -109,8 +110,35 @@ export async function legolizeMesh(glbName, imageDataUrl, opts = {}) {
   };
 }
 
+// Last-resort box copy for when the backend cannot be reached at all (the
+// demo-only deployment). Deliberately plain: the backend's own template
+// fallback is the good one — this exists so the box art has a NAME instead of
+// reading "set", not to imitate the set designer.
+function offlineSetCopy(subject, brickModel) {
+  const name = (subject || "Untitled Structure").split(",")[0].trim() || "Untitled Structure";
+  const nParts = brickModel?.parts?.reduce((n, p) => n + p.qty, 0) || 0;
+  return {
+    set_name: name,
+    set_number: null,
+    box_blurb: `${name}, solved into ${nParts.toLocaleString()} real LEGO parts.`,
+    designer_quote: null,
+    value_verdict: null,
+    share_tagline: `${name} — brick by brick.`,
+  };
+}
+
 // Box/share copy from the 'set designer' persona (Claude if keyed, else template).
+// Degrades to local copy rather than throwing: this is decoration, and losing it
+// must never cost the user their reveal.
 export async function getSetCopy(subject, brickModel) {
+  try {
+    return await requestSetCopy(subject, brickModel);
+  } catch {
+    return offlineSetCopy(subject, brickModel);
+  }
+}
+
+async function requestSetCopy(subject, brickModel) {
   const s = brickModel?.stability || {};
   return postJSON("/api/set-copy", {
     subject,

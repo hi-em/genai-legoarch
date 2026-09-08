@@ -58,6 +58,15 @@ The backend is the **single source of truth** for the brick layout; the frontend
 
 ---
 
+## Deploying it
+
+The site deploys for free and stays up permanently; only live generation needs a
+GPU, and only while you are demoing. See **[`docs/deploy.md`](docs/deploy.md)** —
+it covers the demo-only build (no backend, sample set still assembles), the
+`legoarch.charlesabichahine.com` domain setup, and what a GPU actually costs.
+
+---
+
 ## Running it locally
 
 The app is **four separate processes**, each in its own terminal: two ComfyUI servers (image + 3D), the FastAPI backend, and the Vite frontend. The frontend talks only to the backend (`/api` → `:8000`); the backend drives the two ComfyUIs.

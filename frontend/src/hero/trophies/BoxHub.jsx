@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { ArrowLeft, BookOpen, Receipt, Download } from "lucide-react";
 import { toast } from "../../components/ui/index.js";
+import { apiUrl } from "../../config.js";
 import ErrorBoundary from "../../components/ErrorBoundary.jsx";
 import SetShowcase from "./SetShowcase.jsx";
 import PricedSet from "./PricedSet.jsx";
@@ -48,7 +49,7 @@ export default function BoxHub({ imageUrl, setCopy, brickModel, glbName }) {
   const [panel, setPanel] = useState("box");
   const [stlBusy, setStlBusy] = useState(false);
   const safe = (setCopy?.set_name || "set").replace(/[^\w]+/g, "_");
-  const meshUrl = glbName ? `/api/mesh/${glbName}` : null;
+  const meshUrl = glbName ? apiUrl(`/api/mesh/${glbName}`) : null;
 
   async function onStl() {
     if (!meshUrl) {

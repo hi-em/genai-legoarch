@@ -2,6 +2,10 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
+  // GitHub Pages serves the site from /<repo>/, not /, so the asset URLs need
+  // that prefix baked in at build time:  VITE_BASE=/genai-legoarch/ npm run build
+  // Vercel/Netlify serve from the root and need nothing. See docs/deploy.md.
+  base: process.env.VITE_BASE || "/",
   plugins: [react()],
   // Ensure a single React instance (prevents "Invalid hook call" in dev when
   // libraries like lucide-react are pre-bundled separately).
