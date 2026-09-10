@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>lEgoarCh — privacy</title>
+    <style>
+      :root { color-scheme: light; }
+      body { font-family: "DM Sans", system-ui, sans-serif; background: #dfe2dc; color: #1d231f;
+        margin: 0; padding: 24px 16px 64px; line-height: 1.6; }
+      main { background: #f4f5f2; border-radius: 12px; padding: 28px 32px; margin: 0 auto; max-width: 720px;
+        box-shadow: 0 6px 0 #cfd2cb, 0 16px 24px rgba(20,30,25,.13); }
+      h1, h2 { font-family: Nunito, system-ui; line-height: 1.25; }
+      h1 { margin-top: 0; font-size: 1.9rem; }
+      h2 { margin-top: 2rem; font-size: 1.15rem; }
+      ul { padding-left: 1.2rem; }
+      li { margin: .35rem 0; }
+      code { background: rgba(0,0,0,.07); border-radius: 4px; padding: .1em .35em; font-size: .9em; }
+      .lede { font-size: 1.05rem; }
+      .updated { color: #5d6660; font-size: .85rem; margin-top: 0; }
+      footer { max-width: 720px; margin: 20px auto 0; color: #5d6660; font-size: .8rem; text-align: center; }
+      a { color: #1d231f; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Privacy</h1>
+      <p class="updated">Last updated 10 September 2026</p>
+
+      <p class="lede">
+        lEgoarCh is a non-commercial academic project. It stores as little about you as it can
+        while still giving you a collection that survives closing the browser.
+      </p>
+
+      <h2>You do not need an account</h2>
+      <p>
+        You can use the whole app without signing in — describe a building, watch a set solve and
+        assemble, open the box, read the instructions, export the files. If you never sign in,
+        nothing about you is stored on the server at all.
+      </p>
+
+      <h2>What is stored if you do sign in</h2>
+      <p>Signing in with Google gives your saved sets somewhere to live. We store:</p>
+      <ul>
+        <li>your <strong>name, email address and profile picture</strong>, as provided by Google;</li>
+        <li>the <strong>date you last signed in</strong>;</li>
+        <li>the <strong>LEGO sets you explicitly choose to save</strong> — the brick layout, the set
+          name and description, and the small preview images shown on your shelf.</li>
+      </ul>
+
+      <h2>What is not stored</h2>
+      <p>
+        The prompts you type, the settings and sliders you change, how long a render took, what you
+        looked at and did not save — none of it is recorded. There is no analytics service, no
+        advertising, and no third-party tracking on this site.
+      </p>
+
+      <h2>Who can see it</h2>
+      <p>
+        Only you. Your sets are readable only by your own signed-in account, and the project
+        authors, who administer the database. Nothing is sold, shared or published, and nothing is
+        used to train any model.
+      </p>
+
+      <h2>Where it is kept</h2>
+      <p>
+        On Google Cloud (Firestore and Cloud Storage), in the <code>europe-west4</code> region in
+        the Netherlands. Signing in is handled by Google; this site never sees your password.
+      </p>
+
+      <h2>Deleting it</h2>
+      <p>
+        At any time, open the account menu in the top-right of the app and choose
+        <strong>Delete my account</strong>. This immediately and permanently erases your account
+        record and every set on your shelf. It is not a request queued for someone to action — the
+        data is gone when the button finishes. There is no way to undo it.
+      </p>
+      <p>
+        You can also revoke this site's access to your Google account at
+        <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>,
+        though that alone does not delete what is already stored — use the button for that.
+      </p>
+
+      <h2>Who is responsible</h2>
+      <p>
+        lEgoarCh is a student project by Emilie El Chidiac and Charles Abi Chahine, made for the
+        Generative AI seminar of the Master in Advanced Computation for Architecture &amp; Design
+        (MaCAD) at IAAC, Barcelona. It is not a commercial service and carries no warranty.
+      </p>
+    </main>
+
+    <footer>
+      LEGO® is a trademark of the LEGO Group, which does not sponsor, authorise or endorse this
+      academic, non-commercial project.
+    </footer>
+  </body>
+</html>

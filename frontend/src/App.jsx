@@ -51,8 +51,11 @@ export default function App() {
         </div>
 
         <footer className="pointer-events-none fixed inset-x-0 bottom-1 z-20 mx-auto hidden max-w-[64ch] px-4 text-center text-micro leading-tight text-on-dark-muted md:block">
-          lEgoarCh · Emilie El Chidiac &amp; Charles Abi Chahine · MaCAD Generative AI — LEGO® is a
-          trademark of the LEGO Group, which does not sponsor or endorse this academic, non-commercial project.
+          lEgoarCh · Emilie El Chidiac &amp; Charles Abi Chahine · MaCAD Generative AI ·{" "}
+          <a href="/privacy.html" target="_blank" rel="noreferrer" className="pointer-events-auto underline underline-offset-2">
+            Privacy
+          </a>{" "}
+          — LEGO® is a trademark of the LEGO Group, which does not sponsor or endorse this academic, non-commercial project.
         </footer>
 
         {intro && (
