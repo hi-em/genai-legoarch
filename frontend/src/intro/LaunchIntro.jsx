@@ -332,7 +332,14 @@ export default function LaunchIntro({ onDone }) {
                 height: tilePx,
                 marginLeft: -tilePx / 2,
                 marginTop: -tilePx / 2,
+                // above the other tiles so the plate flies over the wall...
                 zIndex: isStamp ? 20 : undefined,
+                // ...but never a hit target: the plate leaves for the wordmark
+                // while this wrapper stays behind on the grid, and at z-20 it
+                // sat over the CTA swallowing clicks on the buttons — with
+                // nothing visible in it to explain why. Hover-to-name belongs
+                // to the 32 photo tiles; these eight are letters now.
+                pointerEvents: isStamp ? "none" : undefined,
               }}
               initial={{ x: L.fromPx.x, y: L.fromPx.y, rotate: L.rot, scale: 1, opacity: 1 }}
               animate={target}

@@ -20,6 +20,15 @@ export default function SignInDialog() {
   // signed in — the ask is answered, get out of the way
   useEffect(() => { if (open && status === "in") close(); }, [open, status, close]);
 
+  // Google Identity Services keeps its own container in the document, and it
+  // can outlive this dialog — leaving an invisible layer over the page that
+  // silently eats clicks on whatever sits beneath it. Cancelling on the way out
+  // is what guarantees the page is fully interactive again.
+  useEffect(() => {
+    if (open) return;
+    try { window.google?.accounts?.id?.cancel(); } catch {}
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => { if (e.key === "Escape") close(); };

@@ -60,13 +60,8 @@
       "name": "legoarch-onebox",
       "runtimeExecutable": "backend/.venv/Scripts/python.exe",
       "runtimeArgs": [
-        "-m",
-        "uvicorn",
-        "app.main:app",
-        "--port",
-        "8001",
-        "--app-dir",
-        "backend"
+        "-c",
+        "import os; os.environ['GOOGLE_CLIENT_ID']='168565807812-b8ep514u2oa8ihi71k37vkfp0t2h3lsm.apps.googleusercontent.com'; import uvicorn; uvicorn.run('app.main:app', host='127.0.0.1', port=8001, app_dir='backend')"
       ],
       "port": 8001
     }
