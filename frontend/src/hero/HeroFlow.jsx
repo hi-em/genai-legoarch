@@ -275,13 +275,16 @@ export default function HeroFlow() {
     }
   }
 
-  // DEV-only: verify the assembly/reveal visuals without a live ComfyUI, using a
-  // REAL backend-generated sample (not a mock generator).
+  // The sample build: a REAL set from the real pipeline, not a mock generator.
+  // Sagrada is the benchmark building — its TRELLIS mesh lives in
+  // docs/benchmarks/assets/examples/sagrada/ and this brick model came from
+  // running that mesh through the CPU legolizer at the app's own defaults, so
+  // what a visitor watches assemble is exactly what the pipeline produces.
   async function onDemo() {
     const raw = (await import("../dev/sampleModel.json")).default;
     const bm = adaptBrickModel(raw);
     const sampleRender = (await import("../dev/sampleRender.png")).default;
-    const subj = "Brutalist concrete tower with stepped setbacks";
+    const subj = "Sagrada Família, Barcelona — Antoni Gaudí";
     // calls cleared: the demo skips the mesh wait, so bets from a previous
     // real run must not produce a phantom scorecard at the reveal
     set({ prompt: subj, imageUrl: sampleRender, brickModel: bm, assembling: true, saved: false, relegolizedSincePack: true, calls: null });
