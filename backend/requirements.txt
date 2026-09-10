@@ -9,4 +9,12 @@ trimesh>=4.3
 Pillow>=10.0
 python-multipart>=0.0.9
 anthropic>=0.40        # optional: rich prompt expansion (falls back to a template if absent)
+itsdangerous>=2.2        # signs the session cookie
+
+# --- Google Sign-In + the cloud shelf (Cloud Run). Optional locally: without
+# GOOGLE_CLOUD_PROJECT the shelf falls back to backend/.localshelf on disk.
+google-auth>=2.30        # verifies Google ID tokens against Google's certs
+google-cloud-firestore>=2.16   # the shelf index
+google-cloud-storage>=2.16     # the set payloads (>1 MiB, so not in Firestore)
+
 pytest>=8.0

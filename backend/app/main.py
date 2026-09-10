@@ -12,13 +12,21 @@ import base64
 import os
 from typing import Any, Optional
 
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .legolizer import legolize_voxelgrid
 
 app = FastAPI(title="lEgoarCh API", version="0.0.1")
+
+# Every API route lives under /api — the SAME path in dev and in production.
+# The Vite proxy used to strip the prefix, which meant the deployed one-origin
+# build called /api/... while the backend answered on /..., and the SPA
+# catch-all quietly returned index.html for every API request.
+api = APIRouter()
 
 # The dev origins are always allowed; a deployed frontend lives on some other
 # origin entirely, so add it with ALLOWED_ORIGINS (comma-separated). Without
@@ -40,6 +48,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def auth_dep():
+    """`Depends(require_user)`, imported lazily so `app.auth` stays out of the
+    module's import-time graph (google-auth is slow to import)."""
+    from .auth import require_user
+
+    return Depends(require_user)
+
 
 COMFYUI_URL = os.environ.get("COMFYUI_URL", "http://127.0.0.1:8188")
 COMFYUI_3D_URL = os.environ.get("COMFYUI_3D_URL", "http://127.0.0.1:8189")
@@ -98,6 +114,10 @@ class LegolizeMeshReq(BaseModel):
     legolize_options: dict[str, Any] = {}  # randomness / seam_weight / tile_tops / palette / slopes
 
 
+class SignInReq(BaseModel):
+    credential: str                        # the Google ID token from GIS
+
+
 class SetCopyReq(BaseModel):
     subject: str
     n_bricks: int = 0
@@ -109,7 +129,7 @@ class SetCopyReq(BaseModel):
 
 
 # ---------- routes ----------
-@app.get("/health")
+@api.get("/health")
 def health() -> dict[str, Any]:
     return {"ok": True, "comfyui_url": COMFYUI_URL, "comfyui_3d_url": COMFYUI_3D_URL}
 
@@ -125,7 +145,7 @@ def _comfy_up(base: str, timeout: float = 1.5) -> bool:
         return False
 
 
-@app.get("/capabilities")
+@api.get("/capabilities")
 def capabilities() -> dict[str, Any]:
     """Which pipeline stages can actually run right now.
 
@@ -147,7 +167,7 @@ def capabilities() -> dict[str, Any]:
     }
 
 
-@app.post("/generate-image")
+@api.post("/generate-image")
 def generate_image(req: GenerateImageReq) -> dict[str, Any]:
     """FLUX.2 + legoarch via ComfyUI (:8188). img2img when image_b64 is given."""
     from . import comfy_client
@@ -260,7 +280,7 @@ def _mesh_path(name: str):
     return p
 
 
-@app.get("/mesh/{name}")
+@api.get("/mesh/{name}")
 def get_mesh(name: str):
     """Serve a generated GLB as a real binary file.
 
@@ -281,7 +301,7 @@ def get_mesh(name: str):
     return FileResponse(path, media_type="model/gltf-binary")
 
 
-@app.get("/latest-mesh")
+@api.get("/latest-mesh")
 def latest_mesh(since: float = 0.0) -> dict[str, Any]:
     """Newest GLB in the 3D output dir with mtime >= `since`.
 
@@ -299,7 +319,7 @@ def latest_mesh(since: float = 0.0) -> dict[str, Any]:
     return {"glbName": p.name, "glbUrl": f"/api/mesh/{p.name}", "mtimeMs": p.stat().st_mtime * 1000}
 
 
-@app.post("/generate-mesh")
+@api.post("/generate-mesh")
 def generate_mesh(req: Generate3DReq) -> dict[str, Any]:
     """The GPU half only: render -> TRELLIS-2 mesh. Returns a mesh file URL.
 
@@ -331,7 +351,7 @@ def generate_mesh(req: Generate3DReq) -> dict[str, Any]:
     }
 
 
-@app.post("/legolize-mesh")
+@api.post("/legolize-mesh")
 def legolize_mesh(req: LegolizeMeshReq) -> dict[str, Any]:
     """The CPU half only: GLB -> voxels -> bricks. Seconds, no ComfyUI."""
     voxel_target = max(16, min(64, req.voxel_target))
@@ -367,7 +387,7 @@ def legolize_mesh(req: LegolizeMeshReq) -> dict[str, Any]:
     return out
 
 
-@app.post("/generate-3d")
+@api.post("/generate-3d")
 def generate_3d(req: Generate3DReq) -> dict[str, Any]:
     """One-shot: TRELLIS mesh + voxelize + legolize (kept for the benchmark
     harness and any caller that doesn't need the staged stops)."""
@@ -406,9 +426,117 @@ def generate_3d(req: Generate3DReq) -> dict[str, Any]:
     return resp
 
 
-@app.post("/set-copy")
+@api.post("/set-copy")
 def set_copy(req: SetCopyReq) -> dict[str, Any]:
     """Name the set + write the box/share copy (Claude if keyed, else template)."""
     from .set_designer import generate_set_copy
 
     return generate_set_copy(req.model_dump())
+
+
+# ---------- auth ----------
+@api.get("/auth/config")
+def auth_config() -> dict[str, Any]:
+    """What the sign-in gate needs to render. No secrets — the client ID is public."""
+    from . import auth
+
+    return {"clientId": auth.GOOGLE_CLIENT_ID, "configured": bool(auth.GOOGLE_CLIENT_ID)}
+
+
+@api.post("/auth/session")
+def sign_in(req: SignInReq, response: Response) -> dict[str, Any]:
+    """Exchange a verified Google ID token for our own session cookie."""
+    from . import auth, shelf_store
+
+    claims = auth.verify_google_token(req.credential)
+    profile = auth.profile_for(claims)
+    try:
+        shelf_store.touch_user(profile)
+    except Exception:
+        # a storage hiccup must not block sign-in — the session is still valid
+        pass
+    auth.issue_session(response, claims)
+    return {"user": {k: profile[k] for k in ("uid", "email", "name", "picture")}}
+
+
+@api.get("/auth/me")
+def whoami(request: Request) -> dict[str, Any]:
+    from . import auth
+
+    user = auth.optional_user(request)
+    return {"user": user}
+
+
+@api.post("/auth/logout")
+def sign_out(response: Response) -> dict[str, Any]:
+    from . import auth
+
+    auth.clear_session(response)
+    return {"ok": True}
+
+
+# ---------- the cloud shelf ----------
+@api.get("/shelf")
+def shelf_list(user: dict[str, Any] = auth_dep()) -> dict[str, Any]:
+    """The index only — the Collection grid, without the multi-MB payloads."""
+    from . import shelf_store
+
+    return {"items": shelf_store.list_sets(user["uid"])}
+
+
+@api.get("/shelf/{set_id}")
+def shelf_get(set_id: str, user: dict[str, Any] = auth_dep()) -> dict[str, Any]:
+    from fastapi import HTTPException
+
+    from . import shelf_store
+
+    item = shelf_store.get_set(user["uid"], set_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail={"code": "set_not_found"})
+    return {"item": item}
+
+
+@api.put("/shelf/{set_id}")
+async def shelf_put(set_id: str, request: Request, user: dict[str, Any] = auth_dep()) -> dict[str, Any]:
+    """Save or replace one set.
+
+    The body is read raw rather than through a pydantic model: a set is a large,
+    open-ended blob (brickModel, setCopy, runRecord) and validating it field by
+    field here would only duplicate the frontend's adapter.
+    """
+    from . import shelf_store
+
+    item = await request.json()
+    item["id"] = set_id
+    return shelf_store.save_set(user["uid"], item)
+
+
+@api.delete("/shelf/{set_id}")
+def shelf_delete(set_id: str, user: dict[str, Any] = auth_dep()) -> dict[str, Any]:
+    from . import shelf_store
+
+    shelf_store.delete_set(user["uid"], set_id)
+    return {"ok": True}
+
+
+app.include_router(api, prefix="/api")
+
+
+# ---------- the built frontend ----------
+# Cloud Run runs ONE container: FastAPI serves the API and the SPA together, so
+# there is no second origin and therefore no CORS to configure. Mounted last —
+# the catch-all owns "/" and would otherwise shadow every route above.
+_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if _DIST.is_dir():
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/assets", StaticFiles(directory=_DIST / "assets"), name="assets")
+
+    @app.get("/{path:path}")
+    def spa(path: str):
+        """Serve a real file when one exists, else index.html."""
+        candidate = (_DIST / path).resolve()
+        if path and _DIST in candidate.parents and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(_DIST / "index.html")

@@ -1,4 +1,7 @@
 import { create } from "zustand";
+import { fetchShelf, fetchShelfItem, putShelfItem, deleteShelfItem } from "../api.js";
+import { toast } from "../components/ui/index.js";
+import { useAuth } from "../auth/useAuth.js";
 import { DEFAULTS } from "../hero/tinkerParams.js";
 
 // ---------- global chrome: sound mute (read by lib/sound.js) + brick cursor ----------
@@ -20,57 +23,19 @@ export const useUI = create((set) => ({
   }),
 }));
 
-// ---------- collection shelf — persisted to IndexedDB (survives reloads) ----------
-// Each saved set carries its full brickModel + setCopy + a render thumbnail so it
-// can be reopened (3D viewer + trophies) offline. A single flagship build (a
-// detail-48 model can be tens of thousands of bricks) serializes to several MB —
-// past localStorage's ~5 MB budget — so the shelf lives in IndexedDB, whose quota
-// is hundreds of MB to GB. That is what lets a real collection of large sets
-// coexist: a big new set NEVER has to evict the others to fit. (The old
-// localStorage shelf dropped the oldest sets on quota pressure, silently deleting
-// unrelated buildings — e.g. packing two large sets wiped Sagrada/Muralla.)
-const SHELF_KEY = "lEgoarCh.shelf.v2";   // legacy localStorage key (migrated in once)
-const SHELF_CAP = 20;                     // hard cap on COUNT (≥10); never byte-evicts
-
-// -- IndexedDB key/value: one record holds the whole shelf array --
-const IDB_DB = "lEgoarCh", IDB_STORE = "kv", IDB_KEY = "shelf.v2";
-let _idb = null;
-function openIdb() {
-  if (_idb) return _idb;
-  _idb = new Promise((resolve, reject) => {
-    if (typeof indexedDB === "undefined") { reject(new Error("no-idb")); return; }
-    const req = indexedDB.open(IDB_DB, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-  return _idb;
-}
-function idbGet() {
-  return openIdb().then((db) => new Promise((resolve, reject) => {
-    const rq = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(IDB_KEY);
-    rq.onsuccess = () => resolve(rq.result ?? null);
-    rq.onerror = () => reject(rq.error);
-  }));
-}
-function idbSet(items) {
-  return openIdb().then((db) => new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, "readwrite");
-    tx.objectStore(IDB_STORE).put(items, IDB_KEY);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  }));
-}
-
-// localStorage fallback — node tests + browsers without IndexedDB. Best-effort:
-// a too-large set just won't persist here, but it NEVER drops the other sets.
-function lsLoad() { try { return JSON.parse(localStorage.getItem(SHELF_KEY)) || []; } catch { return []; } }
-function lsSave(items) { try { localStorage.setItem(SHELF_KEY, JSON.stringify(items)); } catch {} }
-
-// Persist the whole shelf. IndexedDB is the source of truth; fall back to
-// localStorage only where IDB is unavailable. Async + fire-and-forget — the
-// in-memory store is what the UI reads, so a write is never lost mid-session.
-function persistShelf(items) { idbSet(items).catch(() => lsSave(items)); }
+// ---------- collection shelf — the user's account, server-side ----------
+// The shelf used to live in the visitor's IndexedDB, which meant it died with a
+// cleared cache and never crossed devices. Now that signing in is required, the
+// backend owns it: Firestore holds a light INDEX per set and Cloud Storage holds
+// the payload, because a detail-48 build serializes to several MB and Firestore
+// caps a document at 1 MiB (see backend/app/shelf_store.py).
+//
+// Consequences the UI has to respect:
+//   · `items` is the INDEX — title, counts, thumbs. No brickModel.
+//   · opening a set needs `ensureFull(id)` first; it merges the payload in.
+//   · writes are OPTIMISTIC. The in-memory shelf updates now and the request
+//     follows, so packing a set never blocks on a round trip.
+const SHELF_CAP = 20;                     // hard cap on COUNT; mirrors the backend
 
 // Two sets are "the same building" when their display titles match (case/space
 // insensitive). Packing a new version of an existing building REPLACES it in
@@ -81,22 +46,42 @@ const sameName = (a, b) => {
 };
 
 export const useCollection = create((set, get) => ({
-  // Instant first paint from the legacy localStorage shelf (if any); hydrate()
-  // then swaps in the authoritative IndexedDB copy and migrates legacy data.
-  items: lsLoad(),
+  items: [],
+  loaded: false,
+  loadingId: null,        // a set whose payload is being fetched right now
+
+  // Called once the user is signed in (App.jsx watches auth status).
   hydrate: async () => {
     try {
-      const fromIdb = await idbGet();
-      if (Array.isArray(fromIdb)) { set({ items: fromIdb.slice(0, SHELF_CAP) }); return; }
-      // first run on IndexedDB — migrate whatever the old localStorage shelf had
-      const legacy = lsLoad();
-      if (legacy.length) { set({ items: legacy.slice(0, SHELF_CAP) }); idbSet(legacy).catch(() => {}); }
-    } catch { /* no IndexedDB — keep the localStorage items already loaded */ }
+      const items = await fetchShelf();
+      set({ items, loaded: true });
+    } catch {
+      set({ loaded: true });   // an empty shelf beats a spinner that never ends
+    }
   },
-  // Returns { savedNew, dropped }. The new set ALWAYS saves (IndexedDB has room);
-  // `dropped` is only ever >0 if the shelf was already at the hard COUNT cap.
-  // If a set with the SAME name exists it is replaced in place — no duplicate and
-  // no eviction of other buildings; otherwise the new set is prepended.
+
+  reset: () => set({ items: [], loaded: false, loadingId: null }),
+
+  // Pull one set's full payload (brickModel, setCopy, runRecord) and merge it
+  // into the in-memory item. No-op once loaded.
+  ensureFull: async (id) => {
+    const cur = get().items.find((i) => i.id === id);
+    if (!cur || cur.brickModel) return cur || null;
+    set({ loadingId: id });
+    try {
+      const full = await fetchShelfItem(id);
+      set({
+        items: get().items.map((i) => (i.id === id ? { ...i, ...full } : i)),
+        loadingId: null,
+      });
+      return full;
+    } catch {
+      set({ loadingId: null });
+      return null;
+    }
+  },
+
+  // Returns { savedNew, dropped } synchronously — optimistic, the PUT follows.
   add: (item) => {
     const cur = get().items;
     const idx = cur.findIndex((i) => sameName(i, item));
@@ -105,30 +90,36 @@ export const useCollection = create((set, get) => ({
       : [item, ...cur];                             // new building → prepend
     const items = merged.slice(0, SHELF_CAP);
     set({ items });
-    persistShelf(items);
+    // A guest has no account to write to. Pack is gated on sign-in (HeroFlow),
+    // so this is a guard, not a path the UI walks: never fire a shelf write
+    // that is guaranteed to 401.
+    if (!useAuth.getState().user) return { savedNew: true, dropped: 0 };
+    putShelfItem(item).catch(() => {
+      // the server refused — don't leave a set on screen that isn't saved
+      set({ items: get().items.filter((i) => i.id !== item.id) });
+      toast.error("Couldn't save to your shelf", "Check your connection and pack it again.");
+    });
     const savedNew = items.some((i) => i.id === item.id);
     return { savedNew, dropped: savedNew ? Math.max(0, merged.length - items.length) : 0 };
   },
+
   remove: (id) => {
-    const items = get().items.filter((i) => i.id !== id);
-    set({ items });
-    persistShelf(items);
+    set({ items: get().items.filter((i) => i.id !== id) });
+    if (useAuth.getState().user) deleteShelfItem(id).catch(() => {});
   },
+
   // Replace one set IN PLACE by stable id, preserving its position. Used when
-  // re-tuning a packed set. Never drops another set (IndexedDB has room), so
-  // `dropped` is always 0; the shape mirrors add() for the caller.
+  // re-tuning a packed set.
   update: (id, patch) => {
     const cur = get().items;
-    if (!cur.some((i) => i.id === id)) return { updated: false, dropped: 0 };
-    const items = cur.map((i) => (i.id === id ? { ...i, ...patch } : i));
-    set({ items });
-    persistShelf(items);
+    const found = cur.find((i) => i.id === id);
+    if (!found) return { updated: false, dropped: 0 };
+    const next = { ...found, ...patch };
+    set({ items: cur.map((i) => (i.id === id ? next : i)) });
+    if (useAuth.getState().user) putShelfItem(next).catch(() => {});
     return { updated: true, dropped: 0 };
   },
 }));
-
-// Pull the authoritative shelf out of IndexedDB once, on load (browser only).
-if (typeof window !== "undefined") useCollection.getState().hydrate();
 
 // ---------- top-level view switch (hero create flow <-> collection) ----------
 export const useView = create((set) => ({

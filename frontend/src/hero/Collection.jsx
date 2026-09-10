@@ -1,5 +1,6 @@
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles, LogIn } from "lucide-react";
 import { useCollection, useView } from "../state/store.js";
+import { useAuth } from "../auth/useAuth.js";
 import { Button } from "../components/ui/index.js";
 import ShelfGate from "../shelf/ShelfGate.jsx";
 import Wordmark from "../components/brand/Wordmark.jsx";
@@ -27,6 +28,9 @@ function Header({ children }) {
 // page. Header + empty-state are all that remain here.
 export default function Collection() {
   const items = useCollection((s) => s.items);
+  const signedIn = useAuth((s) => s.status === "in");
+  const configured = useAuth((s) => s.configured);
+  const openPrompt = useAuth((s) => s.openPrompt);
   const remove = useCollection((s) => s.remove);
   const show = useView((s) => s.show);
 
@@ -37,8 +41,23 @@ export default function Collection() {
       {items.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-5 pb-20 text-center">
           <h2 className="font-display text-2xl font-black text-on-dark">Your shelf is empty</h2>
-          <p className="max-w-[360px] text-on-dark-muted">Turn a building into a buildable set and add it here — your collection survives reloads.</p>
-          <Button variant="primary" onClick={() => show("hero")}><Sparkles size={15} /> Visualize a set</Button>
+          {signedIn ? (
+            <p className="max-w-[360px] text-on-dark-muted">
+              Turn a building into a buildable set and pack it here — your collection lives on
+              your account, so it follows you to any device.
+            </p>
+          ) : (
+            <p className="max-w-[360px] text-on-dark-muted">
+              You're exploring without an account. Build all you like — signing in is what gives
+              the sets you pack somewhere to live.
+            </p>
+          )}
+          <div className="flex flex-wrap items-center justify-center gap-2.5">
+            <Button variant="primary" onClick={() => show("hero")}><Sparkles size={15} /> Visualize a set</Button>
+            {!signedIn && configured !== false && (
+              <Button variant="secondary" onClick={() => openPrompt()}><LogIn size={15} /> Sign in &amp; save</Button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="flex w-full flex-1 flex-col px-5 pb-8">

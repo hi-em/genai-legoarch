@@ -60,10 +60,13 @@ The backend is the **single source of truth** for the brick layout; the frontend
 
 ## Deploying it
 
-The site deploys for free and stays up permanently; only live generation needs a
-GPU, and only while you are demoing. See **[`docs/deploy.md`](docs/deploy.md)** —
-it covers the demo-only build (no backend, sample set still assembles), the
-`legoarch.charlesabichahine.com` domain setup, and what a GPU actually costs.
+One Cloud Run container serves the API and the built SPA together — signing in
+with Google is required, and each account's collection lives in Firestore
+instead of one browser's IndexedDB. Idle costs nothing; only live generation
+needs a GPU, and only while you are demoing. See
+**[`docs/deploy.md`](docs/deploy.md)** for the architecture, the
+`legoarch.charlesabichahine.com` domain setup, what is stored about a user, and
+what a GPU actually costs.
 
 ---
 
@@ -138,7 +141,7 @@ cd frontend
 npm run dev
 ```
 
-**Then open http://localhost:5173 in your browser.** (Backend OK check: http://127.0.0.1:8000/health)
+**Then open http://localhost:5173 in your browser.** (Backend OK check: http://127.0.0.1:8000/api/health)
 
 To stop any process: `Ctrl+C` in its terminal. To leave the backend venv: `deactivate`.
 

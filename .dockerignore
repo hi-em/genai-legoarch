@@ -1,0 +1,20 @@
+# Keep the build context small — Cloud Build uploads it on every deploy.
+.git
+.github
+node_modules
+frontend/node_modules
+frontend/dist
+backend/.venv
+backend/.localshelf
+backend/**/__pycache__
+**/__pycache__
+*.pyc
+
+# Big things the container never needs
+references/          # the LoRA lives on the GPU box, not here
+samples/
+docs/
+scripts/
+comfyui/legoarch-dataset/
+comfyui/*.json
+!comfyui/workflows/

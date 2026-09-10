@@ -5,7 +5,9 @@ import Collection from "./hero/Collection.jsx";
 import BrickBuddy from "./components/BrickBuddy.jsx";
 import CustomCursor from "./cursor/CustomCursor.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
-import { useView } from "./state/store.js";
+import { useView, useCollection } from "./state/store.js";
+import { useAuth } from "./auth/useAuth.js";
+import SignInDialog from "./auth/SignInDialog.jsx";
 import { primeAudio } from "./lib/sound.js";
 import { Toaster, TooltipProvider } from "./components/ui/index.js";
 
@@ -14,6 +16,15 @@ const LaunchIntro = lazy(() => import("./intro/LaunchIntro.jsx"));
 
 export default function App() {
   const view = useView((s) => s.view);
+  const authStatus = useAuth((s) => s.status);
+
+  // The shelf lives on the account, so it can only be pulled once we know whose
+  // it is. Signing out empties it in memory — the next user must not inherit
+  // the previous one's sets on a shared machine.
+  useEffect(() => {
+    if (authStatus === "in") useCollection.getState().hydrate();
+    if (authStatus === "out") useCollection.getState().reset();
+  }, [authStatus]);
   // The launch ritual plays on EVERY load (owner decision) — it holds with an
   // "Enter the studio" CTA and is skippable, so repetition stays cheap. The
   // hero mounts beneath it so dismissal reveals the app already in place.
@@ -56,6 +67,8 @@ export default function App() {
             />
           </Suspense>
         )}
+
+        <SignInDialog />
 
         <ErrorBoundary silent>
           <BrickBuddy />

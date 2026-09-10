@@ -4,6 +4,8 @@ import { Sparkles, Upload, X, Box, Star, RotateCcw, Volume2, VolumeX, MousePoint
 import { generate, generateMesh, legolizeMesh, getSetCopy, latestMesh } from "../api.js";
 import { apiUrl, HAS_BACKEND } from "../config.js";
 import { useCapabilities, gpuOffline } from "../lib/backendStatus.js";
+import { useAuth } from "../auth/useAuth.js";
+import AccountChip from "../auth/AccountChip.jsx";
 import { useBuild, useCollection, useView, useUI, derivePhase, isShelfDupe } from "../state/store.js";
 import { hasWebGL } from "../lib/webgl.js";
 import { useReducedMotion } from "../lib/useReducedMotion.js";
@@ -294,6 +296,13 @@ export default function HeroFlow() {
   function onPack() {
     const s = useBuild.getState();
     if (!brickModel) return;
+    // Packing is the one thing an account is FOR. Ask here rather than at the
+    // door — and nothing is lost by asking late: the build lives in the store,
+    // so signing in leaves this set exactly where it is, ready to pack.
+    if (!useAuth.getState().user) {
+      useAuth.getState().openPrompt("Sign in to keep this set — your build stays exactly as it is.");
+      return;
+    }
     if (s.saved) { setStage("explore"); return; }   // already packed — just open explore
     if (!s.relegolizedSincePack) return;            // nothing new since the last pack (Pack is disabled)
 
@@ -484,6 +493,7 @@ export default function HeroFlow() {
           >
             <Star size={13} /> Collection{collectionCount ? ` (${collectionCount})` : ""}
           </button>
+          <AccountChip />
         </div>
       </header>
 

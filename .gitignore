@@ -42,3 +42,6 @@ docs/presentation/legoarch-deck.pptx
 
 # local data caches (Rebrickable CSVs, LDraw library)
 .cache/
+
+# local fallback for the cloud shelf (no GCP project)
+backend/.localshelf/

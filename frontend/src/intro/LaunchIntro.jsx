@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { LogIn } from "lucide-react";
 import Wordmark from "../components/brand/Wordmark.jsx";
+import { useAuth } from "../auth/useAuth.js";
 import { WORDMARK } from "../components/brand/brand.js";
 import { Button } from "../components/ui/index.js";
 import { useReducedMotion } from "../lib/useReducedMotion.js";
@@ -47,6 +49,45 @@ const TIMELINE = [
 const SLOW = Number(new URLSearchParams(window.location.search).get("introSlow")) || 1.25;
 
 const GLYPH_RATIO = 0.62; // mirror of LetterPlate's glyph sizing
+
+
+// The two doors at the end of the ritual. Signing in is OPTIONAL — it buys a
+// collection that outlives the browser, nothing more — so "Enter the studio"
+// stays the primary action and the ask sits beside it, never in front of it.
+// A signed-in visitor has already answered and just gets the one door.
+function IntroDoors({ onEnter }) {
+  const status = useAuth((s) => s.status);
+  const configured = useAuth((s) => s.configured);
+  const openPrompt = useAuth((s) => s.openPrompt);
+  const signedIn = status === "in";
+  // "Just explore" only makes sense NEXT TO the other door. With sign-in
+  // unconfigured (or already done) there is nothing to contrast with, so the
+  // button goes back to naming the thing it does.
+  const asking = !signedIn && configured !== false;
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-wrap items-center justify-center gap-2.5">
+        <Button variant="primary" onClick={onEnter}>
+          {asking ? "Just explore" : "Enter the studio"}
+        </Button>
+        {asking && (
+          <Button
+            variant="secondary"
+            onClick={() => openPrompt("Your collection will be waiting on your account.")}
+          >
+            <LogIn size={15} /> Sign in &amp; save
+          </Button>
+        )}
+      </div>
+      {asking && (
+        <p className="text-nano text-on-dark-muted">
+          Exploring needs no account — sign in only to keep the sets you pack.
+        </p>
+      )}
+    </div>
+  );
+}
 
 /**
  * Launch ritual ("letter stamps"): the 40 training photos cascade in from the
@@ -235,9 +276,7 @@ export default function LaunchIntro({ onDone }) {
           <Wordmark className="text-5xl text-on-dark" />
           <p className="max-w-[520px] text-sm text-on-dark-muted">{CAPTION_1}</p>
           <p className="max-w-[520px] text-sm text-on-dark-muted">{CAPTION_2}</p>
-          <Button variant="primary" className="mt-2" onClick={fireDone}>
-            Enter the studio
-          </Button>
+          <div className="mt-2"><IntroDoors onEnter={fireDone} /></div>
         </div>
       </motion.div>
     );
@@ -427,9 +466,7 @@ export default function LaunchIntro({ onDone }) {
           animate={{ opacity: holding ? 1 : 0, y: holding ? 0 : 6 }}
           transition={{ duration: 0.4, delay: holding ? 0.9 : 0 }}
         >
-          <Button variant="primary" onClick={fireDone}>
-            Enter the studio
-          </Button>
+          <IntroDoors onEnter={fireDone} />
           <p className="mt-2 text-nano text-on-dark-muted">hover a photo to meet the dataset</p>
         </motion.div>
       </div>

@@ -150,3 +150,68 @@ async function requestSetCopy(subject, brickModel) {
     connected: s.connected ?? true,
   });
 }
+
+
+// ---------- auth ----------
+// The session is an HttpOnly cookie. Same-origin in production (FastAPI serves
+// the SPA), so `credentials: "same-origin"` is the default and enough; it is
+// spelled out here because a split-origin build would silently drop the cookie.
+const CREDS = { credentials: "same-origin" };
+
+export async function authConfig() {
+  const r = await fetch(apiUrl("/api/auth/config"), CREDS);
+  if (!r.ok) throw new ApiError(`auth/config failed (${r.status})`, { status: r.status });
+  return r.json();
+}
+
+export async function fetchMe() {
+  const r = await fetch(apiUrl("/api/auth/me"), CREDS);
+  if (!r.ok) throw new ApiError(`auth/me failed (${r.status})`, { status: r.status });
+  return r.json();
+}
+
+export async function postSignIn(credential) {
+  return postJSON("/api/auth/session", { credential });
+}
+
+export async function postSignOut() {
+  const r = await fetch(apiUrl("/api/auth/logout"), { method: "POST", ...CREDS });
+  if (!r.ok) throw new ApiError(`logout failed (${r.status})`, { status: r.status });
+  return r.json();
+}
+
+// ---------- the cloud shelf ----------
+// The listing is the INDEX only (no brickModel) so the Collection grid stays
+// cheap; a set's full payload is fetched when it is opened.
+export async function fetchShelf() {
+  const r = await fetch(apiUrl("/api/shelf"), CREDS);
+  if (!r.ok) throw new ApiError(`shelf failed (${r.status})`, { status: r.status });
+  return (await r.json()).items || [];
+}
+
+export async function fetchShelfItem(id) {
+  const r = await fetch(apiUrl(`/api/shelf/${encodeURIComponent(id)}`), CREDS);
+  if (!r.ok) {
+    let code;
+    try { code = (await r.json())?.detail?.code; } catch {}
+    throw new ApiError(`shelf item failed (${r.status})`, { status: r.status, code });
+  }
+  return (await r.json()).item;
+}
+
+export async function putShelfItem(item) {
+  const r = await fetch(apiUrl(`/api/shelf/${encodeURIComponent(item.id)}`), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(item),
+    ...CREDS,
+  });
+  if (!r.ok) throw new ApiError(`shelf save failed (${r.status})`, { status: r.status });
+  return r.json();
+}
+
+export async function deleteShelfItem(id) {
+  const r = await fetch(apiUrl(`/api/shelf/${encodeURIComponent(id)}`), { method: "DELETE", ...CREDS });
+  if (!r.ok) throw new ApiError(`shelf delete failed (${r.status})`, { status: r.status });
+  return r.json();
+}

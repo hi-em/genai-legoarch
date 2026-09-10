@@ -55,6 +55,20 @@
         "--strictPort"
       ],
       "port": 4173
+    },
+    {
+      "name": "legoarch-onebox",
+      "runtimeExecutable": "backend/.venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--port",
+        "8001",
+        "--app-dir",
+        "backend"
+      ],
+      "port": 8001
     }
   ]
 }

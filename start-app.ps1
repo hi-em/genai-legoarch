@@ -42,6 +42,6 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", $frontend
 Start-Sleep -Seconds 4
 Start-Process "http://localhost:5173"
 
-Write-Host "Backend  -> http://127.0.0.1:8000/health" -ForegroundColor Green
+Write-Host "Backend  -> http://127.0.0.1:8000/api/health" -ForegroundColor Green
 Write-Host "Frontend -> http://localhost:5173  (opening in your browser)" -ForegroundColor Green
 Write-Host "Two windows opened. Press Ctrl+C inside either to stop that server." -ForegroundColor DarkGray

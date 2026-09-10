@@ -12,7 +12,7 @@ import ErrorBoundary from "../components/ErrorBoundary.jsx";
 import { hasWebGL } from "../lib/webgl.js";
 import { normalizeAdapted } from "../lib/brickModel.js";
 import { useBuild, useCollection } from "../state/store.js";
-import { toast } from "../components/ui/index.js";
+import { toast, StudLoader } from "../components/ui/index.js";
 import ShelfScene from "./ShelfScene.jsx";
 import CollectionList from "../room/CollectionList.jsx";
 import TrophyShell from "../hero/trophies/TrophyShell.jsx";
@@ -26,11 +26,22 @@ export default function ShelfGate({ items, onRemove }) {
   const selected = selectedId ? items.find((i) => i.id === selectedId) : null;
   const use3D = webgl && !forceList;
 
+  // `items` is the shelf INDEX — no brickModel. Opening a set pulls its payload
+  // first, so the box renders complete instead of empty.
+  const openSet = (it) => {
+    setSelectedId(it.id);
+    useCollection.getState().ensureFull(it.id);
+  };
+  const ready = !!selected?.brickModel;
+
   // One path for every remove affordance (3D trash, list trash): remove now,
   // offer Undo — no irreversible native confirm.
-  const askRemove = (id) => {
+  const askRemove = async (id) => {
     const it = items.find((i) => i.id === id);
     if (!it) return;
+    // Pull the payload BEFORE deleting: removing drops it server-side, and an
+    // Undo holding only the index stub would restore a set with no bricks in it.
+    const full = (await useCollection.getState().ensureFull(id)) || it;
     onRemove(id);
     if (selectedId === id) setSelectedId(null); // closing the modal repaints the demand canvas
 
@@ -50,7 +61,7 @@ export default function ShelfGate({ items, onRemove }) {
       "Removed from your shelf",
       `“${name.length > 32 ? name.slice(0, 31) + "…" : name}” is gone — Undo to put it back.`,
       "Undo",
-      () => useCollection.getState().add(it)
+      () => useCollection.getState().add({ ...it, ...full })
     );
   };
 
@@ -71,17 +82,20 @@ export default function ShelfGate({ items, onRemove }) {
       <div className="min-h-0 flex-1">
         {use3D ? (
           <ErrorBoundary silent onError={() => setForceList(true)}>
-            <ShelfScene items={items} onSelect={(it) => setSelectedId(it.id)} onRemove={askRemove} />
+            <ShelfScene items={items} onSelect={openSet} onRemove={askRemove} />
           </ErrorBoundary>
         ) : (
           <div className="h-full overflow-y-auto pb-4">
-            <CollectionList items={items} onSelect={(it) => setSelectedId(it.id)} onRemove={askRemove} />
+            <CollectionList items={items} onSelect={openSet} onRemove={askRemove} />
           </div>
         )}
       </div>
 
       <TrophyShell open={!!selected} onClose={() => setSelectedId(null)} title="Your boxed set">
-        {selected && (
+        {selected && !ready && (
+          <div className="grid min-h-[320px] place-items-center"><StudLoader /></div>
+        )}
+        {selected && ready && (
           <BoxHub
             imageUrl={selected.renderThumb || null}
             setCopy={selected.setCopy || { set_name: selected.title, set_number: selected.setNumber }}
