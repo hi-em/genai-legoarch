@@ -8,7 +8,7 @@
 // them the same would flash the sign-in gate at an already-signed-in user on
 // every reload.
 import { create } from "zustand";
-import { authConfig, fetchMe, postSignIn, postSignOut } from "../api.js";
+import { authConfig, deleteAccount, fetchMe, postSignIn, postSignOut } from "../api.js";
 
 export const useAuth = create((set, get) => ({
   status: "checking",       // "checking" | "in" | "out"
@@ -55,6 +55,14 @@ export const useAuth = create((set, get) => ({
   signOut: async () => {
     await postSignOut().catch(() => {});
     set({ user: null, status: "out" });
+  },
+
+  // The consent asked for at sign-in promises this. The server clears the
+  // session too, so the local state must follow it to signed-out.
+  deleteAccount: async () => {
+    const res = await deleteAccount();
+    set({ user: null, status: "out" });
+    return res;
   },
 }));
 

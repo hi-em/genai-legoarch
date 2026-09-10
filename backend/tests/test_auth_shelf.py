@@ -131,3 +131,41 @@ def test_delete_removes_index_and_payload(client, monkeypatch):
     client.delete("/api/shelf/s1")
     assert client.get("/api/shelf").json()["items"] == []
     assert client.get("/api/shelf/s1").status_code == 404
+
+
+# ---------- self-service erasure ----------
+def test_delete_account_removes_everything_and_signs_out(client, monkeypatch):
+    sign_in(client, ALICE, monkeypatch)
+    client.put("/api/shelf/s1", json=a_set("s1", "Sagrada", 500))
+    client.put("/api/shelf/s2", json=a_set("s2", "Bilbao", 500))
+
+    r = client.delete("/api/me")
+    assert r.status_code == 200
+    assert r.json() == {"deleted": True, "sets": 2}
+
+    # the session is gone with the account — not merely the data
+    assert client.get("/api/auth/me").json()["user"] is None
+    assert client.get("/api/shelf").status_code == 401
+
+    # and signing in again starts genuinely empty
+    sign_in(client, ALICE, monkeypatch)
+    assert client.get("/api/shelf").json()["items"] == []
+    assert client.get("/api/shelf/s1").status_code == 404
+
+
+def test_delete_account_requires_sign_in(client):
+    assert client.delete("/api/me").status_code == 401
+
+
+def test_deleting_one_account_leaves_another_untouched(client, monkeypatch):
+    sign_in(client, ALICE, monkeypatch)
+    client.put("/api/shelf/s1", json=a_set("s1", "Alice's tower", 10))
+    client.post("/api/auth/logout")
+
+    sign_in(client, BOB, monkeypatch)
+    client.put("/api/shelf/b1", json=a_set("b1", "Bob's tower", 10))
+    client.delete("/api/me")
+
+    sign_in(client, ALICE, monkeypatch)
+    items = client.get("/api/shelf").json()["items"]
+    assert [i["id"] for i in items] == ["s1"], "Bob's deletion must not touch Alice"

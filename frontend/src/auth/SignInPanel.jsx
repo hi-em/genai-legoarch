@@ -86,8 +86,10 @@ export default function SignInPanel({ reason }) {
           I agree that lEgoarCh may store my <strong className="text-ink">name, email address
           and profile picture</strong>, and the <strong className="text-ink">LEGO sets I choose
           to save</strong>. Nothing else is recorded — not the prompts I type, not the settings
-          I change. I can ask for my data to be deleted at any time by emailing the address in
-          the footer.
+          I change. I can delete my account and everything on it at any time, from the account
+          menu. <a href="/privacy.html" target="_blank" rel="noreferrer"
+            className="underline underline-offset-2 hover:text-ink"
+            onClick={(e) => e.stopPropagation()}>Privacy</a>
         </span>
       </label>
 

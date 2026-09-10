@@ -215,3 +215,10 @@ export async function deleteShelfItem(id) {
   if (!r.ok) throw new ApiError(`shelf delete failed (${r.status})`, { status: r.status });
   return r.json();
 }
+
+// Erase the account and every set on it. Irreversible — the caller confirms.
+export async function deleteAccount() {
+  const r = await fetch(apiUrl("/api/me"), { method: "DELETE", ...CREDS });
+  if (!r.ok) throw new ApiError(`account delete failed (${r.status})`, { status: r.status });
+  return r.json();
+}

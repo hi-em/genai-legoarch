@@ -519,6 +519,23 @@ def shelf_delete(set_id: str, user: dict[str, Any] = auth_dep()) -> dict[str, An
     return {"ok": True}
 
 
+@api.delete("/me")
+def delete_me(response: Response, user: dict[str, Any] = auth_dep()) -> dict[str, Any]:
+    """Self-service erasure: every set, then the account, then the session.
+
+    Consent at sign-in promises the user can delete their data at any time.
+    A button that does it beats an email address they have to trust someone
+    reads — so this is the promise, kept in code.
+    """
+    from . import auth, shelf_store
+
+    removed = shelf_store.delete_user(user["uid"])
+    auth.clear_session(response)          # the account is gone; the cookie must go too
+    return {"deleted": True, **removed}
+
+
+# NOTE: every @api.* route must be defined ABOVE this line —
+# include_router copies the routes it can see at call time.
 app.include_router(api, prefix="/api")
 
 

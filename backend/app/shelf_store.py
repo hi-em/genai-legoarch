@@ -217,3 +217,31 @@ def save_set(uid: str, item: dict[str, Any]) -> dict[str, Any]:
 def delete_set(uid: str, set_id: str) -> None:
     _delete_index(uid, set_id)
     _delete_payload(uid, set_id)
+
+
+def delete_user(uid: str) -> dict[str, int]:
+    """Erase everything we hold about one user. Irreversible, by design.
+
+    The consent shown at sign-in promises this, so it has to be complete: every
+    set's index entry AND its payload blob, then the identity record itself.
+    Returns what was removed so the caller can say so honestly.
+    """
+    entries = _read_index(uid)
+    for e in entries:
+        _delete_index(uid, e["id"])
+        _delete_payload(uid, e["id"])
+
+    if cloud_enabled():
+        # a stray blob would outlive the account it belonged to — sweep the
+        # whole prefix rather than trusting the index to have listed everything
+        for blob in _bucket().list_blobs(prefix=f"sets/{uid}/"):
+            blob.delete()
+        _firestore().collection("users").document(uid).delete()
+    else:
+        import shutil
+
+        shutil.rmtree(LOCAL_DIR / "sets" / uid, ignore_errors=True)
+        shutil.rmtree(_index_dir(uid), ignore_errors=True)
+        (LOCAL_DIR / "users" / f"{uid}.json").unlink(missing_ok=True)
+
+    return {"sets": len(entries)}
