@@ -102,8 +102,23 @@ since the app is open to guests and only *saving* needs an account.
 `GOOGLE_CLOUD_PROJECT` is set for you by Cloud Run, and that is what switches the
 shelf from local disk to Firestore + Storage.
 
-Give the service account `roles/datastore.user` and
-`roles/storage.objectAdmin` on the bucket, or the shelf will 500 on first save.
+### Grant the runtime service account access
+
+Three roles, all on `<PROJECT_NUMBER>-compute@developer.gserviceaccount.com`.
+The Secret Manager one is needed for the deploy to succeed AT ALL — without it
+the container builds fine and then the revision is refused, which reads as a
+deploy failure rather than a permissions problem:
+
+```bash
+gcloud secrets add-iam-policy-binding legoarch-session-secret   --member="serviceAccount:<PROJECT_NUMBER>-compute@developer.gserviceaccount.com"   --role="roles/secretmanager.secretAccessor"
+
+gcloud projects add-iam-policy-binding <PROJECT_ID>   --member="serviceAccount:<PROJECT_NUMBER>-compute@developer.gserviceaccount.com"   --role="roles/datastore.user"
+
+gcloud storage buckets add-iam-policy-binding gs://<PROJECT_ID>-legoarch-sets   --member="serviceAccount:<PROJECT_NUMBER>-compute@developer.gserviceaccount.com"   --role="roles/storage.objectAdmin"
+```
+
+The last two are not needed to deploy, but the shelf 500s on first save without
+them.
 
 ### 5. The domain
 
