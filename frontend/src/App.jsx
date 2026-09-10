@@ -59,7 +59,13 @@ export default function App() {
         </footer>
 
         {intro && (
-          <Suspense fallback={null}>
+          /* The intro is code-split, and the hero renders UNDERNEATH it by
+             design (dismissing reveals the app already in place). A null
+             fallback therefore shows the studio for however long the chunk
+             takes to arrive — invisible on localhost, a clear flash of
+             "step 1 of 3" over the network. The fallback paints the intro's
+             own backdrop so there is nothing to see through. */
+          <Suspense fallback={<div className="felt fixed inset-0 z-50" aria-hidden="true" />}>
             <LaunchIntro
               onDone={() => {
                 setIntro(false);

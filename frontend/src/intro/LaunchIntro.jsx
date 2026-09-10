@@ -254,9 +254,7 @@ export default function LaunchIntro({ onDone }) {
         role="dialog"
         aria-modal="true"
         aria-label="lEgoarCh launch intro"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4 }}
+        initial={false}
       >
         <div
           className="absolute inset-0 grid grid-cols-8 content-center gap-2 p-8 opacity-25"
@@ -289,9 +287,11 @@ export default function LaunchIntro({ onDone }) {
       role="dialog"
       aria-modal="true"
       aria-label="lEgoarCh launch intro"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.45, ease: "easeOut" }}
+      // NOT faded in: the studio is mounted underneath by design, so fading
+      // this from transparent shows it straight through for the length of the
+      // tween — a clear flash of "step 1 of 3" before the intro appears. The
+      // beats inside animate; the backdrop that hides the app must not.
+      initial={false}
       onClick={holding ? undefined : started ? skipToHold : begin}
     >
       {/* the wall of training photos, anchored to the viewport center */}
