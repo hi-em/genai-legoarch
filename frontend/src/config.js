@@ -7,17 +7,22 @@
 //
 //   VITE_API_BASE=https://legoarch-gpu.example.com   (no trailing slash)
 //
-// Leave it unset to ship the demo-only build: the site runs on the pre-baked
-// sample and saved sets, and the GPU steps announce themselves as offline
-// instead of failing with a network error. See docs/deploy.md.
+// Leave it unset for the one-origin container (the API is at /api on the
+// same host). Set VITE_DEMO_ONLY=1 for a static demo bundle with no backend
+// at all: the site then runs on the pre-baked sample and saved sets, and the
+// generation steps announce themselves as offline. See docs/deploy.md.
 const RAW = import.meta.env.VITE_API_BASE ?? "";
 
 export const API_BASE = RAW.replace(/\/+$/, "");
 
-// True when this build was pointed at a backend at all. A demo-only build
-// (no VITE_API_BASE, production) can skip the probe entirely — there is
-// nothing to reach.
-export const HAS_BACKEND = import.meta.env.DEV || API_BASE !== "";
+// True when this build has a backend to ask. The deployed container serves
+// the SPA and the API from ONE origin (docs/deploy.md), so an empty
+// VITE_API_BASE does not mean "no backend" — it means "same origin". Only a
+// build explicitly marked demo-only (VITE_DEMO_ONLY=1: a static bundle on a
+// CDN with nothing behind it) skips the capabilities probe; everyone else
+// asks, and an unreachable backend simply reads as offline after the probe's
+// 4 s timeout.
+export const HAS_BACKEND = import.meta.env.VITE_DEMO_ONLY !== "1";
 
 // Absolute URL for an /api path. Every backend call and every mesh <src> goes
 // through here — nothing may hardcode "/api/..." any more, or it will 404 on

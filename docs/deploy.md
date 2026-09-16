@@ -23,10 +23,20 @@ service to pay for.
 ```
 
 The GPU half (ComfyUI FLUX :8188 + TRELLIS :8189) is **not** in the container
-and cannot be — it needs ~16 GB of VRAM. The service reports those stages as
-offline until `COMFYUI_URL` / `COMFYUI_3D_URL` point at a live pair. Everything
-else — sign-in, the shelf, the CPU legolizer, the sample build — works without
-a GPU anywhere.
+and cannot be — it needs ~16 GB of VRAM. The deployed site has two ways to
+forge a new building:
+
+- **`GENERATION_BACKEND=hosted`** (the intended production mode): the image
+  comes from Gemini on Vertex AI and the 3D mesh from fal.ai, both called from
+  the container. Costs about $0.30 per set; gated behind sign-in and limits.
+  See *Hosted generation* below and [hosted-generation.md](hosted-generation.md)
+  for the study behind the choice.
+- **`GENERATION_BACKEND=comfyui`** (the default, and what you run locally):
+  the service reports the GPU stages as offline until `COMFYUI_URL` /
+  `COMFYUI_3D_URL` point at a live pair.
+
+Everything else — sign-in, the shelf, the CPU legolizer, the sample build —
+works without a GPU anywhere, in either mode.
 
 ---
 
@@ -36,7 +46,8 @@ a GPU anywhere.
 |---|---|
 | Cloud Run, scale-to-zero, max 1 instance | ~$0 at demo traffic; free tier covers it |
 | Firestore + Cloud Storage at this size | cents/month |
-| ComfyUI FLUX + TRELLIS | **the whole bill** — see *Turning generation on* |
+| Hosted generation (Gemini + fal.ai) | **≈ $0.30 per forged set**, capped by `HOSTED_MONTHLY_BUDGET_USD` (default $10 ≈ 33 sets) — see *Hosted generation* |
+| ComfyUI FLUX + TRELLIS (your own GPU) | only if you point the service at one — see *Turning generation on* |
 
 ## Why the shelf is split across two services
 
@@ -147,7 +158,13 @@ and **C** live in the page title and wordmark, not the URL.
 | `SHELF_BUCKET` | `<project>-legoarch-sets` | Payload bucket. |
 | `REVIEWER_EMAILS` | _(unset)_ | Allowlist hook — see *Reviewers* below. |
 | `ALLOWED_ORIGINS` | _(unset)_ | Only needed for a split-origin deployment. Same-origin needs nothing. |
-| `COMFYUI_URL` / `COMFYUI_3D_URL` | localhost | The GPU pair. |
+| `COMFYUI_URL` / `COMFYUI_3D_URL` | localhost | The GPU pair (`comfyui` mode). |
+| `GENERATION_BACKEND` | `comfyui` | `hosted` = Gemini + fal.ai instead of ComfyUI. |
+| `FAL_KEY` | _(unset)_ | fal.ai API key — **Secret Manager**, never an env literal. `hosted` mode reports the 3D stage offline without it. |
+| `HOSTED_3D_MODEL` | `hunyuan` | `hunyuan` (Hunyuan3D 3.1 Rapid, fastest) or `trellis2` (closest to the local pipeline, slower on fal). |
+| `HOSTED_GEMINI_LOCATION` | `eu` | Vertex AI location for the image model; `eu` keeps ML processing in the EU. |
+| `HOSTED_USER_DAILY_IMAGES` / `HOSTED_USER_DAILY_MESHES` | `3` / `3` | Per-person, per-UTC-day forge limits. |
+| `HOSTED_MONTHLY_BUDGET_USD` | `10` | Global hard stop, per calendar month, counted in-app before every provider call. |
 
 ## Running the deployed shape locally
 
@@ -177,10 +194,20 @@ rendered at all, and the backend stores only what that consent names:
 
 - **Identity** — name, email, profile picture, last seen (`users/{uid}`)
 - **Saved sets** — only what the user explicitly packs
+- **A daily forge count** — `users/{uid}/quota/{YYYY-MM-DD}` holds how many
+  renders and meshes the account forged that day (`app.quota`). Hosted mode
+  only; it is what the per-person limit is checked against.
 
 Not stored: prompts, dial settings, timings, anything a user did not save. That
-promise is kept in one place, `auth.profile_for()` — if you ever widen it, widen
-the consent text in `frontend/src/auth/SignInPanel.jsx` in the same commit.
+promise is kept in two places, `auth.profile_for()` and `quota.py` — if you
+ever widen either, widen the consent text in `frontend/src/auth/SignInPanel.jsx`
+and `frontend/public/privacy.html` in the same commit.
+
+In hosted mode the prompt does leave the project for the length of the
+request: it goes to Gemini (Vertex AI, EU multi-region, not used for training
+under Google Cloud terms) and the *render* goes to fal.ai in the US (not used
+for training per fal's terms; the request asks fal not to retain the payload).
+The privacy page says exactly this.
 
 A guest's work is never silently lost: the build lives in the store, so signing
 in from the Pack prompt leaves the set exactly where it was, ready to pack. What
@@ -205,7 +232,52 @@ gsutil -m rm -r gs://<PROJECT_ID>-legoarch-sets/sets/<uid>
 
 ---
 
-## Turning generation on
+## Hosted generation (the deployed site)
+
+The study in [hosted-generation.md](hosted-generation.md) measured Gemini
+3.1 Flash Image (Vertex AI, `eu`) + Hunyuan3D 3.1 Rapid (fal.ai) against the
+local pipeline on the three benchmark buildings: every set came out connected
+and buildable, at ≈ $0.30 and ≈ 2–2.5 minutes per set. Turning it on:
+
+```bash
+# 1. the image model: no key — the runtime service account calls Vertex AI
+gcloud services enable aiplatform.googleapis.com
+gcloud projects add-iam-policy-binding <PROJECT_ID> \
+  --member="serviceAccount:<PROJECT_NUMBER>-compute@developer.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
+
+# 2. the 3D model: a prepaid fal.ai key, in Secret Manager
+printf '%s' '<fal key>' | gcloud secrets create legoarch-fal-key --data-file=-
+gcloud secrets add-iam-policy-binding legoarch-fal-key \
+  --member="serviceAccount:<PROJECT_NUMBER>-compute@developer.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+# 3. switch the service over — and give the mesh call room (measured 77–122 s,
+#    worst case seen 469 s on TRELLIS-2; the default is 300 s)
+gcloud run services update legoarch --region europe-west4 \
+  --timeout 900 \
+  --update-env-vars GENERATION_BACKEND=hosted,HOSTED_3D_MODEL=hunyuan \
+  --update-secrets FAL_KEY=legoarch-fal-key:latest
+```
+
+`/api/capabilities` then reports `image` and `mesh` as available and the
+"Live rendering is offline" banner clears on its own. Forging needs a signed-in
+user and is counted against `HOSTED_USER_DAILY_*` and
+`HOSTED_MONTHLY_BUDGET_USD` **before** each provider call (`app.quota`), so the
+in-app budget is the first stop. Two backstops outside the app:
+
+- a **spend-cap budget** (Cloud Billing → Budgets, *Preview*) on the *Gemini
+  Enterprise Agent Platform* service in this project, which pauses new usage
+  at the cap;
+- **fal's prepaid balance** — fal has no self-serve monthly limit, so top up
+  by hand ($10 at a time) and leave auto top-up off. Set the low-balance email.
+
+Meshes are cached in the instance's `/tmp` (`HOSTED_MESH_DIR`) so the
+re-legolize "mesh stop" works without re-paying; an instance restart forgets
+them, which the frontend already handles as `mesh_not_found` → "materialize
+again".
+
+## Turning generation on (your own GPU)
 
 Point the service at a live ComfyUI pair and redeploy:
 

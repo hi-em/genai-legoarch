@@ -71,6 +71,37 @@ export default function HeroFlow() {
   // the intro can offer the sample build instead of a button that cannot work.
   const { caps, checking, refresh: recheckGpu } = useCapabilities();
   const offline = gpuOffline(caps);
+  // The deployed site forges through hosted AI (Gemini + fal.ai) — real money
+  // per call — so the backend gates those routes behind sign-in and daily
+  // limits (docs/hosted-generation.md §5.2). Ask up front instead of letting
+  // the request bounce with a 401.
+  const hosted = caps?.generation === "hosted";
+  const authStatus = useAuth((s) => s.status);
+  function needsSignIn(what) {
+    if (!caps?.signInRequired || authStatus === "in") return false;
+    useAuth.getState().openPrompt(
+      `Sign in to ${what}. Live rendering runs on hosted AI, so it is limited to ` +
+      `${caps?.limits?.userDailyImages ?? 3} renders and ${caps?.limits?.userDailyMeshes ?? 3} 3D models per person per day.`
+    );
+    return true;
+  }
+  // the backend's 401/429 codes, in words the user can act on
+  function explainGateError(e) {
+    if (e?.code === "not_signed_in") {
+      useAuth.getState().openPrompt("Sign in to forge a new building — live rendering is limited per person.");
+      return true;
+    }
+    if (e?.status === 429) {
+      toast.error(
+        e.code === "monthly_budget" ? "This month's rendering budget is used up" : "Daily limit reached",
+        e.code === "monthly_budget"
+          ? "The site has a fixed monthly budget for hosted rendering and it has been spent. The sample and your saved sets still work."
+          : "You have used today's renders. Come back tomorrow, or reopen a saved set."
+      );
+      return true;
+    }
+    return false;
+  }
   const [text, setText] = useState(prompt || "");
   const [photo, setPhoto] = useState(null);
   const fileRef = useRef(null);
@@ -130,6 +161,7 @@ export default function HeroFlow() {
       toast.info("Name a building", "Type a landmark or pick an example first.");
       return;
     }
+    if (needsSignIn("forge a new building")) return;
     playSnap();
     // NOTE: no destructive pre-clear — the old render survives a failed
     // re-render; downstream artifacts are invalidated on SUCCESS instead.
@@ -161,10 +193,12 @@ export default function HeroFlow() {
       });
     } catch (e) {
       if (e?.name === "AbortError") return;
-      if (failJob(jobId)) {
+      if (failJob(jobId) && !explainGateError(e)) {
         toast.error(
           e?.name === "TimeoutError" ? "Render timed out" : "Render didn't finish",
-          "Your prompt and dials are safe — check the backend is running, then try again."
+          hosted
+            ? "Your prompt and dials are safe — the image service didn't answer. Try again in a moment."
+            : "Your prompt and dials are safe — check the backend is running, then try again."
         );
       }
     }
@@ -173,6 +207,7 @@ export default function HeroFlow() {
   // ---- stage 2: render -> TRELLIS mesh --------------------------------------
   async function onReconstruct() {
     if (useBuild.getState().inFlight) return;   // one 4-9 min GPU job at a time
+    if (needsSignIn("build the 3D model")) return;
     playSnap();
     // persist a small render thumb so the refresh-recovery banner has context
     const imageThumb = imageUrl?.startsWith("data:")
@@ -203,7 +238,7 @@ export default function HeroFlow() {
     } catch (e) {
       if (e?.name === "AbortError") return;
       // derivation keeps the old mesh stop alive when glbUrl still exists
-      if (failJob(jobId)) {
+      if (failJob(jobId) && !explainGateError(e)) {
         toast.error(
           e?.name === "TimeoutError" ? "3D timed out" : "3D didn't finish",
           "Your render is safe. Try again — or roll another render first."
@@ -553,6 +588,13 @@ export default function HeroFlow() {
                         </button>
                       </>
                     )}
+                  </p>
+                )}
+                {hosted && !offline && (
+                  <p className="mt-3 text-left text-xs leading-relaxed text-on-dark-muted">
+                    Live rendering here runs on hosted AI (Google Gemini for the image, fal.ai for the
+                    3D model): your prompt and the render are sent to those services, and forging is
+                    limited per person per day. Sign in to forge; the sample and saved sets need nothing.
                   </p>
                 )}
                 <TinkerPanel groups={["render"]} />

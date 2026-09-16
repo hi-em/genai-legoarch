@@ -180,6 +180,7 @@ Optional backend environment variables (defaults shown):
 | `ANTHROPIC_API_KEY` | _(unset)_ | optional — richer prompt expansion + wittier box copy via Claude; without it, built-in templates are used |
 | `FLUX_STEPS` | `28` | FLUX sampling steps (Klein is distilled; 28 ≈ stock 50 at ~half the time) |
 | `TRELLIS_*` | see `comfy_client.py` | TRELLIS step / decimation / texture-size overrides |
+| `GENERATION_BACKEND` | `comfyui` | `hosted` swaps the two GPU stages for Gemini (image) + fal.ai (3D) — the deployed site's mode. Sign-in and daily limits apply. See [`docs/hosted-generation.md`](docs/hosted-generation.md) and `hosted_client.py` for its own `HOSTED_*` / `FAL_KEY` variables. |
 
 ### Using it
 1. **Name a building** (no need to type `legoarch` — it's added for you), pick a rich example, or attach a reference photo (→ img2img). Hit **Forge the set**.

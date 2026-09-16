@@ -84,10 +84,13 @@ export default function SignInPanel({ reason }) {
         />
         <span>
           I agree that lEgoarCh may store my <strong className="text-ink">name, email address
-          and profile picture</strong>, and the <strong className="text-ink">LEGO sets I choose
-          to save</strong>. Nothing else is recorded — not the prompts I type, not the settings
-          I change. I can delete my account and everything on it at any time, from the account
-          menu. <a href="/privacy.html" target="_blank" rel="noreferrer"
+          and profile picture</strong>, the <strong className="text-ink">LEGO sets I choose
+          to save</strong>, and <strong className="text-ink">a daily count of how many renders
+          and 3D models I forge</strong> (the fair-use limit). Nothing else is recorded — not the
+          prompts I type, not the settings I change. On the hosted site, forging a set sends my
+          prompt to Google (Gemini) and the render to fal.ai to make the image and the 3D model;
+          neither stores it or trains on it. I can delete my account and everything on it at any
+          time, from the account menu. <a href="/privacy.html" target="_blank" rel="noreferrer"
             className="underline underline-offset-2 hover:text-ink"
             onClick={(e) => e.stopPropagation()}>Privacy</a>
         </span>

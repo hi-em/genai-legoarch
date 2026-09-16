@@ -17,4 +17,9 @@ google-auth>=2.30        # verifies Google ID tokens against Google's certs
 google-cloud-firestore>=2.16   # the shelf index
 google-cloud-storage>=2.16     # the set payloads (>1 MiB, so not in Firestore)
 
+# --- hosted generation (GENERATION_BACKEND=hosted, the deployed site). Unused
+# on the local ComfyUI path; both are imported lazily. See docs/hosted-generation.md.
+google-genai>=1.0        # Gemini 3.1 Flash Image via Vertex AI (ADC) or a Gemini API key
+fal-client>=0.5          # Hunyuan3D 3.1 Rapid / TRELLIS-2 on fal.ai
+
 pytest>=8.0

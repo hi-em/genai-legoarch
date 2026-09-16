@@ -25,7 +25,7 @@
   <body>
     <main>
       <h1>Privacy</h1>
-      <p class="updated">Last updated 10 September 2026</p>
+      <p class="updated">Last updated 16 September 2026</p>
 
       <p class="lede">
         lEgoarCh is a non-commercial academic project. It stores as little about you as it can
@@ -45,7 +45,10 @@
         <li>your <strong>name, email address and profile picture</strong>, as provided by Google;</li>
         <li>the <strong>date you last signed in</strong>;</li>
         <li>the <strong>LEGO sets you explicitly choose to save</strong> — the brick layout, the set
-          name and description, and the small preview images shown on your shelf.</li>
+          name and description, and the small preview images shown on your shelf;</li>
+        <li>a <strong>daily count of how many renders and 3D models you forge</strong> — one number
+          per day, kept so that the fair-use limit (a few forges per person per day) can be
+          applied. It is not tied to what you typed.</li>
       </ul>
 
       <h2>What is not stored</h2>
@@ -53,6 +56,29 @@
         The prompts you type, the settings and sliders you change, how long a render took, what you
         looked at and did not save — none of it is recorded. There is no analytics service, no
         advertising, and no third-party tracking on this site.
+      </p>
+
+      <h2>What is sent to other services when you forge a set</h2>
+      <p>
+        On the hosted site, the two generative steps run on outside AI services rather than on our
+        own hardware. Signing in is required for them, and each is used only for the moment of
+        your request:
+      </p>
+      <ul>
+        <li><strong>The image.</strong> Your prompt — and a reference photo, if you attached one —
+          is sent to <strong>Google's Gemini</strong> image model through Google Cloud (Vertex AI),
+          processed in the European Union. Under Google Cloud's terms your prompt is not used to
+          train Google's models. The three style-reference pictures sent alongside it are our own
+          renders, never anything of yours.</li>
+        <li><strong>The 3D model.</strong> The generated render (not your prompt) is sent to
+          <strong>fal.ai</strong>, in the United States, to be turned into a 3D mesh. fal.ai's terms
+          state that customer inputs are not used for training, and we ask it not to keep the
+          request payload once the job is done.</li>
+      </ul>
+      <p>
+        Turning a mesh into bricks, the assembly, the box and the instructions all run on our own
+        server and involve no outside service. Nothing about a forge is written to your account
+        except the daily count above.
       </p>
 
       <h2>Who can see it</h2>
@@ -65,7 +91,9 @@
       <h2>Where it is kept</h2>
       <p>
         On Google Cloud (Firestore and Cloud Storage), in the <code>europe-west4</code> region in
-        the Netherlands. Signing in is handled by Google; this site never sees your password.
+        the Netherlands. Signing in is handled by Google; this site never sees your password. The
+        one exception to "in the Netherlands" is the 3D step described above, which runs on fal.ai
+        in the United States for the duration of the request.
       </p>
 
       <h2>Deleting it</h2>

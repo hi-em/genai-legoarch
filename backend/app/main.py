@@ -60,6 +60,44 @@ def auth_dep():
 COMFYUI_URL = os.environ.get("COMFYUI_URL", "http://127.0.0.1:8188")
 COMFYUI_3D_URL = os.environ.get("COMFYUI_3D_URL", "http://127.0.0.1:8189")
 
+# Which generation half to drive. "comfyui" is the research pipeline (FLUX +
+# legoarch LoRA + TRELLIS-2 on a local GPU) and stays the default; "hosted" is
+# the deployed site's substitute (Gemini + fal.ai, see docs/hosted-generation.md).
+# Both modules expose run_txt2img / run_img2img / run_trellis with the same
+# signatures and return shapes, so the routes below never branch on it.
+GENERATION_BACKEND = os.environ.get("GENERATION_BACKEND", "comfyui").strip().lower()
+if GENERATION_BACKEND not in ("comfyui", "hosted"):
+    raise RuntimeError(f"GENERATION_BACKEND must be comfyui or hosted, not {GENERATION_BACKEND!r}")
+
+
+def _generation():
+    """The active generation module (imported lazily: the hosted one pulls in
+    google-genai / fal_client, which the local path never needs)."""
+    if GENERATION_BACKEND == "hosted":
+        from . import hosted_client
+
+        return hosted_client
+    from . import comfy_client
+
+    return comfy_client
+
+
+def _hosted_gate(request: Request, stage: str) -> Optional[dict[str, Any]]:
+    """Hosted generation spends money per call, so it is for signed-in users
+    only and counted against the per-user daily and global monthly limits
+    (app.quota). A no-op on the local ComfyUI path, which is free."""
+    if GENERATION_BACKEND != "hosted":
+        return None
+    from fastapi import HTTPException
+
+    from . import auth, quota
+
+    user = auth.optional_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail={"code": "not_signed_in", "stage": stage})
+    quota.reserve(user["uid"], stage)
+    return user
+
 
 def _data_url(data: bytes, mime: str) -> str:
     return f"data:{mime};base64," + base64.b64encode(data).decode("ascii")
@@ -131,7 +169,8 @@ class SetCopyReq(BaseModel):
 # ---------- routes ----------
 @api.get("/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "comfyui_url": COMFYUI_URL, "comfyui_3d_url": COMFYUI_3D_URL}
+    return {"ok": True, "generation": GENERATION_BACKEND,
+            "comfyui_url": COMFYUI_URL, "comfyui_3d_url": COMFYUI_3D_URL}
 
 
 def _comfy_up(base: str, timeout: float = 1.5) -> bool:
@@ -156,21 +195,42 @@ def capabilities() -> dict[str, Any]:
     reason reads very differently from a 4-minute wait ending in "didn't
     finish". The CPU legolizer needs no GPU, so it is up whenever we are.
     """
+    if GENERATION_BACKEND == "hosted":
+        # Configured is as much as we can say without spending money on a
+        # probe; a misconfigured key surfaces on the first forge instead.
+        from . import hosted_client, quota
+
+        info = hosted_client.describe()
+        return {
+            "backend": True,
+            "generation": "hosted",
+            "image": info["image"],
+            "mesh": info["mesh"],
+            "bricks": True,
+            "gpu": info["image"] and info["mesh"],   # the frontend's "can I forge" flag
+            "signInRequired": True,
+            "hosted": info,
+            "limits": quota.limits(),
+        }
     flux = _comfy_up(COMFYUI_URL)
     trellis = _comfy_up(COMFYUI_3D_URL)
     return {
         "backend": True,
+        "generation": "comfyui",
         "image": flux,        # /generate-image  (FLUX + legoarch LoRA)
         "mesh": trellis,      # /generate-mesh   (TRELLIS-2)
         "bricks": True,       # /legolize-mesh   (CPU only — always available)
         "gpu": flux and trellis,
+        "signInRequired": False,
     }
 
 
 @api.post("/generate-image")
-def generate_image(req: GenerateImageReq) -> dict[str, Any]:
-    """FLUX.2 + legoarch via ComfyUI (:8188). img2img when image_b64 is given."""
-    from . import comfy_client
+def generate_image(req: GenerateImageReq, request: Request) -> dict[str, Any]:
+    """FLUX.2 + legoarch via ComfyUI (:8188), or Gemini when GENERATION_BACKEND=hosted.
+    img2img when image_b64 is given."""
+    _hosted_gate(request, "image")
+    comfy_client = _generation()
 
     kwargs = dict(
         seed=req.seed,
@@ -269,7 +329,7 @@ def _mesh_path(name: str):
     """Resolve a GLB filename inside the ComfyUI 3D output dir (no traversal)."""
     from pathlib import Path
 
-    from . import comfy_client
+    comfy_client = _generation()
 
     safe = Path(name).name                     # strip any directory components
     if not safe.lower().endswith(".glb"):
@@ -311,7 +371,7 @@ def latest_mesh(since: float = 0.0) -> dict[str, Any]:
     """
     from fastapi import HTTPException
 
-    from . import comfy_client
+    comfy_client = _generation()
 
     p = comfy_client._newest_glb(after=since / 1000.0)
     if p is None:
@@ -320,13 +380,15 @@ def latest_mesh(since: float = 0.0) -> dict[str, Any]:
 
 
 @api.post("/generate-mesh")
-def generate_mesh(req: Generate3DReq) -> dict[str, Any]:
-    """The GPU half only: render -> TRELLIS-2 mesh. Returns a mesh file URL.
+def generate_mesh(req: Generate3DReq, request: Request) -> dict[str, Any]:
+    """The GPU half only: render -> TRELLIS-2 mesh (or Hunyuan/TRELLIS-2 on fal
+    when hosted). Returns a mesh file URL.
 
     The staged flow's "mesh stop" pairs this with /legolize-mesh so brick
-    settings can be re-tried in seconds without re-running TRELLIS.
+    settings can be re-tried in seconds without re-running the 3D model.
     """
-    from . import comfy_client
+    _hosted_gate(request, "mesh")
+    comfy_client = _generation()
 
     if req.image_b64:
         img = _decode_image(req.image_b64)
@@ -388,10 +450,11 @@ def legolize_mesh(req: LegolizeMeshReq) -> dict[str, Any]:
 
 
 @api.post("/generate-3d")
-def generate_3d(req: Generate3DReq) -> dict[str, Any]:
+def generate_3d(req: Generate3DReq, request: Request) -> dict[str, Any]:
     """One-shot: TRELLIS mesh + voxelize + legolize (kept for the benchmark
     harness and any caller that doesn't need the staged stops)."""
-    from . import comfy_client
+    _hosted_gate(request, "mesh")
+    comfy_client = _generation()
 
     if req.image_b64:
         img = _decode_image(req.image_b64)
