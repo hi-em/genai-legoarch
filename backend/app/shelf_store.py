@@ -231,6 +231,12 @@ def delete_user(uid: str) -> dict[str, int]:
         _delete_index(uid, e["id"])
         _delete_payload(uid, e["id"])
 
+    # the hosted-generation daily counters live under the user too (a
+    # subcollection, which Firestore does NOT remove with the parent)
+    from . import quota
+
+    quota.forget_user(uid)
+
     if cloud_enabled():
         # a stray blob would outlive the account it belonged to — sweep the
         # whole prefix rather than trusting the index to have listed everything

@@ -139,6 +139,32 @@ def _check(user: dict[str, Any], month: dict[str, Any], stage: str) -> None:
         raise QuotaExceeded("user_daily_limit", stage=stage, limit=USER_DAILY[stage])
 
 
+def forget_user(uid: str) -> int:
+    """Erase a user's daily counters. Part of "Delete my account".
+
+    Firestore does not delete a document's subcollections with it, so
+    shelf_store.delete_user calls this explicitly — otherwise the counter
+    would outlive the account the privacy page says is gone. The global
+    monthly spend is not touched: it is not about a person. Returns how many
+    day records were removed.
+    """
+    if shelf_store.cloud_enabled():
+        col = shelf_store._firestore().collection("users").document(uid).collection("quota")
+        n = 0
+        for doc in col.stream():
+            doc.reference.delete()
+            n += 1
+        return n
+    with _lock:
+        data = _local_read()
+        gone = [k for k in data if k.startswith(f"user:{uid}:")]
+        for k in gone:
+            del data[k]
+        if gone:
+            _local_write(data)
+        return len(gone)
+
+
 def reserve(uid: str, stage: str, now: float | None = None) -> dict[str, Any]:
     """Count one `stage` call ("image" | "mesh") for `uid`, or raise 429.
 

@@ -9,6 +9,7 @@ internals (retry, OBJ -> GLB, prompt wording) live in test_hosted_client.py.
 from __future__ import annotations
 
 import base64
+import json
 import shutil
 
 import pytest
@@ -123,6 +124,22 @@ def test_user_daily_limit_stops_before_the_provider(client, monkeypatch, hosted_
     assert hosted_local["image"] == 2
     # meshes are counted separately
     assert client.post("/api/generate-mesh", json={"image_b64": base64.b64encode(PNG_1x1).decode()}).status_code == 200
+
+
+def test_delete_account_forgets_the_daily_counter(client, monkeypatch, hosted_local):
+    """The privacy page promises deletion erases everything on the account —
+    including the new per-day forge count, which lives in a subcollection."""
+    sign_in(client, monkeypatch)
+    assert client.post("/api/generate-image", json={"prompt": "a"}).status_code == 200
+    data = json.loads((shelf_store.LOCAL_DIR / "quota.json").read_text())
+    assert any(k.startswith("user:u-alice:") for k in data)
+    assert client.delete("/api/me").json()["deleted"] is True
+    data = json.loads((shelf_store.LOCAL_DIR / "quota.json").read_text())
+    assert not any(k.startswith("user:u-alice:") for k in data)
+    assert any(k.startswith("month:") for k in data)     # the global spend stays
+    # a fresh sign-in starts from zero again
+    sign_in(client, monkeypatch)
+    assert client.post("/api/generate-image", json={"prompt": "b"}).status_code == 200
 
 
 def test_monthly_budget_is_global(client, monkeypatch, hosted_local):
