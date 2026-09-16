@@ -10,6 +10,7 @@ Narrative and reference documentation for lEgoarCh. Start with the root
 | [concept.md](concept.md) | The thesis — generative form, deterministic buildability — and how it extends prior work |
 | [architecture.md](architecture.md) | End-to-end data flow and the system diagram (prompt → FLUX → TRELLIS → legolizer → set) |
 | [deploy.md](deploy.md) | Cloud Run deployment, Google Sign-In, the cloud shelf, the domain, and GPU costs |
+| [hosted-generation.md](hosted-generation.md) | Phase-1 study: hosted image + image-to-3D APIs for the deployed site (providers, prices, measurement plan, recommendation) |
 | [legolizer-research.md](legolizer-research.md) | Survey of legolization approaches; what we adopted vs. deferred |
 | [research.md](research.md) | Algorithms and papers we reuse, plus planned upgrades |
 | [benchmarks.md](benchmarks.md) | Method + results on three buildings (Sagrada / La Muralla / Bilbao) |

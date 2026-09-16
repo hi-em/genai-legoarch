@@ -31,6 +31,7 @@ need both ComfyUI servers up; the CPU ones are deterministic and offline.
 | `bench_buildings.py` | Full FLUX→mesh run over the three benchmark buildings | yes |
 | `bench_seed.py` | Seed-robustness comparison | yes |
 | `bench_axes.py` | Offline colour/scale axis sweep → `*_color.png`, `*_montage.png`, `*_axes.json` | no |
+| `bench_hosted_mesh.py` | Score any GLB + render pair (e.g. from a hosted image-to-3D API) on the thesis metrics with the production legolizer; `--example` reproduces the TRELLIS references | no |
 | `benchmark_runs.py` | Orchestration wrapper over the above | — |
 
 ### Historical / one-shot (kept for reproducibility, not part of the current flow)

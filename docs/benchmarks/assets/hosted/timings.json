@@ -1,0 +1,126 @@
+{
+  "muralla_gemini.png": {
+    "seconds": 13.2,
+    "prompt_tokens": 138,
+    "out_tokens": 1120,
+    "finish": "FinishReason.STOP",
+    "refs": []
+  },
+  "bilbao_gemini.png": {
+    "seconds": 11.0,
+    "prompt_tokens": 138,
+    "out_tokens": 1120,
+    "finish": "FinishReason.STOP",
+    "refs": []
+  },
+  "sagrada_gemini_ref.png": {
+    "seconds": 15.1,
+    "prompt_tokens": 3522,
+    "out_tokens": 1266,
+    "finish": "FinishReason.STOP",
+    "refs": [
+      "sagrada.png",
+      "muralla.png",
+      "bilbao.png"
+    ]
+  },
+  "muralla_gemini_ref.png": {
+    "seconds": 16.3,
+    "prompt_tokens": 3523,
+    "out_tokens": 1120,
+    "finish": "FinishReason.STOP",
+    "refs": [
+      "sagrada.png",
+      "muralla.png",
+      "bilbao.png"
+    ]
+  },
+  "bilbao_gemini_ref.png": {
+    "seconds": 12.6,
+    "prompt_tokens": 3523,
+    "out_tokens": 1120,
+    "finish": "FinishReason.STOP",
+    "refs": [
+      "sagrada.png",
+      "muralla.png",
+      "bilbao.png"
+    ]
+  },
+  "sagrada_lora_trellis2.glb": {
+    "endpoint": "fal-ai/trellis-2",
+    "upload_s": 2.7,
+    "generate_s": 149.0,
+    "glb_bytes": 3434280,
+    "source": "trellis2_b987b949391e45fe8b6d28fa307b41c5.glb"
+  },
+  "sagrada_lora_hunyuan31rapid.glb": {
+    "endpoint": "fal-ai/hunyuan-3d/v3.1/rapid/image-to-3d",
+    "upload_s": 3.4,
+    "generate_s": 97.5,
+    "glb_bytes": 15647552,
+    "source": "obj+mtl+texture_20250901.png -> glb via trimesh (TextureVisuals)"
+  },
+  "sagrada_lora_tripoh31.glb": {
+    "endpoint": "tripo3d/h3.1/image-to-3d",
+    "upload_s": 1.7,
+    "generate_s": 196.8,
+    "glb_bytes": 2028484,
+    "source": "model.glb"
+  },
+  "muralla_lora_trellis2.glb": {
+    "endpoint": "fal-ai/trellis-2",
+    "upload_s": 2.1,
+    "generate_s": 269.5,
+    "glb_bytes": 4141460,
+    "source": "trellis2_345ff440fb6d4280942191378fcb172e.glb"
+  },
+  "muralla_lora_hunyuan31rapid.glb": {
+    "endpoint": "fal-ai/hunyuan-3d/v3.1/rapid/image-to-3d",
+    "upload_s": 2.4,
+    "generate_s": 114.0,
+    "glb_bytes": 11947660,
+    "source": "obj+mtl+texture_20250901.png -> glb via trimesh (TextureVisuals)"
+  },
+  "muralla_lora_tripoh31.glb": {
+    "endpoint": "tripo3d/h3.1/image-to-3d",
+    "upload_s": 2.9,
+    "generate_s": 168.3,
+    "glb_bytes": 1582012,
+    "source": "model.glb"
+  },
+  "bilbao_lora_trellis2.glb": {
+    "endpoint": "fal-ai/trellis-2",
+    "upload_s": 1.6,
+    "generate_s": 313.3,
+    "glb_bytes": 3658860,
+    "source": "trellis2_e442e82331bb4ceabd600dbabbc85a42.glb"
+  },
+  "bilbao_lora_hunyuan31rapid.glb": {
+    "endpoint": "fal-ai/hunyuan-3d/v3.1/rapid/image-to-3d",
+    "upload_s": 2.9,
+    "generate_s": 121.5,
+    "glb_bytes": 15270628,
+    "source": "obj+mtl+texture_20250901.png -> glb via trimesh (TextureVisuals)"
+  },
+  "bilbao_lora_tripoh31.glb": {
+    "endpoint": "tripo3d/h3.1/image-to-3d",
+    "upload_s": 1.2,
+    "generate_s": 156.3,
+    "glb_bytes": 1603712,
+    "source": "model.glb"
+  },
+  "muralla_gemini_trellis2.glb": {
+    "endpoint": "fal-ai/trellis-2",
+    "upload_s": 1.8,
+    "generate_s": 469.2,
+    "glb_bytes": 2879028,
+    "source": "trellis2_302e6c4e42074b1d911f0494bdd7c4ef.glb"
+  },
+  "bilbao_gemini_trellis2.glb": {
+    "endpoint": "fal-ai/trellis-2",
+    "upload_s": 1.7,
+    "generate_s": 95.9,
+    "glb_bytes": 3363564,
+    "source": "trellis2_0429d9106c154d308c9f2a0767a930da.glb"
+  }
+}

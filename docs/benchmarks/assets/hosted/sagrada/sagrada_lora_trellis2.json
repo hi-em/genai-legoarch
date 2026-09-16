@@ -1,0 +1,25 @@
+{
+  "M1_palette_share": 0.9323,
+  "frac_1x1": 0.7105,
+  "n_pieces": 5931,
+  "n_colors": 16,
+  "tail_share": 0.2885,
+  "dE_chain": 98.47,
+  "connected": true,
+  "support": 0.902,
+  "grid": [
+    27,
+    33,
+    85
+  ],
+  "voxels": 18866,
+  "legolize_s": 3.2,
+  "mesh": {
+    "geometries": 1,
+    "faces": 36455,
+    "visual": [
+      "TextureVisuals"
+    ],
+    "watertight": false
+  }
+}
