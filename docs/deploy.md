@@ -103,6 +103,7 @@ that is the intended way to invalidate all sessions at once.
 ```bash
 gcloud run deploy legoarch --source . --region europe-west4 \
   --allow-unauthenticated --max-instances 1 --memory 1Gi --cpu 1 \
+  --set-env-vars GOOGLE_CLOUD_PROJECT=<PROJECT_ID> \
   --set-env-vars GOOGLE_CLIENT_ID=<client-id>.apps.googleusercontent.com \
   --set-env-vars SHELF_BUCKET=<PROJECT_ID>-legoarch-sets \
   --set-secrets SESSION_SECRET=legoarch-session-secret:latest
@@ -110,8 +111,11 @@ gcloud run deploy legoarch --source . --region europe-west4 \
 
 `--allow-unauthenticated` lets the public reach the container — correct here,
 since the app is open to guests and only *saving* needs an account.
-`GOOGLE_CLOUD_PROJECT` is set for you by Cloud Run, and that is what switches the
-shelf from local disk to Firestore + Storage.
+`GOOGLE_CLOUD_PROJECT` is what switches the shelf from local disk to Firestore +
+Storage (and, in hosted mode, points the image stage at Vertex AI). **Cloud Run
+does not set it for you** — an earlier version of this doc said it did, and the
+live service ran for a while with the shelf on the container's own disk, which
+is wiped on every restart. Set it explicitly.
 
 ### Grant the runtime service account access
 
@@ -154,7 +158,7 @@ and **C** live in the page title and wordmark, not the URL.
 | `GOOGLE_CLIENT_ID` | _(unset)_ | OAuth web client. **Unset ⇒ the sign-in doors are hidden entirely** and the app runs guest-only. |
 | `SESSION_SECRET` | dev fallback | Signs the session cookie. Required on Cloud Run — the app refuses to start without it. |
 | `SESSION_DAYS` | `30` | Cookie lifetime. |
-| `GOOGLE_CLOUD_PROJECT` | set by Cloud Run | Switches the shelf to Firestore + Storage. Unset ⇒ `backend/.localshelf` on disk. |
+| `GOOGLE_CLOUD_PROJECT` | _(unset)_ — **set it on Cloud Run** | Switches the shelf to Firestore + Storage and the hosted image stage to Vertex AI. Unset ⇒ `backend/.localshelf` on disk, which on Cloud Run means "lost on restart". |
 | `SHELF_BUCKET` | `<project>-legoarch-sets` | Payload bucket. |
 | `REVIEWER_EMAILS` | _(unset)_ | Allowlist hook — see *Reviewers* below. |
 | `ALLOWED_ORIGINS` | _(unset)_ | Only needed for a split-origin deployment. Same-origin needs nothing. |
